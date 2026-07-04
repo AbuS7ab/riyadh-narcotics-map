@@ -1,0 +1,146 @@
+/* ======================================================
+   Riyadh Compliance Platform
+   Version: Preview 0.2
+====================================================== */
+
+:root{
+
+    --moh-green:#008D6E;
+    --moh-dark:#006C54;
+    --gold:#B58B2A;
+
+    --background:#F4F7F9;
+
+    --card:#FFFFFF;
+
+    --text:#1F2937;
+
+    --radius:18px;
+
+}
+
+body{
+
+    background:var(--background);
+
+    font-family:Tahoma,sans-serif;
+
+    color:var(--text);
+
+}
+
+/* ===================== Navbar ==================== */
+
+.navbar{
+
+    background:var(--moh-green)!important;
+
+    padding:16px 0;
+
+}
+
+/* ===================== Cards ==================== */
+
+.dashboard-card{
+
+    background:var(--card);
+
+    border-radius:var(--radius);
+
+    box-shadow:0 8px 20px rgba(0,0,0,.08);
+
+    padding:20px;
+
+    text-align:center;
+
+    transition:.25s;
+
+    cursor:pointer;
+
+}
+
+.dashboard-card:hover{
+
+    transform:translateY(-4px);
+
+}
+
+.dashboard-card h6{
+
+    font-size:15px;
+
+    margin-bottom:10px;
+
+}
+
+.dashboard-card h2{
+
+    color:var(--moh-green);
+
+    font-weight:bold;
+
+}
+/* ================= Search ================= */
+
+.form-control,
+.form-select{
+
+    border-radius:14px;
+
+    min-height:48px;
+
+}
+
+.btn-success{
+
+    min-height:48px;
+
+    border-radius:14px;
+
+}
+/* ================= MAP ================= */
+
+#map{
+
+    height:650px;
+
+    width:100%;
+
+    border-radius:16px;
+
+    overflow:hidden;
+
+}
+
+.card-header{
+
+    border-bottom:1px solid #eee;
+
+    font-weight:bold;
+
+}
+.navbar{
+
+padding-top:18px;
+
+padding-bottom:18px;
+
+}
+
+.navbar small{
+
+opacity:.9;
+
+font-size:13px;
+
+}
+
+.navbar img{
+
+background:white;
+
+padding:6px;
+
+border-radius:12px;
+
+}
