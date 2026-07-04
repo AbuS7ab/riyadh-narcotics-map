@@ -1,67 +1,103 @@
-// ================================
+// ========================================
 // Raqeeb Geography Platform
-// Version 0.4
-// ================================
+// Version 0.5-alpha
+// ========================================
 
-// إنشاء الخريطة
-const map = L.map("map").setView([24.7136, 46.6753], 10);
+const map = createMap();
 
-// طبقة OpenStreetMap
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "© OpenStreetMap"
-}).addTo(map);
+loadFacilities();
 
-// قراءة ملف JSON
-fetch("data/facilities.json")
-.then(response => response.json())
-.then(facilities => {
 
-    // تكبير الخريطة تلقائياً لتشمل جميع المنشآت
-// ================= Dashboard =================
+// ========================================
+// Create Map
+// ========================================
 
-document.getElementById("totalCount").textContent = facilities.length;
+function createMap() {
 
-const hospitals =
-facilities.filter(f => f.type.includes("مستشفى")).length;
+    const map = L.map("map").setView([24.7136, 46.6753], 10);
 
-const pharmacies =
-facilities.filter(f => f.type.includes("صيدلية")).length;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "© OpenStreetMap"
+    }).addTo(map);
 
-const medicalCenters =
-facilities.filter(f => f.type.includes("مجمع")).length;
+    return map;
+}
 
-const phc =
-facilities.filter(f => f.type.includes("رعاية")).length;
 
-const ambulance =
-facilities.filter(f => f.type.includes("إسعاف")).length;
+// ========================================
+// Load Facilities
+// ========================================
 
-const others =
-facilities.length -
-hospitals -
-pharmacies -
-medicalCenters -
-phc -
-ambulance;
+function loadFacilities() {
 
-document.getElementById("hospitalCount").textContent = hospitals;
+    fetch("data/facilities.json")
+        .then(response => response.json())
+        .then(facilities => {
 
-document.getElementById("pharmacyCount").textContent = pharmacies;
+            updateDashboard(facilities);
 
-document.getElementById("medicalCenterCount").textContent = medicalCenters;
+            renderMarkers(facilities);
 
-document.getElementById("phcCount").textContent = phc;
+        })
+        .catch(error => console.error(error));
 
-document.getElementById("ambulanceCount").textContent = ambulance;
+}
 
-document.getElementById("otherCount").textContent = others;
+
+// ========================================
+// Dashboard
+// ========================================
+
+function updateDashboard(facilities) {
+
+    document.getElementById("totalCount").textContent = facilities.length;
+
+    const hospitals =
+        facilities.filter(f => f.type.includes("مستشفى")).length;
+
+    const pharmacies =
+        facilities.filter(f => f.type.includes("صيدلية")).length;
+
+    const medicalCenters =
+        facilities.filter(f => f.type.includes("مجمع")).length;
+
+    const phc =
+        facilities.filter(f => f.type.includes("رعاية")).length;
+
+    const ambulance =
+        facilities.filter(f => f.type.includes("إسعاف")).length;
+
+    const others =
+        facilities.length -
+        hospitals -
+        pharmacies -
+        medicalCenters -
+        phc -
+        ambulance;
+
+    document.getElementById("hospitalCount").textContent = hospitals;
+    document.getElementById("pharmacyCount").textContent = pharmacies;
+    document.getElementById("medicalCenterCount").textContent = medicalCenters;
+    document.getElementById("phcCount").textContent = phc;
+    document.getElementById("ambulanceCount").textContent = ambulance;
+    document.getElementById("otherCount").textContent = others;
+
+}
+
+
+// ========================================
+// Markers
+// ========================================
+
+function renderMarkers(facilities) {
 
     const bounds = [];
 
     facilities.forEach(facility => {
 
-        const marker = L.marker([facility.lat, facility.lng]).addTo(map);
+        const marker =
+            L.marker([facility.lat, facility.lng]).addTo(map);
 
         marker.bindPopup(`
             <b>${facility.name}</b><br>
@@ -69,22 +105,9 @@ document.getElementById("otherCount").textContent = others;
             ${facility.district}
         `);
 
-        // عند الضغط على Marker
         marker.on("click", () => {
 
-            document.querySelector(".card-body").innerHTML = `
-                <p><strong>🏥 الاسم:</strong> ${facility.name}</p>
-                <p><strong>🏢 النوع:</strong> ${facility.type}</p>
-                <p><strong>📍 الحي:</strong> ${facility.district}</p>
-                <p><strong>🛣️ الشارع:</strong> ${facility.street}</p>
-                <p><strong>📄 الترخيص:</strong> ${facility.license}</p>
-
-                <a href="${facility.google_maps}"
-                   target="_blank"
-                   class="btn btn-success w-100 mt-3">
-                   فتح في Google Maps
-                </a>
-            `;
+            showFacilityDetails(facility);
 
         });
 
@@ -96,9 +119,39 @@ document.getElementById("otherCount").textContent = others;
 
     console.log(`تم تحميل ${facilities.length} منشأة`);
 
-})
-.catch(error => {
+}
 
-    console.error(error);
 
-});
+// ========================================
+// Facility Details
+// ========================================
+
+function showFacilityDetails(facility) {
+
+    const details =
+        document.querySelector(".card-body");
+
+    details.innerHTML = `
+
+        <p><strong>🏥 الاسم:</strong> ${facility.name}</p>
+
+        <p><strong>🏢 النوع:</strong> ${facility.type}</p>
+
+        <p><strong>📍 الحي:</strong> ${facility.district}</p>
+
+        <p><strong>🛣️ الشارع:</strong> ${facility.street}</p>
+
+        <p><strong>📄 الترخيص:</strong> ${facility.license}</p>
+
+        <a
+            href="${facility.google_maps}"
+            target="_blank"
+            class="btn btn-success w-100 mt-3">
+
+            فتح في Google Maps
+
+        </a>
+
+    `;
+
+}
