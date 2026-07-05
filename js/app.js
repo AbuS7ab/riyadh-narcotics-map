@@ -5,6 +5,8 @@
 
 const map = createMap();
 
+let allFacilities = [];
+
 loadFacilities();
 
 
@@ -35,9 +37,13 @@ function loadFacilities() {
         .then(response => response.json())
         .then(facilities => {
 
+            allFacilities = facilities;
+
             updateDashboard(facilities);
 
             renderMarkers(facilities);
+
+            initializeSearch();
 
         })
         .catch(error => console.error(error));
@@ -92,12 +98,16 @@ function updateDashboard(facilities) {
 
 function renderMarkers(facilities) {
 
+      const markers = L.markerClusterGroup();
+      
     const bounds = [];
 
     facilities.forEach(facility => {
 
         const marker =
-            L.marker([facility.lat, facility.lng]).addTo(map);
+            L.marker([facility.lat, facility.lng]);
+
+            markers.addLayer(marker);
 
         marker.bindPopup(`
             <b>${facility.name}</b><br>
@@ -115,6 +125,8 @@ function renderMarkers(facilities) {
 
     });
 
+    map.addLayer(markers);
+    
     map.fitBounds(bounds);
 
     console.log(`تم تحميل ${facilities.length} منشأة`);
