@@ -150,13 +150,26 @@
         <div class="row g-3">
 
             <div class="col-lg-5">
-               <input
-    id="searchBox"
-    class="form-control"
-    placeholder="🔍 ابحث باسم المنشأة أو رقم الترخيص">
+               <div class="position-relative">
+
+    <input
+        id="searchBox"
+        class="form-control pe-5"
+        placeholder="🔍 ابحث باسم المنشأة أو رقم الترخيص">
+
+    <button
+        id="clearSearch"
+        type="button"
+        class="btn btn-sm position-absolute top-50 end-0 translate-middle-y me-2 d-none">
+
+        ✕
+
+    </button>
+
+</div>
 
     <div id="searchResults" class="list-group mt-2"></div>
-    
+
             </div>
 
             <div class="col-lg-2">

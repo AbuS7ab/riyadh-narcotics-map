@@ -7,6 +7,8 @@ const map = createMap();
 
 let allFacilities = [];
 
+let facilityMarkers = {};
+
 loadFacilities();
 
 
@@ -98,14 +100,17 @@ function updateDashboard(facilities) {
 
 function renderMarkers(facilities) {
 
-      const markers = L.markerClusterGroup();
+    facilityMarkers = {};
+
+    const markers = L.markerClusterGroup();
       
     const bounds = [];
 
     facilities.forEach(facility => {
 
-        const marker =
-            L.marker([facility.lat, facility.lng]);
+        const marker = L.marker([facility.lat, facility.lng]);
+
+        facilityMarkers[String(facility.license)] = marker;
 
             markers.addLayer(marker);
 
@@ -133,6 +138,33 @@ function renderMarkers(facilities) {
 
 }
 
+
+// ========================================
+// Navigation Engine
+// ========================================
+
+function goToFacility(facility) {
+
+    const marker = facilityMarkers[String(facility.license)];
+
+    if (!marker) {
+        console.error("Marker not found:", facility.license);
+        return;
+    }
+
+    map.setView(
+        [facility.lat, facility.lng],
+        16,
+        {
+            animate: true
+        }
+    );
+
+    marker.openPopup();
+
+    showFacilityDetails(facility);
+
+}
 
 // ========================================
 // Facility Details
