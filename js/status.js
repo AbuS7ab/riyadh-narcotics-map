@@ -51,7 +51,22 @@ function saveFacilityStatus() {
 // إنشاء حالة افتراضية لكل منشأة
 function createFacilityStatus(license) {
 
-    if (facilityStatus[String(license)]) return;
+    const existingStatus = facilityStatus[String(license)];
+
+    if (existingStatus) {
+
+        if (existingStatus.visitStatus === "violation") {
+
+            existingStatus.visitStatus = "visited";
+            existingStatus.violation = true;
+
+            saveFacilityStatus();
+
+        }
+
+        return;
+
+    }
 
     facilityStatus[String(license)] = {
 
@@ -97,6 +112,8 @@ function setVisitStatus(license, status) {
     const facility = getFacilityStatus(license);
 
     if (!facility) return;
+
+    if (!["pending", "visited", "partial"].includes(status)) return;
 
     facility.visitStatus = status;
 

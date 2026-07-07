@@ -23,6 +23,15 @@ function setFilter(filterName, value) {
 
     activeFilters[filterName] = value;
 
+    if (filterName === "visitStatus") {
+
+        const visitStatusFilter =
+            document.getElementById("visitStatusFilter");
+
+        visitStatusFilter.value = value;
+
+    }
+
     applyFilters();
 
 }
@@ -38,6 +47,13 @@ function applyFilters() {
         if (
             activeFilters.visitStatus !== "all" &&
             state.visitStatus !== activeFilters.visitStatus
+        ) {
+            return false;
+        }
+
+        if (
+            activeFilters.violation !== "all" &&
+            String(state.violation) !== String(activeFilters.violation)
         ) {
             return false;
         }

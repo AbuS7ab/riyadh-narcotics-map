@@ -67,7 +67,7 @@ visitStatusFilter.addEventListener("change", function () {
 
 function refreshView() {
 
-    updateDashboard(filteredFacilities);
+    updateDashboard(allFacilities);
 
     renderMarkers(filteredFacilities);
 
