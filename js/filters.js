@@ -46,8 +46,6 @@ function applyFilters() {
 
     });
 
-    updateDashboard(filteredFacilities);
-
-    renderMarkers(filteredFacilities);
+    refreshView();
 
 }
