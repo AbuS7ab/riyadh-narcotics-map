@@ -7,7 +7,7 @@ const map = createMap();
 
 let allFacilities = [];
 
-let facilityMarkers = {};
+let filteredFacilities = [];
 
 loadFacilities();
 
@@ -27,8 +27,6 @@ function createMap() {
 
     return map;
 }
-
-
 // ========================================
 // Load Facilities
 // ========================================
@@ -41,17 +39,33 @@ function loadFacilities() {
 
             allFacilities = facilities;
 
+filteredFacilities = [...facilities];
+
+            // إنشاء حالة لكل منشأة
+            facilities.forEach(facility => {
+
+                createFacilityStatus(facility.license);
+
+            });
+
             updateDashboard(facilities);
 
             renderMarkers(facilities);
 
             initializeSearch();
 
+            const visitStatusFilter = document.getElementById("visitStatusFilter");
+
+visitStatusFilter.addEventListener("change", function () {
+
+    setFilter("visitStatus", this.value);
+
+});
+
         })
         .catch(error => console.error(error));
 
 }
-
 
 // ========================================
 // Dashboard
@@ -90,112 +104,5 @@ function updateDashboard(facilities) {
     document.getElementById("phcCount").textContent = phc;
     document.getElementById("ambulanceCount").textContent = ambulance;
     document.getElementById("otherCount").textContent = others;
-
-}
-
-
-// ========================================
-// Markers
-// ========================================
-
-function renderMarkers(facilities) {
-
-    facilityMarkers = {};
-
-    const markers = L.markerClusterGroup();
-      
-    const bounds = [];
-
-    facilities.forEach(facility => {
-
-        const marker = L.marker([facility.lat, facility.lng]);
-
-        facilityMarkers[String(facility.license)] = marker;
-
-            markers.addLayer(marker);
-
-        marker.bindPopup(`
-            <b>${facility.name}</b><br>
-            ${facility.type}<br>
-            ${facility.district}
-        `);
-
-        marker.on("click", () => {
-
-            showFacilityDetails(facility);
-
-        });
-
-        bounds.push([facility.lat, facility.lng]);
-
-    });
-
-    map.addLayer(markers);
-    
-    map.fitBounds(bounds);
-
-    console.log(`تم تحميل ${facilities.length} منشأة`);
-
-}
-
-
-// ========================================
-// Navigation Engine
-// ========================================
-
-function goToFacility(facility) {
-
-    const marker = facilityMarkers[String(facility.license)];
-
-    if (!marker) {
-        console.error("Marker not found:", facility.license);
-        return;
-    }
-
-    map.setView(
-        [facility.lat, facility.lng],
-        16,
-        {
-            animate: true
-        }
-    );
-
-    marker.openPopup();
-
-    showFacilityDetails(facility);
-
-}
-
-// ========================================
-// Facility Details
-// ========================================
-
-function showFacilityDetails(facility) {
-
-    const details =
-        document.querySelector(".card-body");
-
-    details.innerHTML = `
-
-        <p><strong>🏥 الاسم:</strong> ${facility.name}</p>
-
-        <p><strong>🏢 النوع:</strong> ${facility.type}</p>
-
-        <p><strong>📍 الحي:</strong> ${facility.district}</p>
-
-        <p><strong>🛣️ الشارع:</strong> ${facility.street}</p>
-
-        <p><strong>📄 الترخيص:</strong> ${facility.license}</p>
-
-        <a
-            href="${facility.google_maps}"
-            target="_blank"
-            class="btn btn-success w-100 mt-3">
-
-            فتح في Google Maps
-
-        </a>
-
-    `;
 
 }
