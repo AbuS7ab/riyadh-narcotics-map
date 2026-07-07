@@ -44,7 +44,11 @@ function renderMarkers(facilities) {
 
 }
 
-    map.fitBounds(bounds);
+    if (bounds.length > 0) {
+
+        map.fitBounds(bounds);
+
+    }
 
     console.log(`تم تحميل ${facilities.length} منشأة`);
 

@@ -3,11 +3,55 @@
 // ========================================
 
 // جميع حالات المنشآت تحفظ هنا
-const facilityStatus = {};
+const facilityStatusStorageKey = "facilityStatus";
+
+const facilityStatus = loadFacilityStatus();
+
+
+function loadFacilityStatus() {
+
+    try {
+
+        const storedStatus =
+            JSON.parse(localStorage.getItem(facilityStatusStorageKey));
+
+        return storedStatus &&
+            typeof storedStatus === "object" &&
+            !Array.isArray(storedStatus)
+            ? storedStatus
+            : {};
+
+    } catch (error) {
+
+        return {};
+
+    }
+
+}
+
+
+function saveFacilityStatus() {
+
+    try {
+
+        localStorage.setItem(
+            facilityStatusStorageKey,
+            JSON.stringify(facilityStatus)
+        );
+
+    } catch (error) {
+
+        // Continue without persistence when localStorage is unavailable.
+
+    }
+
+}
 
 
 // إنشاء حالة افتراضية لكل منشأة
 function createFacilityStatus(license) {
+
+    if (facilityStatus[String(license)]) return;
 
     facilityStatus[String(license)] = {
 
@@ -34,6 +78,8 @@ function createFacilityStatus(license) {
 
     };
 
+    saveFacilityStatus();
+
 }
 
 
@@ -54,6 +100,8 @@ function setVisitStatus(license, status) {
 
     facility.visitStatus = status;
 
+    saveFacilityStatus();
+
 }
 
 
@@ -65,6 +113,8 @@ function setViolation(license, value) {
     if (!facility) return;
 
     facility.violation = value;
+
+    saveFacilityStatus();
 
 }
 
@@ -80,6 +130,8 @@ function assignCommittee(license, committeeName) {
 
     facility.committee = committeeName;
 
+    saveFacilityStatus();
+
 }
 
 
@@ -91,5 +143,7 @@ function setNotes(license, notes) {
     if (!facility) return;
 
     facility.notes = notes;
+
+    saveFacilityStatus();
 
 }
