@@ -126,6 +126,17 @@ The beta uses these browser storage keys:
 
 Clearing site data removes locally saved sessions and operational records.
 
+## Deployment
+
+The application is ready to be hosted as a static site with GitHub Pages. The
+production custom domain is:
+
+<https://ncp-sa.net>
+
+The repository-root `CNAME` file configures GitHub Pages to use `ncp-sa.net`.
+Publish the repository root from the selected GitHub Pages branch; no build
+command or generated output directory is required.
+
 ## Release history
 
 See [CHANGELOG.md](CHANGELOG.md) for release notes.
