@@ -156,6 +156,55 @@ function renderVisitHistory(visits) {
 }
 
 
+function renderAssignmentControl(facility) {
+
+    if (!isAdminUser()) return "";
+
+    const assignment = getFacilityAssignment(facility.license);
+    const committeeOptions = getCommitteeUsers().map(user => `
+        <option value="${user.username}"
+                ${assignment && assignment.committeeUsername === user.username ? "selected" : ""}>
+            ${user.displayName} (${user.username})
+        </option>
+    `).join("");
+
+    return `
+        <hr>
+
+        <h6 class="mb-3">إسناد المنشأة</h6>
+
+        <label for="facilityCommittee" class="form-label">اللجنة</label>
+        <select id="facilityCommittee" class="form-select mb-3">
+            <option value="">اختر اللجنة</option>
+            ${committeeOptions}
+        </select>
+
+        <label for="assignmentStatus" class="form-label">حالة الإسناد</label>
+        <select id="assignmentStatus" class="form-select mb-3">
+            <option value="assigned"
+                    ${!assignment || assignment.status === "assigned" ? "selected" : ""}>
+                مسندة
+            </option>
+            <option value="completed"
+                    ${assignment && assignment.status === "completed" ? "selected" : ""}>
+                مكتملة
+            </option>
+        </select>
+
+        <button id="saveAssignment" class="btn btn-outline-success w-100">
+            حفظ الإسناد
+        </button>
+
+        ${assignment
+            ? `<div class="text-muted small mt-2">
+                مسندة حالياً إلى ${assignment.committeeUsername}
+            </div>`
+            : ""}
+    `;
+
+}
+
+
 function showFacilityDetails(facility) {
 
     const details = document.querySelector(".card-body");
@@ -197,6 +246,8 @@ function showFacilityDetails(facility) {
             فتح في Google Maps
 
         </a>
+
+        ${renderAssignmentControl(facility)}
 
         <hr>
 
@@ -244,6 +295,7 @@ function showFacilityDetails(facility) {
     const visitViolation = document.getElementById("visitViolation");
     const visitNotes = document.getElementById("visitNotes");
     const saveVisit = document.getElementById("saveVisit");
+    const saveAssignment = document.getElementById("saveAssignment");
 
     visitDate.value = new Date().toISOString().slice(0, 10);
 
@@ -252,6 +304,27 @@ function showFacilityDetails(facility) {
         visitForm.classList.toggle("d-none");
 
     });
+
+    if (saveAssignment) {
+
+        saveAssignment.addEventListener("click", function () {
+
+            const committeeSelect = document.getElementById("facilityCommittee");
+            const assignmentStatus = document.getElementById("assignmentStatus");
+
+            if (!committeeSelect.value) return;
+
+            assignFacilityToCommittee(
+                facility.license,
+                committeeSelect.value,
+                assignmentStatus.value
+            );
+
+            showFacilityDetails(facility);
+
+        });
+
+    }
 
     saveVisit.addEventListener("click", function () {
 

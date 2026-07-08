@@ -33,14 +33,14 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="التنقل الرئيسي">
-            <a class="active" href="#dashboardSection"><i class="fa-solid fa-chart-line"></i>لوحة المتابعة</a>
+            <a class="active admin-only" href="#dashboardSection"><i class="fa-solid fa-chart-line"></i>لوحة المتابعة</a>
             <a href="#mapSection"><i class="fa-solid fa-map-location-dot"></i>الخريطة</a>
-            <a href="#facilityTypes"><i class="fa-solid fa-hospital"></i>المنشآت</a>
+            <a class="admin-only" href="#facilityTypes"><i class="fa-solid fa-hospital"></i>المنشآت</a>
             <a href="#visitStatusFilter"><i class="fa-solid fa-clipboard-check"></i>الزيارات</a>
-            <a href="#dashboardSection"><i class="fa-solid fa-triangle-exclamation"></i>المخالفات</a>
-            <a href="#dashboardSection"><i class="fa-solid fa-file-lines"></i>التقارير</a>
-            <a href="#dashboardSection"><i class="fa-solid fa-people-group"></i>اللجان</a>
-            <a href="#usersPanel"><i class="fa-solid fa-user-gear"></i>الإعدادات</a>
+            <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-triangle-exclamation"></i>المخالفات</a>
+            <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-file-lines"></i>التقارير</a>
+            <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-people-group"></i>اللجان</a>
+            <a class="admin-only" href="#usersPanel"><i class="fa-solid fa-user-gear"></i>الإعدادات</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -63,7 +63,7 @@
         </header>
 
         <main class="workspace">
-            <section id="dashboardSection" class="kpi-row" aria-label="مؤشرات الأداء">
+            <section id="dashboardSection" class="kpi-row admin-only" aria-label="مؤشرات الأداء">
                 <div class="dashboard-card kpi-total">
                     <div class="kpi-icon"><i class="fa-solid fa-hospital"></i></div>
                     <div><h6>إجمالي المنشآت</h6><h2 id="totalCount">0</h2></div>
@@ -116,24 +116,24 @@
                     <div id="searchResults" class="list-group"></div>
                 </div>
 
-                <select id="visitStatusFilter" class="form-select">
+                <select id="visitStatusFilter" class="form-select admin-only">
                     <option value="all">جميع حالات الزيارة</option>
                     <option value="pending">لم تتم زيارتها</option>
                     <option value="visited">تمت زيارتها</option>
                     <option value="partial">لم تستكمل الزيارة</option>
                 </select>
 
-                <select class="form-select" aria-label="نوع المنشأة">
+                <select class="form-select admin-only" aria-label="نوع المنشأة">
                     <option>نوع المنشأة</option>
                 </select>
 
-                <select class="form-select" aria-label="الحي">
+                <select class="form-select admin-only" aria-label="الحي">
                     <option>الحي</option>
                 </select>
             </section>
 
             <section class="main-grid">
-                <aside id="facilityTypes" class="workspace-card type-panel">
+                <aside id="facilityTypes" class="workspace-card type-panel admin-only">
                     <div class="panel-header">
                         <span><i class="fa-solid fa-chart-simple"></i> أنواع المنشآت</span>
                         <small>التوزيع الحالي</small>
@@ -169,7 +169,7 @@
                 </aside>
             </section>
 
-            <section id="usersPanel" class="workspace-card users-panel">
+            <section id="usersPanel" class="workspace-card users-panel admin-only">
                 <div class="panel-header">
                     <span><i class="fa-solid fa-user-gear"></i> إدارة المستخدمين</span>
                     <small>Admin / Users</small>

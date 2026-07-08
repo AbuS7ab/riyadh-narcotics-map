@@ -37,10 +37,6 @@ function loadFacilities() {
         .then(response => response.json())
         .then(facilities => {
 
-            allFacilities = facilities;
-
-filteredFacilities = [...facilities];
-
             // إنشاء حالة لكل منشأة
             facilities.forEach(facility => {
 
@@ -48,9 +44,19 @@ filteredFacilities = [...facilities];
 
             });
 
+            allFacilities = getAccessibleFacilities(facilities);
+
+filteredFacilities = [...allFacilities];
+
             refreshView();
 
             initializeSearch();
+
+            if (isCommitteeUser()) {
+
+                showFacilityList(filteredFacilities);
+
+            }
 
             const visitStatusFilter = document.getElementById("visitStatusFilter");
 

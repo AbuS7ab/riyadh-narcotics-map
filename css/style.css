@@ -143,6 +143,10 @@ body {
     direction: rtl;
 }
 
+body.role-committee .admin-only {
+    display: none !important;
+}
+
 .top-header {
     min-height: 112px;
     padding: 23px 32px;
@@ -403,6 +407,15 @@ body {
     gap: 18px;
     direction: ltr;
     align-items: stretch;
+}
+
+body.role-committee .filter-toolbar {
+    grid-template-columns: minmax(260px, 1fr);
+}
+
+body.role-committee .main-grid {
+    grid-template-columns: minmax(420px, 1fr) minmax(300px, 360px);
+    grid-template-areas: "map details";
 }
 
 .workspace-card {
@@ -668,6 +681,13 @@ body {
             "map"
             "details"
             "types";
+    }
+
+    body.role-committee .main-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "map"
+            "details";
     }
 
     #map,

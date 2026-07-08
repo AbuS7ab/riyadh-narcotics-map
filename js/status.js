@@ -285,6 +285,8 @@ function getAnnualVisitCount(license, year = new Date().getFullYear()) {
 
 function clearFacilityVisits(license) {
 
+    if (typeof isAdminUser === "function" && !isAdminUser()) return;
+
     const facility = getFacilityStatus(license);
 
     if (!facility) return;
@@ -299,6 +301,8 @@ function clearFacilityVisits(license) {
 
 
 function resetAllVisits() {
+
+    if (typeof isAdminUser === "function" && !isAdminUser()) return;
 
     Object.values(facilityStatus).forEach(status => {
 

@@ -3,6 +3,8 @@
 // ========================================
 
 const usersStorageKey = "narcoUsers";
+const assignmentsStorageKey = "facilityAssignments";
+const currentUsername = getCurrentUsername();
 
 const defaultUsers = [
     {
@@ -48,6 +50,8 @@ const defaultUsers = [
 ];
 
 const users = initializeUsers();
+const currentUser = users[currentUsername] || users.admin;
+const facilityAssignments = loadAssignments();
 
 
 function getDefaultUsersByUsername() {
@@ -96,11 +100,66 @@ function loadUsers() {
 }
 
 
+function getCurrentUsername() {
+
+    try {
+
+        return localStorage.getItem("currentUser") || "admin";
+
+    } catch (error) {
+
+        return "admin";
+
+    }
+
+}
+
+
 function saveUsers() {
 
     try {
 
         localStorage.setItem(usersStorageKey, JSON.stringify(users));
+
+    } catch (error) {
+
+        // Continue without persistence when localStorage is unavailable.
+
+    }
+
+}
+
+
+function loadAssignments() {
+
+    try {
+
+        const storedAssignments =
+            JSON.parse(localStorage.getItem(assignmentsStorageKey));
+
+        return storedAssignments &&
+            typeof storedAssignments === "object" &&
+            !Array.isArray(storedAssignments)
+            ? storedAssignments
+            : {};
+
+    } catch (error) {
+
+        return {};
+
+    }
+
+}
+
+
+function saveAssignments() {
+
+    try {
+
+        localStorage.setItem(
+            assignmentsStorageKey,
+            JSON.stringify(facilityAssignments)
+        );
 
     } catch (error) {
 
@@ -195,9 +254,37 @@ function initializeUsers() {
 }
 
 
+function getCurrentUser() {
+
+    return currentUser;
+
+}
+
+
+function isAdminUser() {
+
+    return currentUser && currentUser.role === "admin";
+
+}
+
+
+function isCommitteeUser() {
+
+    return currentUser && currentUser.role === "committee";
+
+}
+
+
 function getUsers() {
 
     return defaultUsers.map(user => users[user.username]).filter(Boolean);
+
+}
+
+
+function getCommitteeUsers() {
+
+    return getUsers().filter(user => user.role === "committee");
 
 }
 
@@ -239,6 +326,61 @@ function updateUser(username, updates) {
     }
 
     saveUsers();
+
+}
+
+
+function getFacilityAssignment(license) {
+
+    return facilityAssignments[String(license)] || null;
+
+}
+
+
+function assignFacilityToCommittee(facilityLicense, committeeUsername, status = "assigned") {
+
+    const committee = users[committeeUsername];
+
+    if (!committee || committee.role !== "committee") return;
+
+    const existingAssignment = getFacilityAssignment(facilityLicense);
+
+    facilityAssignments[String(facilityLicense)] = {
+        facilityLicense: String(facilityLicense),
+        committeeUsername,
+        assignedAt: existingAssignment
+            ? existingAssignment.assignedAt
+            : new Date().toISOString(),
+        status: status === "completed" ? "completed" : "assigned"
+    };
+
+    saveAssignments();
+
+}
+
+
+function getAccessibleFacilities(facilities) {
+
+    if (isAdminUser()) return facilities;
+
+    if (!isCommitteeUser() || !currentUser.active) return [];
+
+    return facilities.filter(facility => {
+
+        const assignment = getFacilityAssignment(facility.license);
+
+        return assignment &&
+            assignment.committeeUsername === currentUser.username;
+
+    });
+
+}
+
+
+function applyRoleView() {
+
+    document.body.classList.toggle("role-admin", isAdminUser());
+    document.body.classList.toggle("role-committee", isCommitteeUser());
 
 }
 
@@ -296,7 +438,7 @@ function initializeUsersPanel() {
     const saveUsersButton = document.getElementById("saveUsers");
     const usersSaveMessage = document.getElementById("usersSaveMessage");
 
-    if (!usersTableBody || !saveUsersButton) return;
+    if (!usersTableBody || !saveUsersButton || !isAdminUser()) return;
 
     renderUsersPanel();
 
@@ -331,5 +473,7 @@ function initializeUsersPanel() {
 
 }
 
+
+applyRoleView();
 
 initializeUsersPanel();
