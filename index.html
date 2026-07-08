@@ -231,6 +231,23 @@
                         <button id="assignSelectedFacilities" type="button" class="btn btn-primary">
                             <i class="fa-solid fa-user-group"></i> إسناد
                         </button>
+                        <hr class="my-1">
+                        <label for="smartAssignmentStartFacility" class="form-label mb-0">
+                            منشأة البداية (اختياري)
+                        </label>
+                        <select id="smartAssignmentStartFacility" class="form-select">
+                            <option value="">تحديد تلقائي لنقطة البداية</option>
+                        </select>
+                        <label for="smartAssignmentCount" class="form-label mb-0">
+                            عدد المنشآت
+                        </label>
+                        <input id="smartAssignmentCount" class="form-control"
+                               type="number" min="1" step="1" value="5">
+                        <button id="smartAssignFacilities" type="button"
+                                class="btn btn-outline-success">
+                            <i class="fa-solid fa-location-dot"></i>
+                            إسناد تلقائي حسب الأقرب
+                        </button>
                         <div id="assignmentBoardMessage" class="small d-none" role="status"></div>
                     </div>
                 </div>

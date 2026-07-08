@@ -443,6 +443,153 @@ function assignFacilitiesToCommittee(facilityLicenses, committeeUsername) {
 }
 
 
+function hasValidCoordinates(facility) {
+
+    if (!facility ||
+        facility.lat === null ||
+        facility.lng === null ||
+        facility.lat === "" ||
+        facility.lng === "") return false;
+
+    const latitude = Number(facility.lat);
+    const longitude = Number(facility.lng);
+
+    return Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        latitude >= -90 && latitude <= 90 &&
+        longitude >= -180 && longitude <= 180;
+
+}
+
+
+function calculateHaversineDistance(from, to) {
+
+    const earthRadiusKm = 6371;
+    const toRadians = degrees => Number(degrees) * Math.PI / 180;
+    const latitudeDifference = toRadians(to.lat) - toRadians(from.lat);
+    const longitudeDifference = toRadians(to.lng) - toRadians(from.lng);
+    const fromLatitude = toRadians(from.lat);
+    const toLatitude = toRadians(to.lat);
+    const haversine =
+        Math.sin(latitudeDifference / 2) ** 2 +
+        Math.cos(fromLatitude) * Math.cos(toLatitude) *
+        Math.sin(longitudeDifference / 2) ** 2;
+
+    return earthRadiusKm * 2 * Math.atan2(
+        Math.sqrt(haversine),
+        Math.sqrt(1 - haversine)
+    );
+
+}
+
+
+function getSmartAssignmentReferencePoint(committeeUsername, facilities) {
+
+    const facilityByLicense = facilities.reduce((result, facility) => {
+
+        result[String(facility.license)] = facility;
+
+        return result;
+
+    }, {});
+    const committeeAssignments = Object.values(facilityAssignments).filter(assignment => {
+
+        return assignment.committeeUsername === committeeUsername;
+
+    });
+    const visitedFacilities = [];
+
+    committeeAssignments.forEach(assignment => {
+
+        const facility = facilityByLicense[String(assignment.facilityLicense)];
+
+        if (!hasValidCoordinates(facility)) return;
+
+        getFacilityVisits(assignment.facilityLicense)
+            .filter(visit => visit.visitStatus === "visited")
+            .forEach(visit => visitedFacilities.push({ facility, visit }));
+
+    });
+
+    visitedFacilities.sort((a, b) => {
+
+        const dateDifference =
+            new Date(b.visit.date || 0) - new Date(a.visit.date || 0);
+
+        return dateDifference ||
+            new Date(b.visit.createdAt || 0) - new Date(a.visit.createdAt || 0);
+
+    });
+
+    if (visitedFacilities.length > 0) return visitedFacilities[0].facility;
+
+    const completedAssignment = committeeAssignments
+        .filter(assignment => {
+
+            return assignment.status === "completed" &&
+                hasValidCoordinates(facilityByLicense[String(assignment.facilityLicense)]);
+
+        })
+        .sort((a, b) => new Date(b.assignedAt || 0) - new Date(a.assignedAt || 0))[0];
+
+    if (completedAssignment) {
+
+        return facilityByLicense[String(completedAssignment.facilityLicense)];
+
+    }
+
+    return { lat: 24.7136, lng: 46.6753 };
+
+}
+
+
+function smartAssignFacilities(
+    facilities,
+    committeeUsername,
+    count,
+    startFacilityLicense = ""
+) {
+
+    if (!isAdminUser()) return [];
+
+    const committee = users[committeeUsername];
+    const assignmentCount = Math.floor(Number(count));
+
+    if (!committee ||
+        committee.role !== "committee" ||
+        !committee.active ||
+        assignmentCount < 1) return [];
+
+    const selectedStartFacility = facilities.find(facility => {
+
+        return String(facility.license) === String(startFacilityLicense);
+
+    });
+    const referencePoint = hasValidCoordinates(selectedStartFacility)
+        ? selectedStartFacility
+        : getSmartAssignmentReferencePoint(committeeUsername, facilities);
+    const nearestFacilities = getUnassignedFacilities(facilities)
+        .filter(hasValidCoordinates)
+        .map(facility => ({
+            facility,
+            distance: calculateHaversineDistance(referencePoint, facility)
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, assignmentCount)
+        .map(candidate => candidate.facility);
+
+    if (nearestFacilities.length === 0) return [];
+
+    assignFacilitiesToCommittee(
+        nearestFacilities.map(facility => facility.license),
+        committeeUsername
+    );
+
+    return nearestFacilities;
+
+}
+
+
 function getAccessibleFacilities(facilities) {
 
     if (isAdminUser()) return facilities;
@@ -602,10 +749,17 @@ function renderAssignmentBoard(facilities) {
     const list = document.getElementById("unassignedFacilitiesList");
     const committeeSelect = document.getElementById("assignmentCommittee");
     const searchInput = document.getElementById("assignmentSearch");
+    const startFacilitySelect =
+        document.getElementById("smartAssignmentStartFacility");
 
-    if (!list || !committeeSelect || !searchInput || !isAdminUser()) return;
+    if (!list ||
+        !committeeSelect ||
+        !searchInput ||
+        !startFacilitySelect ||
+        !isAdminUser()) return;
 
     const selectedCommittee = committeeSelect.value;
+    const selectedStartFacility = startFacilitySelect.value;
 
     committeeSelect.innerHTML = `
         <option value="">اختر اللجنة</option>
@@ -621,6 +775,30 @@ function renderAssignmentBoard(facilities) {
     if (users[selectedCommittee] && users[selectedCommittee].active) {
 
         committeeSelect.value = selectedCommittee;
+
+    }
+
+    startFacilitySelect.innerHTML = `
+        <option value="">تحديد تلقائي لنقطة البداية</option>
+        ${facilities
+            .filter(hasValidCoordinates)
+            .map(facility => `
+                <option value="${escapeHtml(facility.license)}">
+                    ${escapeHtml(facility.name)} —
+                    ${escapeHtml(facility.district)} —
+                    ${escapeHtml(facility.license)}
+                </option>
+            `).join("")}
+    `;
+
+    if (facilities.some(facility => {
+
+        return String(facility.license) === selectedStartFacility &&
+            hasValidCoordinates(facility);
+
+    })) {
+
+        startFacilitySelect.value = selectedStartFacility;
 
     }
 
@@ -663,8 +841,18 @@ function initializeAssignmentBoard() {
     const assignButton = document.getElementById("assignSelectedFacilities");
     const committeeSelect = document.getElementById("assignmentCommittee");
     const message = document.getElementById("assignmentBoardMessage");
+    const smartAssignmentCount = document.getElementById("smartAssignmentCount");
+    const startFacilitySelect =
+        document.getElementById("smartAssignmentStartFacility");
+    const smartAssignButton = document.getElementById("smartAssignFacilities");
 
-    if (!searchInput || !assignButton || !committeeSelect || !isAdminUser()) return;
+    if (!searchInput ||
+        !assignButton ||
+        !committeeSelect ||
+        !smartAssignmentCount ||
+        !startFacilitySelect ||
+        !smartAssignButton ||
+        !isAdminUser()) return;
 
     searchInput.addEventListener("input", () => {
 
@@ -691,6 +879,43 @@ function initializeAssignmentBoard() {
         renderAssignmentBoard(allFacilities);
 
         message.textContent = "تم إسناد المنشآت بنجاح.";
+        message.className = "small text-success";
+
+    });
+
+    smartAssignButton.addEventListener("click", () => {
+
+        const committee = users[committeeSelect.value];
+        const count = Math.floor(Number(smartAssignmentCount.value));
+
+        if (!committee || !committee.active || count < 1) {
+
+            message.textContent = "اختر لجنة نشطة وعدداً صحيحاً من المنشآت.";
+            message.className = "small text-danger";
+
+            return;
+
+        }
+
+        const assignedFacilities = smartAssignFacilities(
+            allFacilities,
+            committee.username,
+            count,
+            startFacilitySelect.value
+        );
+
+        if (assignedFacilities.length === 0) {
+
+            message.textContent = "لا توجد منشآت غير مسندة";
+            message.className = "small text-danger";
+
+            return;
+
+        }
+
+        renderAssignmentBoard(allFacilities);
+
+        message.textContent = `تم إسناد ${assignedFacilities.length} منشأة حسب الأقرب.`;
         message.className = "small text-success";
 
     });
