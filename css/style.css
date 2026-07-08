@@ -529,6 +529,36 @@ body {
     font-size: 13px;
 }
 
+.users-panel {
+    margin-top: 18px;
+}
+
+.users-panel-body {
+    padding: 16px;
+}
+
+.users-table {
+    margin-bottom: 14px;
+    font-size: 13px;
+}
+
+.users-table thead th {
+    color: var(--primary-dark);
+    border-bottom-color: var(--line);
+    background: #FAFCFB;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.users-table td {
+    border-color: var(--line);
+}
+
+.users-table .form-control-sm {
+    min-height: 38px;
+    font-size: 12px;
+}
+
 .btn-success,
 .btn-primary {
     min-height: 44px;

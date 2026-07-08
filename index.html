@@ -40,7 +40,7 @@
             <a href="#dashboardSection"><i class="fa-solid fa-triangle-exclamation"></i>المخالفات</a>
             <a href="#dashboardSection"><i class="fa-solid fa-file-lines"></i>التقارير</a>
             <a href="#dashboardSection"><i class="fa-solid fa-people-group"></i>اللجان</a>
-            <a href="#dashboardSection"><i class="fa-solid fa-gear"></i>الإعدادات</a>
+            <a href="#usersPanel"><i class="fa-solid fa-user-gear"></i>الإعدادات</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -168,6 +168,39 @@
                     </div>
                 </aside>
             </section>
+
+            <section id="usersPanel" class="workspace-card users-panel">
+                <div class="panel-header">
+                    <span><i class="fa-solid fa-user-gear"></i> إدارة المستخدمين</span>
+                    <small>Admin / Users</small>
+                </div>
+
+                <div class="users-panel-body">
+                    <div class="table-responsive">
+                        <table class="table align-middle users-table">
+                            <thead>
+                            <tr>
+                                <th>المستخدم</th>
+                                <th>الاسم المعروض</th>
+                                <th>اسم اللجنة</th>
+                                <th>كلمة المرور</th>
+                                <th class="text-center">نشط</th>
+                            </tr>
+                            </thead>
+                            <tbody id="usersTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between gap-3">
+                        <div id="usersSaveMessage" class="text-success small d-none">
+                            تم حفظ بيانات المستخدمين.
+                        </div>
+                        <button id="saveUsers" type="button" class="btn btn-primary">
+                            حفظ المستخدمين
+                        </button>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -186,6 +219,8 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
 <script src="js/status.js"></script>
+
+<script src="js/users.js"></script>
 
 <script src="js/sidebar.js"></script>
 
