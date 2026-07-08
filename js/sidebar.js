@@ -88,34 +88,83 @@ function showFacilityList(facilities) {
 }
 
 
+function getVisitStatusDisplay(state) {
+
+    if (state.visitStatus === "visited") {
+
+        return {
+            text: state.violation
+                ? "🔴 تمت الزيارة - يوجد مخالفة"
+                : "🟢 تمت الزيارة - لا توجد ملاحظات",
+            badge: state.violation ? "danger" : "success"
+        };
+
+    }
+
+    if (state.visitStatus === "partial") {
+
+        return {
+            text: "🟠 لم تستكمل الزيارة",
+            badge: "warning"
+        };
+
+    }
+
+    return {
+        text: "🟡 قيد الانتظار",
+        badge: "secondary"
+    };
+
+}
+
+
+function renderVisitHistory(visits) {
+
+    if (visits.length === 0) {
+
+        return `
+            <div class="text-muted small">
+                لا يوجد سجل زيارات حتى الآن.
+            </div>
+        `;
+
+    }
+
+    return visits.map(visit => {
+
+        const display = getVisitStatusDisplay(visit);
+
+        return `
+            <div class="border rounded p-2 mb-2">
+                <div class="d-flex justify-content-between gap-2">
+                    <span class="badge bg-${display.badge}">
+                        ${display.text}
+                    </span>
+                    <span class="text-muted small">${visit.date || "-"}</span>
+                </div>
+                ${visit.violation
+                    ? '<div class="text-danger small mt-2">يوجد مخالفة</div>'
+                    : ''}
+                ${visit.notes
+                    ? `<div class="small mt-2">${visit.notes}</div>`
+                    : ''}
+            </div>
+        `;
+
+    }).join("");
+
+}
+
+
 function showFacilityDetails(facility) {
 
     const details = document.querySelector(".card-body");
 
     const state = getFacilityStatus(facility.license);
+    const visits = getFacilityVisits(facility.license);
+    const annualVisitCount = getAnnualVisitCount(facility.license);
 
-    let statusText = "قيد الانتظار";
-    let statusBadge = "warning";
-
-    switch (state.visitStatus) {
-
-    case "visited":
-        statusText = state.violation
-            ? "🔴 تمت الزيارة - يوجد مخالفة"
-            : "🟢 تمت الزيارة - لا توجد ملاحظات";
-        statusBadge = state.violation ? "danger" : "success";
-        break;
-
-    case "partial":
-        statusText = "🟠 لم تستكمل الزيارة";
-        statusBadge = "warning";
-        break;
-
-    default:
-        statusText = "🟡 قيد الانتظار";
-        statusBadge = "secondary";
-
-}
+    const statusDisplay = getVisitStatusDisplay(state);
 
     details.innerHTML = `
 
@@ -133,10 +182,12 @@ function showFacilityDetails(facility) {
 
         <p>
             <strong>📌 الحالة:</strong>
-            <span class="badge bg-${statusBadge}">
-                ${statusText}
+            <span class="badge bg-${statusDisplay.badge}">
+                ${statusDisplay.text}
             </span>
         </p>
+
+        <p><strong>📅 زيارات السنة:</strong> ${annualVisitCount} / 4</p>
 
         <a
             href="${facility.google_maps}"
@@ -149,36 +200,58 @@ function showFacilityDetails(facility) {
 
         <hr>
 
-        <h6 class="mb-3">نتيجة الزيارة</h6>
+        <button id="newVisit" class="btn btn-outline-success w-100 mb-3">
+            + زيارة جديدة
+        </button>
 
-        <select id="visitResult" class="form-select mb-3">
-            <option value="pending">قيد الانتظار</option>
-            <option value="visited">تمت الزيارة - لا توجد ملاحظات</option>
-            <option value="partial">زيارة جزئية</option>
-        </select>
+        <div id="visitForm" class="d-none">
+            <h6 class="mb-3">نتيجة الزيارة</h6>
 
-        <div class="form-check mb-3">
-            <input id="visitViolation" class="form-check-input" type="checkbox">
-            <label for="visitViolation" class="form-check-label">يوجد مخالفة</label>
+            <label for="visitDate" class="form-label">تاريخ الزيارة</label>
+            <input id="visitDate" class="form-control mb-3" type="date">
+
+            <select id="visitResult" class="form-select mb-3">
+                <option value="pending">قيد الانتظار</option>
+                <option value="visited">تمت الزيارة - لا توجد ملاحظات</option>
+                <option value="partial">زيارة جزئية</option>
+            </select>
+
+            <div class="form-check mb-3">
+                <input id="visitViolation" class="form-check-input" type="checkbox">
+                <label for="visitViolation" class="form-check-label">يوجد مخالفة</label>
+            </div>
+
+            <label for="visitNotes" class="form-label">ملاحظات</label>
+            <textarea id="visitNotes" class="form-control mb-3" rows="3"></textarea>
+
+            <button id="saveVisit" class="btn btn-primary w-100">
+                حفظ
+            </button>
         </div>
 
-        <label for="visitNotes" class="form-label">ملاحظات</label>
-        <textarea id="visitNotes" class="form-control mb-3" rows="3"></textarea>
+        <hr>
 
-        <button id="saveVisit" class="btn btn-primary w-100">
-            حفظ
-        </button>
+        <h6 class="mb-3">سجل الزيارات</h6>
+
+        ${renderVisitHistory(visits)}
 
     `;
 
+    const newVisit = document.getElementById("newVisit");
+    const visitForm = document.getElementById("visitForm");
+    const visitDate = document.getElementById("visitDate");
     const visitResult = document.getElementById("visitResult");
     const visitViolation = document.getElementById("visitViolation");
     const visitNotes = document.getElementById("visitNotes");
     const saveVisit = document.getElementById("saveVisit");
 
-    visitResult.value = state.visitStatus;
-    visitViolation.checked = state.violation;
-    visitNotes.value = state.notes;
+    visitDate.value = new Date().toISOString().slice(0, 10);
+
+    newVisit.addEventListener("click", function () {
+
+        visitForm.classList.toggle("d-none");
+
+    });
 
     saveVisit.addEventListener("click", function () {
 
@@ -187,9 +260,12 @@ function showFacilityDetails(facility) {
             ? false
             : visitViolation.checked;
 
-        setVisitStatus(facility.license, visitStatus);
-        setViolation(facility.license, violation);
-        setNotes(facility.license, visitNotes.value);
+        addVisit(facility.license, {
+            date: visitDate.value,
+            visitStatus,
+            violation,
+            notes: visitNotes.value
+        });
 
         applyFilters();
 
