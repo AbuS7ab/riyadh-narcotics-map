@@ -88,6 +88,87 @@ function showFacilityList(facilities) {
 }
 
 
+function showCommitteeFacilityList(committee, facilities) {
+
+    if (!isAdminUser()) return;
+
+    const details = document.querySelector(".card-body");
+
+    details.innerHTML = `
+        <div id="committeeFacilityList" class="list-group">
+            <div class="list-group-item active">
+                ${escapeHtml(committee.committeeName)} — ${facilities.length} منشأة
+            </div>
+        </div>
+    `;
+
+    const list = document.getElementById("committeeFacilityList");
+
+    if (facilities.length === 0) {
+
+        list.innerHTML += `
+            <div class="list-group-item text-muted">
+                لا توجد منشآت مسندة لهذه اللجنة.
+            </div>
+        `;
+
+        return;
+
+    }
+
+    facilities.forEach(facility => {
+
+        const state = getFacilityStatus(facility.license);
+        const assignment = getFacilityAssignment(facility.license);
+        const visitDisplay = getVisitStatusDisplay(state);
+        const assignmentDisplay = {
+            assigned: { text: "Assigned", badge: "secondary" },
+            in_progress: { text: "In Progress", badge: "warning" },
+            completed: { text: "Completed", badge: "success" },
+            cancelled: { text: "Cancelled", badge: "dark" }
+        }[assignment.status];
+        const category = state.violation
+            ? { text: "Violation", badge: "danger" }
+            : state.visitStatus === "visited"
+                ? { text: "Completed", badge: "success" }
+                : state.visitStatus === "partial"
+                    ? { text: "Partial", badge: "warning" }
+                    : { text: "Remaining", badge: "secondary" };
+        const item = document.createElement("button");
+
+        item.className = "list-group-item list-group-item-action";
+        item.innerHTML = `
+            <div class="d-flex justify-content-between gap-2">
+                <div class="fw-bold">${escapeHtml(facility.name)}</div>
+                <span class="badge bg-${category.badge}">${category.text}</span>
+            </div>
+            <div class="text-muted small">📄 رقم الترخيص: ${escapeHtml(facility.license)}</div>
+            <div class="text-muted small">📍 الحي: ${escapeHtml(facility.district)}</div>
+            <div class="text-muted small">🏥 النوع: ${escapeHtml(facility.type)}</div>
+            <div class="mt-2">
+                <span class="badge bg-${assignmentDisplay.badge}">
+                    Assignment: ${assignmentDisplay.text}
+                </span>
+                <span class="badge bg-${visitDisplay.badge}">${visitDisplay.text}</span>
+                ${state.violation
+                    ? '<span class="badge bg-danger">يوجد مخالفة</span>'
+                    : ''}
+            </div>
+        `;
+
+        item.addEventListener("click", () => {
+
+            goToFacility(facility);
+
+        });
+
+        list.appendChild(item);
+
+    });
+
+}
+
+
 function getVisitStatusDisplay(state) {
 
     if (state.visitStatus === "visited") {
@@ -189,6 +270,14 @@ function renderAssignmentControl(facility) {
                     ${assignment && assignment.status === "completed" ? "selected" : ""}>
                 مكتملة
             </option>
+            <option value="in_progress"
+                    ${assignment && assignment.status === "in_progress" ? "selected" : ""}>
+                قيد التنفيذ
+            </option>
+            <option value="cancelled"
+                    ${assignment && assignment.status === "cancelled" ? "selected" : ""}>
+                ملغاة
+            </option>
         </select>
 
         <button id="saveAssignment" class="btn btn-outline-success w-100">
@@ -249,6 +338,13 @@ function showFacilityDetails(facility) {
 
         ${renderAssignmentControl(facility)}
 
+        ${isCommitteeUser() ? `
+            <button id="backToAssignedFacilities"
+                    class="btn btn-outline-secondary w-100 mt-3">
+                العودة إلى المنشآت المسندة
+            </button>
+        ` : ""}
+
         <hr>
 
         <button id="newVisit" class="btn btn-outline-success w-100 mb-3">
@@ -296,6 +392,8 @@ function showFacilityDetails(facility) {
     const visitNotes = document.getElementById("visitNotes");
     const saveVisit = document.getElementById("saveVisit");
     const saveAssignment = document.getElementById("saveAssignment");
+    const backToAssignedFacilities =
+        document.getElementById("backToAssignedFacilities");
 
     visitDate.value = new Date().toISOString().slice(0, 10);
 
@@ -304,6 +402,16 @@ function showFacilityDetails(facility) {
         visitForm.classList.toggle("d-none");
 
     });
+
+    if (backToAssignedFacilities) {
+
+        backToAssignedFacilities.addEventListener("click", function () {
+
+            showFacilityList(getAssignedFacilitiesForCurrentUser(allFacilities));
+
+        });
+
+    }
 
     if (saveAssignment) {
 
@@ -339,6 +447,8 @@ function showFacilityDetails(facility) {
             violation,
             notes: visitNotes.value
         });
+
+        updateAssignmentFromVisit(facility.license, visitStatus);
 
         applyFilters();
 

@@ -50,6 +50,8 @@ filteredFacilities = [...allFacilities];
 
             refreshView();
 
+            renderAssignmentBoard(allFacilities);
+
             initializeSearch();
 
             if (isCommitteeUser()) {
@@ -93,6 +95,8 @@ visitStatusFilter.addEventListener("change", function () {
 function refreshView() {
 
     updateDashboard(allFacilities);
+
+    renderCommitteeAssignmentCards();
 
     renderMarkers(filteredFacilities);
 

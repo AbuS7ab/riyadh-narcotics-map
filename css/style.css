@@ -30,8 +30,88 @@ body {
 }
 
 .app-shell {
-    min-height: 100vh;
+    display: none;
+}
+
+body.authenticated .app-shell {
     display: grid;
+}
+
+.login-screen {
+    min-height: 100vh;
+    padding: 24px;
+    display: grid;
+    place-items: center;
+    background:
+        radial-gradient(circle at top right, rgba(216, 179, 106, .2), transparent 32%),
+        linear-gradient(145deg, var(--primary-dark), var(--primary));
+}
+
+body.authenticated .login-screen {
+    display: none;
+}
+
+.login-card {
+    width: min(100%, 430px);
+    padding: 38px;
+    border: 1px solid rgba(216, 179, 106, .45);
+    border-radius: 24px;
+    background: #fff;
+    box-shadow: 0 28px 70px rgba(0, 35, 26, .3);
+}
+
+.login-brand {
+    margin-bottom: 28px;
+    text-align: center;
+}
+
+.login-brand img {
+    width: 76px;
+    height: 76px;
+    object-fit: contain;
+    margin-bottom: 14px;
+}
+
+.login-brand span {
+    display: block;
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+}
+
+.login-brand h1 {
+    margin: 5px 0;
+    color: var(--primary-dark);
+    font-size: 29px;
+    font-weight: 800;
+}
+
+.login-brand p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.login-form .form-label {
+    margin-top: 14px;
+    color: var(--primary-dark);
+    font-weight: 700;
+}
+
+.login-form .form-control {
+    min-height: 46px;
+}
+
+.login-form .btn {
+    min-height: 46px;
+    margin-top: 24px;
+    font-weight: 700;
+}
+
+.app-shell {
+    min-height: 100vh;
     grid-template-columns: 245px minmax(0, 1fr);
     direction: ltr;
 }
@@ -215,6 +295,85 @@ body:not(.role-committee) .committee-only {
 
 .workspace {
     padding: 24px 28px 32px;
+}
+
+.committee-overview {
+    margin-bottom: 12px;
+}
+
+.section-heading,
+.committee-card-header,
+.committee-card-counts {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-heading {
+    margin-bottom: 10px;
+    color: var(--primary-dark);
+    font-weight: 700;
+}
+
+.section-heading small {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.committee-cards {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.committee-card {
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.committee-card:hover,
+.committee-card:focus-visible,
+.committee-card.active {
+    border-color: var(--primary);
+    box-shadow: 0 12px 30px rgba(0, 107, 74, .16);
+    outline: none;
+}
+
+.committee-card.active {
+    transform: translateY(-2px);
+}
+
+.committee-card h6 {
+    margin: 0;
+    color: var(--primary-dark);
+    font-weight: 700;
+}
+
+.committee-card-header small {
+    color: var(--muted);
+}
+
+.committee-card-counts {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.committee-card-counts span {
+    flex: 1 1 40%;
+}
+
+.committee-card-counts strong {
+    display: block;
+    color: var(--primary);
+    font-size: 18px;
 }
 
 .kpi-row {
@@ -550,6 +709,66 @@ body.role-committee .main-grid {
     margin-top: 18px;
 }
 
+.assignment-board {
+    margin-top: 18px;
+}
+
+.assignment-board-body {
+    padding: 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+    gap: 20px;
+}
+
+.assignment-facility-list {
+    max-height: 420px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.assignment-facility-item {
+    padding: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+}
+
+.assignment-facility-item:last-child {
+    border-bottom: 0;
+}
+
+.assignment-facility-item:hover {
+    background: #F8FBF9;
+}
+
+.assignment-facility-item span,
+.assignment-facility-item small {
+    display: block;
+}
+
+.assignment-facility-item strong {
+    color: var(--primary-dark);
+    font-size: 13px;
+}
+
+.assignment-facility-item small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.assignment-controls {
+    display: grid;
+    align-content: start;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 14px;
+    background: #F8FBF9;
+}
+
 .users-panel-body {
     padding: 16px;
 }
@@ -624,7 +843,7 @@ body.role-committee .main-grid {
 }
 
 @media (max-width: 991.98px) {
-    .app-shell {
+    body.authenticated .app-shell {
         display: block;
     }
 
@@ -671,8 +890,16 @@ body.role-committee .main-grid {
         padding: 18px;
     }
 
+    .committee-cards {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+    }
+
     .filter-toolbar {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .assignment-board-body {
+        grid-template-columns: 1fr;
     }
 
     .search-control {
@@ -705,6 +932,14 @@ body.role-committee .main-grid {
 }
 
 @media (max-width: 575.98px) {
+    .login-screen {
+        padding: 14px;
+    }
+
+    .login-card {
+        padding: 28px 22px;
+    }
+
     .top-header {
         align-items: flex-start;
     }
@@ -720,6 +955,10 @@ body.role-committee .main-grid {
 
     .workspace {
         padding: 13px;
+    }
+
+    .committee-cards {
+        grid-template-columns: 1fr;
     }
 
     .filter-toolbar {

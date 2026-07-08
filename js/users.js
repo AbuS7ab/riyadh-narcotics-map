@@ -4,6 +4,7 @@
 
 const usersStorageKey = "narcoUsers";
 const assignmentsStorageKey = "facilityAssignments";
+const assignmentStatuses = ["assigned", "in_progress", "completed", "cancelled"];
 const currentUsername = getCurrentUsername();
 
 const defaultUsers = [
@@ -50,8 +51,9 @@ const defaultUsers = [
 ];
 
 const users = initializeUsers();
-const currentUser = users[currentUsername] || users.admin;
+const currentUser = currentUsername ? users[currentUsername] || null : null;
 const facilityAssignments = loadAssignments();
+let selectedCommitteeUsername = null;
 
 
 function getDefaultUsersByUsername() {
@@ -104,11 +106,11 @@ function getCurrentUsername() {
 
     try {
 
-        return localStorage.getItem("currentUser") || "admin";
+        return localStorage.getItem("currentUser");
 
     } catch (error) {
 
-        return "admin";
+        return null;
 
     }
 
@@ -137,11 +139,37 @@ function loadAssignments() {
         const storedAssignments =
             JSON.parse(localStorage.getItem(assignmentsStorageKey));
 
-        return storedAssignments &&
-            typeof storedAssignments === "object" &&
-            !Array.isArray(storedAssignments)
-            ? storedAssignments
-            : {};
+        if (!storedAssignments ||
+            typeof storedAssignments !== "object" ||
+            Array.isArray(storedAssignments)) {
+
+            return {};
+
+        }
+
+        let changed = false;
+
+        Object.values(storedAssignments).forEach(assignment => {
+
+            if (!assignmentStatuses.includes(assignment.status)) {
+
+                assignment.status = "assigned";
+                changed = true;
+
+            }
+
+        });
+
+        if (changed) {
+
+            localStorage.setItem(
+                assignmentsStorageKey,
+                JSON.stringify(storedAssignments)
+            );
+
+        }
+
+        return storedAssignments;
 
     } catch (error) {
 
@@ -263,14 +291,14 @@ function getCurrentUser() {
 
 function isAdminUser() {
 
-    return currentUser && currentUser.role === "admin";
+    return currentUser && currentUser.active && currentUser.role === "admin";
 
 }
 
 
 function isCommitteeUser() {
 
-    return currentUser && currentUser.role === "committee";
+    return currentUser && currentUser.active && currentUser.role === "committee";
 
 }
 
@@ -351,10 +379,66 @@ function assignFacilityToCommittee(facilityLicense, committeeUsername, status = 
         assignedAt: existingAssignment
             ? existingAssignment.assignedAt
             : new Date().toISOString(),
-        status: status === "completed" ? "completed" : "assigned"
+        status: assignmentStatuses.includes(status) ? status : "assigned"
     };
 
     saveAssignments();
+
+    renderCommitteeAssignmentCards();
+
+}
+
+
+function updateAssignmentFromVisit(facilityLicense, visitStatus) {
+
+    if (!isCommitteeUser()) return;
+
+    const assignment = getFacilityAssignment(facilityLicense);
+
+    if (!assignment ||
+        assignment.committeeUsername !== currentUser.username ||
+        assignment.status === "cancelled") return;
+
+    const status = visitStatus === "visited"
+        ? "completed"
+        : visitStatus === "partial"
+            ? "in_progress"
+            : null;
+
+    if (!status || assignment.status === status) return;
+
+    assignment.status = status;
+
+    saveAssignments();
+
+}
+
+
+function assignFacilitiesToCommittee(facilityLicenses, committeeUsername) {
+
+    if (!isAdminUser()) return false;
+
+    const committee = users[committeeUsername];
+
+    if (!committee || committee.role !== "committee" || !committee.active) return false;
+
+    const assignedAt = new Date().toISOString();
+
+    facilityLicenses.forEach(license => {
+
+        facilityAssignments[String(license)] = {
+            facilityLicense: String(license),
+            committeeUsername,
+            assignedAt,
+            status: "assigned"
+        };
+
+    });
+
+    saveAssignments();
+    renderCommitteeAssignmentCards();
+
+    return true;
 
 }
 
@@ -393,10 +477,289 @@ function getAssignedFacilitiesForCurrentUser(facilities) {
 }
 
 
+function renderCommitteeAssignmentCards() {
+
+    const container = document.getElementById("committeeCards");
+
+    if (!container || !isAdminUser()) return;
+
+    const assignments = Object.values(facilityAssignments);
+
+    container.innerHTML = getCommitteeUsers().map(committee => {
+
+        const committeeAssignments = assignments.filter(assignment => {
+
+            return assignment.committeeUsername === committee.username;
+
+        });
+
+        const activeAssignments = committeeAssignments.filter(assignment => {
+
+            return assignment.status !== "cancelled";
+
+        });
+        const inProgress = activeAssignments.filter(assignment => {
+
+            return assignment.status === "in_progress";
+
+        }).length;
+        const completed = activeAssignments.filter(assignment => {
+
+            return assignment.status === "completed";
+
+        }).length;
+        const assigned = activeAssignments.length;
+
+        return `
+            <article class="committee-card ${selectedCommitteeUsername === committee.username ? "active" : ""}"
+                     data-committee-username="${committee.username}"
+                     role="button" tabindex="0"
+                     aria-pressed="${selectedCommitteeUsername === committee.username}">
+                <div class="committee-card-header">
+                    <div>
+                        <h6>${escapeHtml(committee.committeeName)}</h6>
+                        <small>${committee.username}</small>
+                    </div>
+                    <span class="badge ${committee.active ? "text-bg-success" : "text-bg-secondary"}">
+                        ${committee.active ? "نشطة" : "غير نشطة"}
+                    </span>
+                </div>
+                <div class="committee-card-counts">
+                    <span>المسندة <strong>${assigned}</strong></span>
+                    <span>قيد التنفيذ <strong>${inProgress}</strong></span>
+                    <span>المكتملة <strong>${completed}</strong></span>
+                    <span>المتبقية <strong>${assigned - completed}</strong></span>
+                </div>
+            </article>
+        `;
+
+    }).join("");
+
+    container.querySelectorAll(".committee-card").forEach(card => {
+
+        const toggleDrilldown = () => {
+
+            const username = card.dataset.committeeUsername;
+
+            if (selectedCommitteeUsername === username) {
+
+                selectedCommitteeUsername = null;
+                renderCommitteeAssignmentCards();
+                showDashboardNeutralState();
+
+                return;
+
+            }
+
+            selectedCommitteeUsername = username;
+            renderCommitteeAssignmentCards();
+
+            const assignedFacilities = allFacilities.filter(facility => {
+
+                const assignment = getFacilityAssignment(facility.license);
+
+                return assignment && assignment.committeeUsername === username;
+
+            });
+
+            showCommitteeFacilityList(users[username], assignedFacilities);
+
+        };
+
+        card.addEventListener("click", toggleDrilldown);
+
+        card.addEventListener("keydown", event => {
+
+            if (event.key === "Enter" || event.key === " ") {
+
+                event.preventDefault();
+                toggleDrilldown();
+
+            }
+
+        });
+
+    });
+
+}
+
+
+function getUnassignedFacilities(facilities) {
+
+    return facilities.filter(facility => {
+
+        const assignment = getFacilityAssignment(facility.license);
+
+        return !assignment || assignment.status === "cancelled";
+
+    });
+
+}
+
+
+function renderAssignmentBoard(facilities) {
+
+    const list = document.getElementById("unassignedFacilitiesList");
+    const committeeSelect = document.getElementById("assignmentCommittee");
+    const searchInput = document.getElementById("assignmentSearch");
+
+    if (!list || !committeeSelect || !searchInput || !isAdminUser()) return;
+
+    const selectedCommittee = committeeSelect.value;
+
+    committeeSelect.innerHTML = `
+        <option value="">اختر اللجنة</option>
+        ${getCommitteeUsers()
+            .filter(committee => committee.active)
+            .map(committee => `
+                <option value="${committee.username}">
+                    ${escapeHtml(committee.committeeName)}
+                </option>
+            `).join("")}
+    `;
+
+    if (users[selectedCommittee] && users[selectedCommittee].active) {
+
+        committeeSelect.value = selectedCommittee;
+
+    }
+
+    const query = searchInput.value.trim().toLowerCase();
+    const unassignedFacilities = getUnassignedFacilities(facilities).filter(facility => {
+
+        return [facility.name, facility.license, facility.district, facility.type]
+            .some(value => String(value || "").toLowerCase().includes(query));
+
+    });
+
+    if (unassignedFacilities.length === 0) {
+
+        list.innerHTML = `
+            <div class="text-muted small p-3">لا توجد منشآت غير مسندة.</div>
+        `;
+
+        return;
+
+    }
+
+    list.innerHTML = unassignedFacilities.map(facility => `
+        <label class="assignment-facility-item">
+            <input class="form-check-input assignment-facility-checkbox"
+                   type="checkbox" value="${escapeHtml(facility.license)}">
+            <span>
+                <strong>${escapeHtml(facility.name)}</strong>
+                <small>الترخيص: ${escapeHtml(facility.license)}</small>
+                <small>${escapeHtml(facility.district)} · ${escapeHtml(facility.type)}</small>
+            </span>
+        </label>
+    `).join("");
+
+}
+
+
+function initializeAssignmentBoard() {
+
+    const searchInput = document.getElementById("assignmentSearch");
+    const assignButton = document.getElementById("assignSelectedFacilities");
+    const committeeSelect = document.getElementById("assignmentCommittee");
+    const message = document.getElementById("assignmentBoardMessage");
+
+    if (!searchInput || !assignButton || !committeeSelect || !isAdminUser()) return;
+
+    searchInput.addEventListener("input", () => {
+
+        renderAssignmentBoard(allFacilities);
+
+    });
+
+    assignButton.addEventListener("click", () => {
+
+        const selectedFacilities = [...document.querySelectorAll(
+            ".assignment-facility-checkbox:checked"
+        )].map(checkbox => checkbox.value);
+
+        if (!committeeSelect.value || selectedFacilities.length === 0) {
+
+            message.textContent = "اختر لجنة ومنشأة واحدة على الأقل.";
+            message.className = "small text-danger";
+
+            return;
+
+        }
+
+        assignFacilitiesToCommittee(selectedFacilities, committeeSelect.value);
+        renderAssignmentBoard(allFacilities);
+
+        message.textContent = "تم إسناد المنشآت بنجاح.";
+        message.className = "small text-success";
+
+    });
+
+}
+
+
 function applyRoleView() {
 
+    document.body.classList.toggle("authenticated", Boolean(
+        isAdminUser() || isCommitteeUser()
+    ));
     document.body.classList.toggle("role-admin", isAdminUser());
     document.body.classList.toggle("role-committee", isCommitteeUser());
+
+}
+
+
+function initializeSession() {
+
+    const loginForm = document.getElementById("loginForm");
+    const logoutButton = document.getElementById("logoutButton");
+
+    if (loginForm) {
+
+        loginForm.addEventListener("submit", event => {
+
+            event.preventDefault();
+
+            const username = document.getElementById("loginUsername").value.trim();
+            const password = document.getElementById("loginPassword").value;
+            const message = document.getElementById("loginMessage");
+            const user = users[username];
+
+            if (user && user.password === password && !user.active) {
+
+                message.textContent = "الحساب غير مفعل";
+                message.classList.remove("d-none");
+
+                return;
+
+            }
+
+            if (!user || user.password !== password) {
+
+                message.textContent = "اسم المستخدم أو كلمة المرور غير صحيحة";
+                message.classList.remove("d-none");
+
+                return;
+
+            }
+
+            localStorage.setItem("currentUser", user.username);
+            window.location.reload();
+
+        });
+
+    }
+
+    if (logoutButton) {
+
+        logoutButton.addEventListener("click", () => {
+
+            localStorage.removeItem("currentUser");
+            window.location.reload();
+
+        });
+
+    }
 
 }
 
@@ -473,6 +836,10 @@ function initializeUsersPanel() {
 
         renderUsersPanel();
 
+        renderCommitteeAssignmentCards();
+
+        renderAssignmentBoard(allFacilities);
+
         if (usersSaveMessage) {
 
             usersSaveMessage.classList.remove("d-none");
@@ -491,5 +858,9 @@ function initializeUsersPanel() {
 
 
 applyRoleView();
+
+initializeSession();
+
+initializeAssignmentBoard();
 
 initializeUsersPanel();

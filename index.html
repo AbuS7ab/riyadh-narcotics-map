@@ -21,6 +21,30 @@
 
 <body>
 
+<main class="login-screen" aria-labelledby="loginTitle">
+    <section class="login-card">
+        <div class="login-brand">
+            <img src="assets/logo.png" alt="Narco Compliance logo">
+            <span>Inspection Platform</span>
+            <h1 id="loginTitle">Narco Compliance</h1>
+            <p>Narcotic And Controlled Drugs Inspection Platform</p>
+        </div>
+
+        <form id="loginForm" class="login-form">
+            <div id="loginMessage" class="alert alert-danger d-none" role="alert"></div>
+
+            <label for="loginUsername" class="form-label">اسم المستخدم</label>
+            <input id="loginUsername" class="form-control" autocomplete="username" required>
+
+            <label for="loginPassword" class="form-label">كلمة المرور</label>
+            <input id="loginPassword" class="form-control" type="password"
+                   autocomplete="current-password" required>
+
+            <button type="submit" class="btn btn-primary w-100">دخول</button>
+        </form>
+    </section>
+</main>
+
 <div class="app-shell">
 
     <aside class="app-sidebar">
@@ -46,6 +70,9 @@
         <div class="sidebar-footer">
             <span>آخر تحديث</span>
             <strong id="lastUpdate">03 / 07 / 2026</strong>
+            <button id="logoutButton" type="button" class="btn btn-outline-light btn-sm w-100 mt-3">
+                <i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج
+            </button>
         </div>
     </aside>
 
@@ -105,6 +132,14 @@
                         <div class="progress" aria-hidden="true"><div class="progress-bar"></div></div>
                     </div>
                 </div>
+            </section>
+
+            <section class="committee-overview admin-only" aria-label="نظرة عامة على اللجان">
+                <div class="section-heading">
+                    <span><i class="fa-solid fa-people-group"></i> اللجان</span>
+                    <small>حالة الإسناد والإنجاز</small>
+                </div>
+                <div id="committeeCards" class="committee-cards"></div>
             </section>
 
             <section class="filter-toolbar">
@@ -172,6 +207,33 @@
                         </div>
                     </div>
                 </aside>
+            </section>
+
+            <section id="assignmentBoard" class="workspace-card assignment-board admin-only">
+                <div class="panel-header">
+                    <span><i class="fa-solid fa-list-check"></i> لوحة إسناد المنشآت</span>
+                    <small>Assignment Board</small>
+                </div>
+
+                <div class="assignment-board-body">
+                    <div>
+                        <label for="assignmentSearch" class="form-label">المنشآت غير المسندة</label>
+                        <input id="assignmentSearch" class="form-control mb-3"
+                               placeholder="ابحث بالاسم أو الترخيص أو الحي أو النوع">
+                        <div id="unassignedFacilitiesList" class="assignment-facility-list"></div>
+                    </div>
+
+                    <div class="assignment-controls">
+                        <label for="assignmentCommittee" class="form-label">اللجنة النشطة</label>
+                        <select id="assignmentCommittee" class="form-select">
+                            <option value="">اختر اللجنة</option>
+                        </select>
+                        <button id="assignSelectedFacilities" type="button" class="btn btn-primary">
+                            <i class="fa-solid fa-user-group"></i> إسناد
+                        </button>
+                        <div id="assignmentBoardMessage" class="small d-none" role="status"></div>
+                    </div>
+                </div>
             </section>
 
             <section id="usersPanel" class="workspace-card users-panel admin-only">
