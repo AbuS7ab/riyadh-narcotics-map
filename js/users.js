@@ -363,14 +363,30 @@ function getAccessibleFacilities(facilities) {
 
     if (isAdminUser()) return facilities;
 
-    if (!isCommitteeUser() || !currentUser.active) return [];
+    if (!isCommitteeUser()) return [];
+
+    return facilities;
+
+}
+
+
+function isFacilityAssignedToCurrentCommittee(facility) {
+
+    if (!isCommitteeUser()) return false;
+
+    const assignment = getFacilityAssignment(facility.license);
+
+    return assignment &&
+        assignment.committeeUsername === currentUser.username;
+
+}
+
+
+function getAssignedFacilitiesForCurrentUser(facilities) {
 
     return facilities.filter(facility => {
 
-        const assignment = getFacilityAssignment(facility.license);
-
-        return assignment &&
-            assignment.committeeUsername === currentUser.username;
+        return isFacilityAssignedToCurrentCommittee(facility);
 
     });
 

@@ -54,7 +54,7 @@ filteredFacilities = [...allFacilities];
 
             if (isCommitteeUser()) {
 
-                showFacilityList(filteredFacilities);
+                showFacilityList(getAssignedFacilitiesForCurrentUser(allFacilities));
 
             }
 
@@ -65,6 +65,25 @@ visitStatusFilter.addEventListener("change", function () {
     setFilter("visitStatus", this.value);
 
 });
+
+            const assignedFacilitiesFilter =
+                document.getElementById("assignedFacilitiesFilter");
+
+            if (assignedFacilitiesFilter) {
+
+                assignedFacilitiesFilter.addEventListener("change", function () {
+
+                    setFilter("assigned", this.value);
+
+                    if (isCommitteeUser()) {
+
+                        showFacilityList(filteredFacilities);
+
+                    }
+
+                });
+
+            }
 
         })
         .catch(error => console.error(error));

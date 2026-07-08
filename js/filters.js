@@ -32,6 +32,19 @@ function setFilter(filterName, value) {
 
     }
 
+    if (filterName === "assigned") {
+
+        const assignedFacilitiesFilter =
+            document.getElementById("assignedFacilitiesFilter");
+
+        if (assignedFacilitiesFilter) {
+
+            assignedFacilitiesFilter.value = value;
+
+        }
+
+    }
+
     applyFilters();
 
 }
@@ -54,6 +67,14 @@ function applyFilters() {
         if (
             activeFilters.violation !== "all" &&
             String(state.violation) !== String(activeFilters.violation)
+        ) {
+            return false;
+        }
+
+        if (
+            activeFilters.assigned === "assigned" &&
+            typeof isFacilityAssignedToCurrentCommittee === "function" &&
+            !isFacilityAssignedToCurrentCommittee(facility)
         ) {
             return false;
         }
