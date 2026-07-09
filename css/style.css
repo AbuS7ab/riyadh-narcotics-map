@@ -116,6 +116,10 @@ body.authenticated .login-screen {
     direction: ltr;
 }
 
+.mobile-top-bar {
+    display: none;
+}
+
 .app-sidebar {
     position: sticky;
     top: 0;
@@ -773,6 +777,17 @@ body.role-committee .main-grid {
     padding: 16px;
 }
 
+.data-portability {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.data-portability .small {
+    flex-basis: 100%;
+}
+
 .users-table {
     margin-bottom: 14px;
     font-size: 13px;
@@ -793,6 +808,11 @@ body.role-committee .main-grid {
 .users-table .form-control-sm {
     min-height: 38px;
     font-size: 12px;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .btn-success,
@@ -843,8 +863,78 @@ body.role-committee .main-grid {
 }
 
 @media (max-width: 991.98px) {
+    html,
+    body {
+        overflow-x: hidden;
+    }
+
     body.authenticated .app-shell {
         display: block;
+        padding-top: 66px;
+    }
+
+    body.authenticated .mobile-top-bar {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 1300;
+        height: 66px;
+        padding: 9px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+        color: #fff;
+        box-shadow: 0 10px 28px rgba(0, 61, 47, .22);
+        direction: ltr;
+    }
+
+    .mobile-brand {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-align: left;
+    }
+
+    .mobile-brand img {
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+        object-fit: contain;
+        padding: 4px;
+        border-radius: 11px;
+        background: #fff;
+    }
+
+    .mobile-brand strong,
+    .mobile-brand span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mobile-brand strong {
+        font-size: 14px;
+        font-weight: 800;
+    }
+
+    .mobile-brand span {
+        color: rgba(255, 255, 255, .78);
+        font-size: 11px;
+    }
+
+    .mobile-logout {
+        min-height: 42px;
+        flex: 0 0 auto;
+        border: 1px solid rgba(216, 179, 106, .75);
+        border-radius: 11px;
+        color: #fff;
+        background: rgba(216, 179, 106, .18);
+        font-weight: 700;
     }
 
     .app-sidebar {
@@ -869,6 +959,7 @@ body.role-committee .main-grid {
         margin-top: 12px;
         overflow-x: auto;
         padding-bottom: 3px;
+        scrollbar-width: thin;
     }
 
     .sidebar-nav a {
@@ -896,6 +987,14 @@ body.role-committee .main-grid {
 
     .filter-toolbar {
         grid-template-columns: 1fr 1fr;
+    }
+
+    .filter-toolbar .form-control,
+    .filter-toolbar .form-select,
+    .assignment-controls .form-control,
+    .assignment-controls .form-select,
+    .assignment-controls .btn {
+        width: 100%;
     }
 
     .assignment-board-body {
@@ -929,19 +1028,93 @@ body.role-committee .main-grid {
     .type-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .users-panel-body > .d-flex {
+        align-items: stretch !important;
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 575.98px) {
     .login-screen {
-        padding: 14px;
+        padding: 12px;
+        align-items: start;
     }
 
     .login-card {
-        padding: 28px 22px;
+        margin-top: 10px;
+        padding: 24px 18px;
+        border-radius: 20px;
+    }
+
+    .login-brand {
+        margin-bottom: 20px;
+    }
+
+    .login-brand img {
+        width: 64px;
+        height: 64px;
+    }
+
+    .login-brand h1 {
+        font-size: 24px;
+    }
+
+    .login-form .form-control,
+    .login-form .btn {
+        min-height: 48px;
+    }
+
+    body.authenticated .app-shell {
+        padding-top: 62px;
+    }
+
+    body.authenticated .mobile-top-bar {
+        height: 62px;
+        padding: 8px 10px;
+    }
+
+    .mobile-brand {
+        gap: 8px;
+    }
+
+    .mobile-brand img {
+        width: 36px;
+        height: 36px;
+        flex-basis: 36px;
+    }
+
+    .mobile-brand strong {
+        font-size: 13px;
+    }
+
+    .mobile-brand span {
+        max-width: 150px;
+        font-size: 10px;
+    }
+
+    .mobile-logout {
+        min-height: 40px;
+        padding-inline: 10px;
+        font-size: 12px;
+    }
+
+    .app-sidebar {
+        padding: 10px;
+    }
+
+    .sidebar-brand {
+        display: none;
+    }
+
+    .sidebar-nav {
+        margin-top: 0;
     }
 
     .top-header {
         align-items: flex-start;
+        min-height: auto;
+        padding: 14px 13px;
     }
 
     .header-meta {
@@ -954,7 +1127,26 @@ body.role-committee .main-grid {
     }
 
     .workspace {
-        padding: 13px;
+        padding: 12px 10px 18px;
+    }
+
+    .kpi-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        overflow-x: visible;
+    }
+
+    .dashboard-card {
+        min-height: 76px;
+        padding: 12px;
+    }
+
+    .dashboard-card h2 {
+        font-size: 22px;
+    }
+
+    .committee-card {
+        padding: 12px;
     }
 
     .committee-cards {
@@ -963,6 +1155,8 @@ body.role-committee .main-grid {
 
     .filter-toolbar {
         grid-template-columns: 1fr;
+        margin-bottom: 12px;
+        padding: 10px;
     }
 
     .search-control {
@@ -973,13 +1167,61 @@ body.role-committee .main-grid {
         grid-template-columns: 1fr;
     }
 
+    .panel-header {
+        min-height: auto;
+        padding: 12px;
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
     #map {
-        height: 430px;
+        height: 390px;
     }
 
     .details-panel .card-body {
         height: auto;
         min-height: 360px;
         max-height: 600px;
+        padding: 12px;
+    }
+
+    .details-panel .list-group-item,
+    .assignment-facility-item {
+        padding: 13px 12px;
+    }
+
+    .assignment-board-body,
+    .users-panel-body {
+        padding: 12px;
+    }
+
+    .data-portability {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .assignment-controls {
+        padding: 12px;
+    }
+
+    .assignment-facility-list {
+        max-height: 360px;
+    }
+
+    .form-control,
+    .form-select,
+    .btn {
+        max-width: 100%;
+    }
+
+    .form-check {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    textarea.form-control {
+        min-height: 92px;
     }
 }

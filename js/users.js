@@ -54,6 +54,7 @@ const users = initializeUsers();
 const currentUser = currentUsername ? users[currentUsername] || null : null;
 const facilityAssignments = loadAssignments();
 let selectedCommitteeUsername = null;
+let smartAssignmentStartMode = "auto";
 
 
 function getDefaultUsersByUsername() {
@@ -744,6 +745,24 @@ function getUnassignedFacilities(facilities) {
 }
 
 
+function syncSmartAssignmentStartFromChecked() {
+
+    const startFacilitySelect =
+        document.getElementById("smartAssignmentStartFacility");
+
+    if (!startFacilitySelect || smartAssignmentStartMode === "manual") return;
+
+    const firstCheckedFacility = document.querySelector(
+        ".assignment-facility-checkbox:checked"
+    );
+
+    startFacilitySelect.value = firstCheckedFacility
+        ? firstCheckedFacility.value
+        : "";
+
+}
+
+
 function renderAssignmentBoard(facilities) {
 
     const list = document.getElementById("unassignedFacilitiesList");
@@ -832,12 +851,15 @@ function renderAssignmentBoard(facilities) {
         </label>
     `).join("");
 
+    syncSmartAssignmentStartFromChecked();
+
 }
 
 
 function initializeAssignmentBoard() {
 
     const searchInput = document.getElementById("assignmentSearch");
+    const list = document.getElementById("unassignedFacilitiesList");
     const assignButton = document.getElementById("assignSelectedFacilities");
     const committeeSelect = document.getElementById("assignmentCommittee");
     const message = document.getElementById("assignmentBoardMessage");
@@ -847,6 +869,7 @@ function initializeAssignmentBoard() {
     const smartAssignButton = document.getElementById("smartAssignFacilities");
 
     if (!searchInput ||
+        !list ||
         !assignButton ||
         !committeeSelect ||
         !smartAssignmentCount ||
@@ -857,6 +880,22 @@ function initializeAssignmentBoard() {
     searchInput.addEventListener("input", () => {
 
         renderAssignmentBoard(allFacilities);
+
+    });
+
+    list.addEventListener("change", event => {
+
+        if (!event.target.classList.contains("assignment-facility-checkbox")) return;
+
+        syncSmartAssignmentStartFromChecked();
+
+    });
+
+    startFacilitySelect.addEventListener("change", () => {
+
+        smartAssignmentStartMode = startFacilitySelect.value ? "manual" : "auto";
+
+        syncSmartAssignmentStartFromChecked();
 
     });
 
@@ -876,6 +915,7 @@ function initializeAssignmentBoard() {
         }
 
         assignFacilitiesToCommittee(selectedFacilities, committeeSelect.value);
+        smartAssignmentStartMode = "auto";
         renderAssignmentBoard(allFacilities);
 
         message.textContent = "تم إسناد المنشآت بنجاح.";
@@ -925,6 +965,14 @@ function initializeAssignmentBoard() {
 
 function applyRoleView() {
 
+    const mobileCurrentUser = document.getElementById("mobileCurrentUser");
+
+    if (mobileCurrentUser && currentUser) {
+
+        mobileCurrentUser.textContent = currentUser.displayName || currentUser.username;
+
+    }
+
     document.body.classList.toggle("authenticated", Boolean(
         isAdminUser() || isCommitteeUser()
     ));
@@ -937,7 +985,7 @@ function applyRoleView() {
 function initializeSession() {
 
     const loginForm = document.getElementById("loginForm");
-    const logoutButton = document.getElementById("logoutButton");
+    const logoutButtons = document.querySelectorAll(".logout-button");
 
     if (loginForm) {
 
@@ -975,12 +1023,16 @@ function initializeSession() {
 
     }
 
-    if (logoutButton) {
+    if (logoutButtons.length) {
 
-        logoutButton.addEventListener("click", () => {
+        logoutButtons.forEach(logoutButton => {
 
-            localStorage.removeItem("currentUser");
-            window.location.reload();
+            logoutButton.addEventListener("click", () => {
+
+                localStorage.removeItem("currentUser");
+                window.location.reload();
+
+            });
 
         });
 
@@ -1030,6 +1082,142 @@ function renderUsersPanel() {
         `;
 
         usersTableBody.appendChild(row);
+
+    });
+
+}
+
+
+function getStoredObject(key, fallback = {}) {
+
+    try {
+
+        const storedValue = JSON.parse(localStorage.getItem(key));
+
+        return storedValue &&
+            typeof storedValue === "object" &&
+            !Array.isArray(storedValue)
+            ? storedValue
+            : fallback;
+
+    } catch (error) {
+
+        return fallback;
+
+    }
+
+}
+
+
+function showDataPortabilityMessage(text, className) {
+
+    const message = document.getElementById("dataPortabilityMessage");
+
+    if (!message) return;
+
+    message.textContent = text;
+    message.className = `small ${className}`;
+
+}
+
+
+function exportAppData() {
+
+    const exportData = {
+        version: "v1.0-beta",
+        exportedAt: new Date().toISOString(),
+        users: getStoredObject(usersStorageKey, users),
+        facilityAssignments: getStoredObject(assignmentsStorageKey, facilityAssignments),
+        facilityStatus: getStoredObject(facilityStatusStorageKey, facilityStatus),
+        appSettings: getStoredObject("appSettings")
+    };
+
+    const blob = new Blob(
+        [JSON.stringify(exportData, null, 2)],
+        { type: "application/json" }
+    );
+    const downloadLink = document.createElement("a");
+
+    downloadLink.href = URL.createObjectURL(blob);
+    downloadLink.download = `narco-compliance-data-${new Date().toISOString().slice(0, 10)}.json`;
+    downloadLink.click();
+
+    URL.revokeObjectURL(downloadLink.href);
+    showDataPortabilityMessage("تم تصدير البيانات بنجاح.", "text-success");
+
+}
+
+
+function isPortableDataObject(value) {
+
+    return value &&
+        typeof value === "object" &&
+        !Array.isArray(value);
+
+}
+
+
+async function importAppData(file) {
+
+    if (!file) return;
+
+    try {
+
+        const importedData = JSON.parse(await file.text());
+
+        if (!isPortableDataObject(importedData) ||
+            !isPortableDataObject(importedData.users) ||
+            !isPortableDataObject(importedData.facilityAssignments) ||
+            !isPortableDataObject(importedData.facilityStatus)) {
+
+            showDataPortabilityMessage("ملف البيانات غير صالح.", "text-danger");
+
+            return;
+
+        }
+
+        localStorage.setItem(usersStorageKey, JSON.stringify(importedData.users));
+        localStorage.setItem(
+            assignmentsStorageKey,
+            JSON.stringify(importedData.facilityAssignments)
+        );
+        localStorage.setItem(
+            facilityStatusStorageKey,
+            JSON.stringify(importedData.facilityStatus)
+        );
+
+        if (isPortableDataObject(importedData.appSettings)) {
+
+            localStorage.setItem("appSettings", JSON.stringify(importedData.appSettings));
+
+        }
+
+        showDataPortabilityMessage("تم استيراد البيانات. سيتم تحديث التطبيق...", "text-success");
+
+        setTimeout(() => window.location.reload(), 500);
+
+    } catch (error) {
+
+        showDataPortabilityMessage("تعذر قراءة ملف البيانات.", "text-danger");
+
+    }
+
+}
+
+
+function initializeDataPortability() {
+
+    const exportButton = document.getElementById("exportAppData");
+    const importInput = document.getElementById("importAppData");
+
+    if (!exportButton || !importInput || !isAdminUser()) return;
+
+    exportButton.addEventListener("click", exportAppData);
+
+    importInput.addEventListener("change", event => {
+
+        importAppData(event.target.files[0]);
+        event.target.value = "";
 
     });
 
@@ -1087,5 +1275,7 @@ applyRoleView();
 initializeSession();
 
 initializeAssignmentBoard();
+
+initializeDataPortability();
 
 initializeUsersPanel();

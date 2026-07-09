@@ -47,6 +47,19 @@
 
 <div class="app-shell">
 
+    <header class="mobile-top-bar" aria-label="شريط التطبيق">
+        <div class="mobile-brand">
+            <img src="assets/logo.png" alt="Narco Compliance logo">
+            <div>
+                <strong>Narco Compliance</strong>
+                <span id="mobileCurrentUser">-</span>
+            </div>
+        </div>
+        <button type="button" class="btn btn-sm mobile-logout logout-button">
+            <i class="fa-solid fa-right-from-bracket"></i> خروج
+        </button>
+    </header>
+
     <aside class="app-sidebar">
         <div class="sidebar-brand">
             <img src="assets/logo.png" alt="Narco Compliance logo">
@@ -70,7 +83,7 @@
         <div class="sidebar-footer">
             <span>آخر تحديث</span>
             <strong id="lastUpdate">03 / 07 / 2026</strong>
-            <button id="logoutButton" type="button" class="btn btn-outline-light btn-sm w-100 mt-3">
+            <button id="logoutButton" type="button" class="btn btn-outline-light btn-sm w-100 mt-3 logout-button">
                 <i class="fa-solid fa-right-from-bracket"></i> تسجيل الخروج
             </button>
         </div>
@@ -238,6 +251,9 @@
                         <select id="smartAssignmentStartFacility" class="form-select">
                             <option value="">تحديد تلقائي لنقطة البداية</option>
                         </select>
+                        <div class="form-text">
+                            اختيار منشأة من القائمة يجعلها نقطة البداية للإسناد التلقائي
+                        </div>
                         <label for="smartAssignmentCount" class="form-label mb-0">
                             عدد المنشآت
                         </label>
@@ -260,6 +276,17 @@
                 </div>
 
                 <div class="users-panel-body">
+                    <div class="data-portability mb-3">
+                        <button id="exportAppData" type="button" class="btn btn-outline-success">
+                            <i class="fa-solid fa-file-export"></i> Export Data
+                        </button>
+                        <label class="btn btn-outline-secondary mb-0" for="importAppData">
+                            <i class="fa-solid fa-file-import"></i> Import Data
+                        </label>
+                        <input id="importAppData" class="d-none" type="file" accept="application/json">
+                        <div id="dataPortabilityMessage" class="small d-none" role="status"></div>
+                    </div>
+
                     <div class="table-responsive">
                         <table class="table align-middle users-table">
                             <thead>
