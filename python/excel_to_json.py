@@ -2,10 +2,12 @@ from openpyxl import load_workbook
 import json
 
 # اسم ملف الإكسل
-excel_file = "../القطاع الشمالي احداثيات.xlsx"
+from pathlib import Path
 
-# ملف JSON الناتج
-json_file = "../data/facilities.json"
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+excel_file = BASE_DIR / "القطاع الشمالي احداثيات.xlsx"
+json_file = BASE_DIR / "data" / "facilities.json"
 
 wb = load_workbook(excel_file)
 ws = wb.active
