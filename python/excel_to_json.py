@@ -1,13 +1,19 @@
-from openpyxl import load_workbook
 import json
-
-# اسم ملف الإكسل
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+from openpyxl import load_workbook
 
-excel_file = BASE_DIR / "القطاع الشمالي احداثيات.xlsx"
-json_file = BASE_DIR / "data" / "facilities.json"
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+excel_file = PROJECT_ROOT / "القطاع الشمالي احداثيات.xlsx"
+json_file = PROJECT_ROOT / "data" / "facilities.json"
+
+if not excel_file.exists():
+    print(f"Error: Excel file not found: {excel_file}")
+    raise SystemExit(1)
+
+print(f"Excel file used: {excel_file}")
 
 wb = load_workbook(excel_file)
 ws = wb.active
@@ -45,5 +51,5 @@ for row in ws.iter_rows(min_row=3, values_only=True):
 with open(json_file, "w", encoding="utf-8") as f:
     json.dump(facilities, f, ensure_ascii=False, indent=4)
 
-print(f"تم إنشاء {json_file}")
-print(f"عدد المنشآت: {len(facilities)}")
+print(f"JSON file written: {json_file}")
+print(f"Facilities exported: {len(facilities)}")
