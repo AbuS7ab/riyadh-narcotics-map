@@ -9,7 +9,7 @@ var CONFIG = {
     },
 
     supabase: {
-    url: "https://g7zrdvjpzxaslvqbxloa.supabase.co",
+    url: "https://gzrdvjpzxaslvqbxloal.supabase.co",
     anonKey: "sb_publishable__BNgnqWS29yU0Ks4nEUOxQ_ZK_KMQhz"
 },
 
