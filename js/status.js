@@ -2,10 +2,7 @@
 // Facility Status Engine
 // ========================================
 
-// جميع حالات المنشآت تحفظ هنا
-const facilityStatusStorageKey = "facilityStatus";
-
-const facilityStatus = loadFacilityStatus();
+let facilityStatus = {};
 
 
 function getDefaultFacilityStatus() {
@@ -41,42 +38,11 @@ function getDefaultFacilityStatus() {
 }
 
 
-function loadFacilityStatus() {
+function initializeFacilityStatusState() {
 
-    try {
+    facilityStatus = loadFacilityStatus();
 
-        const storedStatus =
-            JSON.parse(localStorage.getItem(facilityStatusStorageKey));
-
-        return storedStatus &&
-            typeof storedStatus === "object" &&
-            !Array.isArray(storedStatus)
-            ? storedStatus
-            : {};
-
-    } catch (error) {
-
-        return {};
-
-    }
-
-}
-
-
-function saveFacilityStatus() {
-
-    try {
-
-        localStorage.setItem(
-            facilityStatusStorageKey,
-            JSON.stringify(facilityStatus)
-        );
-
-    } catch (error) {
-
-        // Continue without persistence when localStorage is unavailable.
-
-    }
+    seedCloudKey("facilityStatus", facilityStatus);
 
 }
 
@@ -208,7 +174,7 @@ function createFacilityStatus(license) {
     if (existingStatus) {
 
         if (normalizeFacilityStatus(existingStatus)) {
-            saveFacilityStatus();
+            saveFacilityStatus(facilityStatus);
         }
 
         return;
@@ -217,7 +183,7 @@ function createFacilityStatus(license) {
 
     facilityStatus[String(license)] = getDefaultFacilityStatus();
 
-    saveFacilityStatus();
+    saveFacilityStatus(facilityStatus);
 
 }
 
@@ -246,7 +212,7 @@ function addVisit(license, visit) {
 
     syncLatestVisitState(facility);
 
-    saveFacilityStatus();
+    saveFacilityStatus(facilityStatus);
 
 }
 
@@ -295,7 +261,7 @@ function clearFacilityVisits(license) {
 
     syncLatestVisitState(facility);
 
-    saveFacilityStatus();
+    saveFacilityStatus(facilityStatus);
 
 }
 
@@ -312,7 +278,7 @@ function resetAllVisits() {
 
     });
 
-    saveFacilityStatus();
+    saveFacilityStatus(facilityStatus);
 
 }
 
@@ -339,7 +305,7 @@ function setVisitStatus(license, status) {
 
     }
 
-    saveFacilityStatus();
+    saveFacilityStatus(facilityStatus);
 
 }
 
@@ -364,7 +330,7 @@ function setViolation(license, value) {
 
     }
 
-    saveFacilityStatus();
+    saveFacilityStatus(facilityStatus);
 
 }
 
@@ -380,7 +346,7 @@ function assignCommittee(license, committeeName) {
 
     facility.committee = committeeName;
 
-    saveFacilityStatus();
+    saveFacilityStatus(facilityStatus);
 
 }
 
@@ -405,6 +371,6 @@ function setNotes(license, notes) {
 
     }
 
-    saveFacilityStatus();
+    saveFacilityStatus(facilityStatus);
 
 }

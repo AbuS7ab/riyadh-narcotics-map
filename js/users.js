@@ -50,9 +50,9 @@ const defaultUsers = [
     }
 ];
 
-const users = initializeUsers();
-const currentUser = currentUsername ? users[currentUsername] || null : null;
-const facilityAssignments = loadAssignments();
+let users = {};
+let currentUser = null;
+let facilityAssignments = {};
 let selectedCommitteeUsername = null;
 let smartAssignmentStartMode = "auto";
 
@@ -82,27 +82,6 @@ function escapeHtml(value) {
 }
 
 
-function loadUsers() {
-
-    try {
-
-        const storedUsers = JSON.parse(localStorage.getItem(usersStorageKey));
-
-        return storedUsers &&
-            typeof storedUsers === "object" &&
-            !Array.isArray(storedUsers)
-            ? storedUsers
-            : null;
-
-    } catch (error) {
-
-        return null;
-
-    }
-
-}
-
-
 function getCurrentUsername() {
 
     try {
@@ -118,87 +97,6 @@ function getCurrentUsername() {
 }
 
 
-function saveUsers() {
-
-    try {
-
-        localStorage.setItem(usersStorageKey, JSON.stringify(users));
-
-    } catch (error) {
-
-        // Continue without persistence when localStorage is unavailable.
-
-    }
-
-}
-
-
-function loadAssignments() {
-
-    try {
-
-        const storedAssignments =
-            JSON.parse(localStorage.getItem(assignmentsStorageKey));
-
-        if (!storedAssignments ||
-            typeof storedAssignments !== "object" ||
-            Array.isArray(storedAssignments)) {
-
-            return {};
-
-        }
-
-        let changed = false;
-
-        Object.values(storedAssignments).forEach(assignment => {
-
-            if (!assignmentStatuses.includes(assignment.status)) {
-
-                assignment.status = "assigned";
-                changed = true;
-
-            }
-
-        });
-
-        if (changed) {
-
-            localStorage.setItem(
-                assignmentsStorageKey,
-                JSON.stringify(storedAssignments)
-            );
-
-        }
-
-        return storedAssignments;
-
-    } catch (error) {
-
-        return {};
-
-    }
-
-}
-
-
-function saveAssignments() {
-
-    try {
-
-        localStorage.setItem(
-            assignmentsStorageKey,
-            JSON.stringify(facilityAssignments)
-        );
-
-    } catch (error) {
-
-        // Continue without persistence when localStorage is unavailable.
-
-    }
-
-}
-
-
 function initializeUsers() {
 
     const storedUsers = loadUsers();
@@ -208,7 +106,7 @@ function initializeUsers() {
 
         try {
 
-            localStorage.setItem(usersStorageKey, JSON.stringify(defaultUsersByUsername));
+            saveUsers(defaultUsersByUsername);
 
         } catch (error) {
 
@@ -268,7 +166,7 @@ function initializeUsers() {
 
         try {
 
-            localStorage.setItem(usersStorageKey, JSON.stringify(storedUsers));
+            saveUsers(storedUsers);
 
         } catch (error) {
 
@@ -279,6 +177,51 @@ function initializeUsers() {
     }
 
     return storedUsers;
+
+}
+
+
+function normalizeAssignments(storedAssignments) {
+
+    if (!storedAssignments ||
+        typeof storedAssignments !== "object" ||
+        Array.isArray(storedAssignments)) {
+
+        return {};
+
+    }
+
+    let changed = false;
+
+    Object.values(storedAssignments).forEach(assignment => {
+
+        if (!assignmentStatuses.includes(assignment.status)) {
+
+            assignment.status = "assigned";
+            changed = true;
+
+        }
+
+    });
+
+    if (changed) {
+
+        saveAssignments(storedAssignments);
+
+    }
+
+    return storedAssignments;
+
+}
+
+
+function initializeUserState() {
+
+    users = initializeUsers();
+    currentUser = currentUsername ? users[currentUsername] || null : null;
+    facilityAssignments = normalizeAssignments(loadAssignments());
+
+    seedCloudKey(assignmentsStorageKey, facilityAssignments);
 
 }
 
@@ -354,7 +297,7 @@ function updateUser(username, updates) {
 
     }
 
-    saveUsers();
+    saveUsers(users);
 
 }
 
@@ -383,7 +326,7 @@ function assignFacilityToCommittee(facilityLicense, committeeUsername, status = 
         status: assignmentStatuses.includes(status) ? status : "assigned"
     };
 
-    saveAssignments();
+    saveAssignments(facilityAssignments);
 
     renderCommitteeAssignmentCards();
 
@@ -410,7 +353,7 @@ function updateAssignmentFromVisit(facilityLicense, visitStatus) {
 
     assignment.status = status;
 
-    saveAssignments();
+    saveAssignments(facilityAssignments);
 
 }
 
@@ -436,7 +379,7 @@ function assignFacilitiesToCommittee(facilityLicenses, committeeUsername) {
 
     });
 
-    saveAssignments();
+    saveAssignments(facilityAssignments);
     renderCommitteeAssignmentCards();
 
     return true;
@@ -1088,27 +1031,6 @@ function renderUsersPanel() {
 }
 
 
-function getStoredObject(key, fallback = {}) {
-
-    try {
-
-        const storedValue = JSON.parse(localStorage.getItem(key));
-
-        return storedValue &&
-            typeof storedValue === "object" &&
-            !Array.isArray(storedValue)
-            ? storedValue
-            : fallback;
-
-    } catch (error) {
-
-        return fallback;
-
-    }
-
-}
-
-
 function showDataPortabilityMessage(text, className) {
 
     const message = document.getElementById("dataPortabilityMessage");
@@ -1126,10 +1048,10 @@ function exportAppData() {
     const exportData = {
         version: "v1.0-beta",
         exportedAt: new Date().toISOString(),
-        users: getStoredObject(usersStorageKey, users),
-        facilityAssignments: getStoredObject(assignmentsStorageKey, facilityAssignments),
-        facilityStatus: getStoredObject(facilityStatusStorageKey, facilityStatus),
-        appSettings: getStoredObject("appSettings")
+        users,
+        facilityAssignments,
+        facilityStatus,
+        appSettings: loadAppSettings()
     };
 
     const blob = new Blob(
@@ -1176,19 +1098,15 @@ async function importAppData(file) {
 
         }
 
-        localStorage.setItem(usersStorageKey, JSON.stringify(importedData.users));
-        localStorage.setItem(
-            assignmentsStorageKey,
-            JSON.stringify(importedData.facilityAssignments)
-        );
-        localStorage.setItem(
-            facilityStatusStorageKey,
-            JSON.stringify(importedData.facilityStatus)
-        );
+        await Promise.all([
+            saveUsers(importedData.users),
+            saveAssignments(importedData.facilityAssignments),
+            saveFacilityStatus(importedData.facilityStatus)
+        ]);
 
         if (isPortableDataObject(importedData.appSettings)) {
 
-            localStorage.setItem("appSettings", JSON.stringify(importedData.appSettings));
+            await saveAppSettings(importedData.appSettings);
 
         }
 
@@ -1270,12 +1188,16 @@ function initializeUsersPanel() {
 }
 
 
-applyRoleView();
+function initializeUserInterface() {
 
-initializeSession();
+    applyRoleView();
 
-initializeAssignmentBoard();
+    initializeSession();
 
-initializeDataPortability();
+    initializeAssignmentBoard();
 
-initializeUsersPanel();
+    initializeDataPortability();
+
+    initializeUsersPanel();
+
+}

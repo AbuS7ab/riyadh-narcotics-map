@@ -1,4 +1,4 @@
-const CONFIG = {
+window.CONFIG = {
     map: {
         center: [24.7136, 46.6753],
         zoom: 10
@@ -17,3 +17,5 @@ const CONFIG = {
         version: "0.5-alpha"
     }
 };
+
+console.log("Loaded CONFIG");

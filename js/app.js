@@ -9,7 +9,26 @@ let allFacilities = [];
 
 let filteredFacilities = [];
 
-loadFacilities();
+initializeApp();
+
+
+async function initializeApp() {
+
+    await initializeCloudData();
+
+    initializeFacilityStatusState();
+
+    initializeUserState();
+
+    seedCloudKey("appSettings", loadAppSettings());
+
+    await flushCloudWrites();
+
+    initializeUserInterface();
+
+    loadFacilities();
+
+}
 
 
 // ========================================
