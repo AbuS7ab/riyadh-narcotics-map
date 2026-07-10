@@ -377,6 +377,13 @@ function getFacilityAssignment(license) {
 }
 
 
+function isActiveAssignment(assignment) {
+
+    return assignment && assignment.status !== "cancelled";
+
+}
+
+
 function assignFacilityToCommittee(facilityLicense, committeeUsername, status = "assigned") {
 
     const committee = users[committeeUsername];
@@ -506,7 +513,8 @@ function getSmartAssignmentReferencePoint(committeeUsername, facilities) {
     }, {});
     const committeeAssignments = Object.values(facilityAssignments).filter(assignment => {
 
-        return assignment.committeeUsername === committeeUsername;
+        return isActiveAssignment(assignment) &&
+            assignment.committeeUsername === committeeUsername;
 
     });
     const visitedFacilities = [];
@@ -619,7 +627,7 @@ function isFacilityAssignedToCurrentCommittee(facility) {
 
     const assignment = getFacilityAssignment(facility.license);
 
-    return assignment &&
+    return isActiveAssignment(assignment) &&
         assignment.committeeUsername === currentUser.username;
 
 }
@@ -687,7 +695,6 @@ function renderCommitteeAssignmentCards() {
                     <span>المسندة <strong>${assigned}</strong></span>
                     <span>قيد التنفيذ <strong>${inProgress}</strong></span>
                     <span>المكتملة <strong>${completed}</strong></span>
-                    <span>المتبقية <strong>${assigned - completed}</strong></span>
                 </div>
             </article>
         `;
@@ -717,7 +724,8 @@ function renderCommitteeAssignmentCards() {
 
                 const assignment = getFacilityAssignment(facility.license);
 
-                return assignment && assignment.committeeUsername === username;
+                return isActiveAssignment(assignment) &&
+                    assignment.committeeUsername === username;
 
             });
 
@@ -749,7 +757,7 @@ function getUnassignedFacilities(facilities) {
 
         const assignment = getFacilityAssignment(facility.license);
 
-        return !assignment || assignment.status === "cancelled";
+        return !isActiveAssignment(assignment);
 
     });
 

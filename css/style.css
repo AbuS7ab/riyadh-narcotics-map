@@ -689,9 +689,18 @@ body.role-committee .main-grid {
 }
 
 .details-panel .list-group-item {
-    padding: 12px;
+    padding: 10px 12px;
     border-color: var(--line);
     font-size: 12px;
+}
+
+.details-panel .list-group-item .fw-bold {
+    margin-bottom: 3px;
+    line-height: 1.35;
+}
+
+.details-panel .list-group-item .small {
+    line-height: 1.45;
 }
 
 .details-panel .list-group-item.active {
@@ -705,7 +714,7 @@ body.role-committee .main-grid {
 }
 
 .details-panel p {
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     font-size: 13px;
 }
 
@@ -839,6 +848,10 @@ body.role-committee .main-grid {
 .badge.bg-warning {
     color: #fff !important;
     background-color: var(--warning) !important;
+}
+
+.badge.bg-secondary {
+    background-color: #87918B !important;
 }
 
 @media (max-width: 1280px) {
@@ -1020,7 +1033,10 @@ body.role-committee .main-grid {
             "details";
     }
 
-    #map,
+    #map {
+        height: min(55vh, 500px);
+    }
+
     .details-panel .card-body {
         height: 520px;
     }
@@ -1175,7 +1191,7 @@ body.role-committee .main-grid {
     }
 
     #map {
-        height: 390px;
+        height: min(52vh, 420px);
     }
 
     .details-panel .card-body {
@@ -1187,7 +1203,7 @@ body.role-committee .main-grid {
 
     .details-panel .list-group-item,
     .assignment-facility-item {
-        padding: 13px 12px;
+        padding: 11px 10px;
     }
 
     .assignment-board-body,

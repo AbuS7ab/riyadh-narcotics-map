@@ -15,9 +15,15 @@ function showDashboardNeutralState() {
 }
 
 
-function showFacilityList(facilities) {
+function showFacilityList(facilities, options = {}) {
 
     const details = document.querySelector(".card-body");
+
+    if (options.fitBounds !== false && typeof fitFacilityBounds === "function") {
+
+        fitFacilityBounds(facilities);
+
+    }
 
     details.innerHTML = `
         <div id="facilityDrilldownList" class="list-group">
@@ -92,6 +98,12 @@ function showCommitteeFacilityList(committee, facilities) {
 
     if (!isAdminUser()) return;
 
+    if (typeof fitFacilityBounds === "function") {
+
+        fitFacilityBounds(facilities);
+
+    }
+
     const details = document.querySelector(".card-body");
 
     details.innerHTML = `
@@ -120,35 +132,19 @@ function showCommitteeFacilityList(committee, facilities) {
 
         const state = getFacilityStatus(facility.license);
         const assignment = getFacilityAssignment(facility.license);
+
+        if (!assignment || assignment.status === "cancelled") return;
+
         const visitDisplay = getVisitStatusDisplay(state);
-        const assignmentDisplay = {
-            assigned: { text: "Assigned", badge: "secondary" },
-            in_progress: { text: "In Progress", badge: "warning" },
-            completed: { text: "Completed", badge: "success" },
-            cancelled: { text: "Cancelled", badge: "dark" }
-        }[assignment.status];
-        const category = state.violation
-            ? { text: "Violation", badge: "danger" }
-            : state.visitStatus === "visited"
-                ? { text: "Completed", badge: "success" }
-                : state.visitStatus === "partial"
-                    ? { text: "Partial", badge: "warning" }
-                    : { text: "Remaining", badge: "secondary" };
         const item = document.createElement("button");
 
         item.className = "list-group-item list-group-item-action";
         item.innerHTML = `
-            <div class="d-flex justify-content-between gap-2">
-                <div class="fw-bold">${escapeHtml(facility.name)}</div>
-                <span class="badge bg-${category.badge}">${category.text}</span>
-            </div>
+            <div class="fw-bold">${escapeHtml(facility.name)}</div>
             <div class="text-muted small">📄 رقم الترخيص: ${escapeHtml(facility.license)}</div>
             <div class="text-muted small">📍 الحي: ${escapeHtml(facility.district)}</div>
             <div class="text-muted small">🏥 النوع: ${escapeHtml(facility.type)}</div>
             <div class="mt-2">
-                <span class="badge bg-${assignmentDisplay.badge}">
-                    Assignment: ${assignmentDisplay.text}
-                </span>
                 <span class="badge bg-${visitDisplay.badge}">${visitDisplay.text}</span>
                 ${state.violation
                     ? '<span class="badge bg-danger">يوجد مخالفة</span>'
@@ -241,7 +237,10 @@ function renderAssignmentControl(facility) {
 
     if (!isAdminUser()) return "";
 
-    const assignment = getFacilityAssignment(facility.license);
+    const storedAssignment = getFacilityAssignment(facility.license);
+    const assignment = storedAssignment && storedAssignment.status !== "cancelled"
+        ? storedAssignment
+        : null;
     const committeeOptions = getCommitteeUsers().map(user => `
         <option value="${user.username}"
                 ${assignment && assignment.committeeUsername === user.username ? "selected" : ""}>

@@ -45,13 +45,13 @@ function setFilter(filterName, value) {
 
     }
 
-    applyFilters();
+    applyFilters({ fitBounds: true });
 
 }
 
 
 // تطبيق الفلاتر
-function applyFilters() {
+function applyFilters(options = {}) {
 
     filteredFacilities = allFacilities.filter(facility => {
 
@@ -84,5 +84,11 @@ function applyFilters() {
     });
 
     refreshView();
+
+    if (options.fitBounds && typeof fitFacilityBounds === "function") {
+
+        fitFacilityBounds(filteredFacilities);
+
+    }
 
 }

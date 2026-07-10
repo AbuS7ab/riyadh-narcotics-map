@@ -88,6 +88,13 @@ if (query.length > 0) {
         }
 
         const results = searchFacilities(query);
+        const visibleResults = results.slice(0, 10);
+
+        if (typeof fitFacilityBounds === "function") {
+
+            fitFacilityBounds(visibleResults);
+
+        }
 
         resultsBox.innerHTML = `
 <div class="list-group-item active">
@@ -107,7 +114,7 @@ if (query.length > 0) {
 
         }
 
-        results.slice(0, 10).forEach(facility => {
+        visibleResults.forEach(facility => {
 
     const item = document.createElement("button");
 

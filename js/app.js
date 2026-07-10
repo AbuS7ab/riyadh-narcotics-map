@@ -3,7 +3,7 @@
 // Version 0.5-alpha
 // ========================================
 
-const map = createMap();
+let map = null;
 
 let allFacilities = [];
 
@@ -26,6 +26,10 @@ async function initializeApp() {
 
     initializeUserInterface();
 
+    if (!isAdminUser() && !isCommitteeUser()) return;
+
+    await initializeMapWhenVisible();
+
     loadFacilities();
 
 }
@@ -37,7 +41,7 @@ async function initializeApp() {
 
 function createMap() {
 
-    const map = L.map("map").setView([24.7136, 46.6753], 10);
+    const map = L.map("map");
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -45,6 +49,47 @@ function createMap() {
     }).addTo(map);
 
     return map;
+}
+
+
+function initializeMapWhenVisible() {
+
+    return new Promise(resolve => {
+
+        const waitForVisibleMap = () => {
+
+            const mapContainer = document.getElementById("map");
+
+            if (!mapContainer ||
+                mapContainer.offsetWidth === 0 ||
+                mapContainer.offsetHeight === 0) {
+
+                requestAnimationFrame(waitForVisibleMap);
+
+                return;
+
+            }
+
+            map = createMap();
+
+            map.invalidateSize(true);
+            map.setView(CONFIG.map.center, CONFIG.map.zoom);
+
+            setTimeout(() => {
+
+                map.invalidateSize(true);
+                map.setView(CONFIG.map.center, CONFIG.map.zoom);
+
+            }, 250);
+
+            resolve();
+
+        };
+
+        requestAnimationFrame(waitForVisibleMap);
+
+    });
+
 }
 // ========================================
 // Load Facilities
@@ -75,7 +120,10 @@ filteredFacilities = [...allFacilities];
 
             if (isCommitteeUser()) {
 
-                showFacilityList(getAssignedFacilitiesForCurrentUser(allFacilities));
+                showFacilityList(
+                    getAssignedFacilitiesForCurrentUser(allFacilities),
+                    { fitBounds: false }
+                );
 
             }
 
