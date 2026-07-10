@@ -1,4 +1,4 @@
-window.CONFIG = {
+var CONFIG = {
     map: {
         center: [24.7136, 46.6753],
         zoom: 10
@@ -17,5 +17,7 @@ window.CONFIG = {
         version: "0.5-alpha"
     }
 };
+
+window.CONFIG = CONFIG;
 
 console.log("Loaded CONFIG");

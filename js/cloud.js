@@ -6,10 +6,33 @@ const SUPABASE_URL = "";
 const SUPABASE_ANON_KEY = "";
 
 const cloudStorageKeys = {
-    users: "narcoUsers",
+    users: "users",
     assignments: "facilityAssignments",
     facilityStatus: "facilityStatus",
     appSettings: "appSettings"
+};
+
+const cloudDataSets = {
+    users: {
+        cloudKey: cloudStorageKeys.users,
+        localKey: "narcoUsers",
+        label: "users"
+    },
+    assignments: {
+        cloudKey: cloudStorageKeys.assignments,
+        localKey: "facilityAssignments",
+        label: "assignments"
+    },
+    facilityStatus: {
+        cloudKey: cloudStorageKeys.facilityStatus,
+        localKey: "facilityStatus",
+        label: "facilityStatus"
+    },
+    appSettings: {
+        cloudKey: cloudStorageKeys.appSettings,
+        localKey: "appSettings",
+        label: "appSettings"
+    }
 };
 
 const cloudTableName = "app_data";
@@ -94,6 +117,21 @@ function hasLocalObject(key) {
 }
 
 
+function getDataSetByCloudKey(key) {
+
+    return Object.values(cloudDataSets).find(dataSet => {
+
+        return dataSet.cloudKey === key || dataSet.localKey === key;
+
+    }) || {
+        cloudKey: key,
+        localKey: key,
+        label: key
+    };
+
+}
+
+
 function writeLocalObject(key, value) {
 
     try {
@@ -113,18 +151,18 @@ function useLocalStorageFallback() {
 
     cloudUseSupabase = false;
 
-    console.log("Cloud mode: localStorage fallback");
+    console.warn("Cloud Mode: localStorage fallback");
 
 }
 
 
-async function saveCloudObject(key, value, migrated = false) {
+async function saveCloudObject(dataSet, value, migrated = false) {
 
     const { error } = await cloudSupabaseClient
         .from(cloudTableName)
         .upsert(
             {
-                key,
+                key: dataSet.cloudKey,
                 value,
                 updated_at: new Date().toISOString()
             },
@@ -133,22 +171,22 @@ async function saveCloudObject(key, value, migrated = false) {
 
     if (error) throw error;
 
-    cloudMissingKeys[key] = false;
+    cloudMissingKeys[dataSet.cloudKey] = false;
 
-    console.log(
-        migrated
-            ? `Migrated key to Supabase: ${key}`
-            : `Saved key to Supabase: ${key}`
-    );
+    console.log(migrated
+        ? `Migrated key to Supabase: ${dataSet.cloudKey}`
+        : `Saved ${dataSet.label}`);
 
 }
 
 
 async function readCloudObject(key, fallback = {}) {
 
+    const dataSet = getDataSetByCloudKey(key);
+
     if (!cloudUseSupabase || !cloudSupabaseClient) {
 
-        return readLocalObject(key, fallback);
+        return readLocalObject(dataSet.localKey, fallback);
 
     }
 
@@ -157,41 +195,45 @@ async function readCloudObject(key, fallback = {}) {
         const { data, error } = await cloudSupabaseClient
             .from(cloudTableName)
             .select("value")
-            .eq("key", key)
+            .eq("key", dataSet.cloudKey)
             .maybeSingle();
 
         if (error) throw error;
 
         if (data && isPortableDataObject(data.value)) {
 
-            cloudMissingKeys[key] = false;
+            cloudMissingKeys[dataSet.cloudKey] = false;
+
+            console.log(`Loaded ${dataSet.label}`);
 
             return data.value;
 
         }
 
-        if (hasLocalObject(key)) {
+        if (hasLocalObject(dataSet.localKey)) {
 
-            const localValue = readLocalObject(key, fallback);
+            const localValue = readLocalObject(dataSet.localKey, fallback);
 
-            await saveCloudObject(key, localValue, true);
+            await saveCloudObject(dataSet, localValue, true);
+            console.log(`Loaded ${dataSet.label}`);
 
             return localValue;
 
         }
 
-        cloudMissingKeys[key] = true;
+        cloudMissingKeys[dataSet.cloudKey] = true;
+        console.log(`Loaded ${dataSet.label}`);
 
         return fallback;
 
     } catch (error) {
 
         logSupabaseError(error);
-        console.warn(`Supabase load failed for ${key}; using localStorage.`, error);
+        console.warn(`Supabase load failed for ${dataSet.cloudKey}; using localStorage.`, error);
 
         useLocalStorageFallback();
 
-        return readLocalObject(key, fallback);
+        return readLocalObject(dataSet.localKey, fallback);
 
     }
 
@@ -200,22 +242,30 @@ async function readCloudObject(key, fallback = {}) {
 
 async function writeCloudObject(key, value) {
 
-    writeLocalObject(key, value);
-    cloudCache[key] = value;
+    const dataSet = getDataSetByCloudKey(key);
 
-    if (!cloudUseSupabase || !cloudSupabaseClient) return;
+    cloudCache[dataSet.cloudKey] = value;
+
+    if (!cloudUseSupabase || !cloudSupabaseClient) {
+
+        writeLocalObject(dataSet.localKey, value);
+
+        return;
+
+    }
 
     const pendingWrite = (async () => {
 
         try {
 
-            await saveCloudObject(key, value);
+            await saveCloudObject(dataSet, value);
 
         } catch (error) {
 
             logSupabaseError(error);
-            console.warn(`Supabase save failed for ${key}; localStorage backup kept.`, error);
+            console.warn(`Supabase save failed for ${dataSet.cloudKey}; using localStorage fallback.`, error);
             useLocalStorageFallback();
+            writeLocalObject(dataSet.localKey, value);
 
         }
 
@@ -245,17 +295,17 @@ async function initializeCloudData() {
     if (cloudUseSupabase) {
 
         cloudSupabaseClient = supabaseClientFactory.createClient(url, anonKey);
-        console.log("Cloud mode: Supabase");
+        console.log("Cloud Mode: Supabase");
 
     } else {
 
-        console.log("Cloud mode: localStorage fallback");
+        console.warn("Cloud Mode: localStorage fallback");
 
     }
 
-    for (const key of Object.values(cloudStorageKeys)) {
+    for (const dataSet of Object.values(cloudDataSets)) {
 
-        cloudCache[key] = await readCloudObject(key, {});
+        cloudCache[dataSet.cloudKey] = await readCloudObject(dataSet.cloudKey, {});
 
     }
 
@@ -349,3 +399,50 @@ function saveAppSettings(appSettings) {
     return writeCloudObject(cloudStorageKeys.appSettings, appSettings);
 
 }
+
+
+async function testCloudWrite() {
+
+    if (!cloudInitialized) {
+
+        await initializeCloudData();
+
+    }
+
+    if (!cloudUseSupabase || !cloudSupabaseClient) {
+
+        throw new Error("Supabase is not active.");
+
+    }
+
+    const value = {
+        ok: true,
+        timestamp: new Date().toISOString()
+    };
+
+    await saveCloudObject(getDataSetByCloudKey("syncTest"), value);
+
+    return value;
+
+}
+
+
+window.cloudDebug = {
+    get mode() {
+
+        return cloudUseSupabase ? "supabase" : "localStorage";
+
+    },
+    get isSupabaseEnabled() {
+
+        return cloudUseSupabase;
+
+    },
+    testWrite: testCloudWrite,
+    loadUsers,
+    saveUsers,
+    loadAssignments,
+    saveAssignments,
+    loadFacilityStatus,
+    saveFacilityStatus
+};
