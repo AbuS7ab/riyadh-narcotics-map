@@ -15,38 +15,6 @@ const defaultUsers = [
         role: "admin",
         active: true,
         committeeName: "إدارة الامتثال"
-    },
-    {
-        username: "committee1",
-        password: "committee1",
-        displayName: "اللجنة الأولى",
-        role: "committee",
-        active: true,
-        committeeName: "اللجنة الأولى"
-    },
-    {
-        username: "committee2",
-        password: "committee2",
-        displayName: "اللجنة الثانية",
-        role: "committee",
-        active: true,
-        committeeName: "اللجنة الثانية"
-    },
-    {
-        username: "committee3",
-        password: "committee3",
-        displayName: "اللجنة الثالثة",
-        role: "committee",
-        active: true,
-        committeeName: "اللجنة الثالثة"
-    },
-    {
-        username: "committee4",
-        password: "committee4",
-        displayName: "اللجنة الرابعة",
-        role: "committee",
-        active: true,
-        committeeName: "اللجنة الرابعة"
     }
 ];
 
@@ -101,8 +69,9 @@ function initializeUsers() {
 
     const storedUsers = loadUsers();
     const defaultUsersByUsername = getDefaultUsersByUsername();
+    const defaultAdmin = defaultUsersByUsername.admin;
 
-    if (!storedUsers) {
+    if (!storedUsers || Object.keys(storedUsers).length === 0) {
 
         try {
 
@@ -120,29 +89,25 @@ function initializeUsers() {
 
     let changed = false;
 
-    defaultUsers.forEach(user => {
+    if (!storedUsers.admin) {
 
-        if (!storedUsers[user.username]) {
+        storedUsers.admin = { ...defaultAdmin };
+        changed = true;
 
-            storedUsers[user.username] = { ...user };
-            changed = true;
+    } else {
 
-        } else {
+        Object.keys(defaultAdmin).forEach(key => {
 
-            Object.keys(user).forEach(key => {
+            if (typeof storedUsers.admin[key] === "undefined") {
 
-                if (typeof storedUsers[user.username][key] === "undefined") {
+                storedUsers.admin[key] = defaultAdmin[key];
+                changed = true;
 
-                    storedUsers[user.username][key] = user[key];
-                    changed = true;
+            }
 
-                }
+        });
 
-            });
-
-        }
-
-    });
+    }
 
     if (storedUsers.admin) {
 
@@ -249,7 +214,16 @@ function isCommitteeUser() {
 
 function getUsers() {
 
-    return defaultUsers.map(user => users[user.username]).filter(Boolean);
+    return Object.values(users)
+        .filter(user => user && typeof user === "object")
+        .sort((a, b) => {
+
+            if (a.role === "admin" && b.role !== "admin") return -1;
+            if (a.role !== "admin" && b.role === "admin") return 1;
+
+            return String(a.username || "").localeCompare(String(b.username || ""));
+
+        });
 
 }
 
@@ -261,7 +235,95 @@ function getCommitteeUsers() {
 }
 
 
-function updateUser(username, updates) {
+function validateUsersObject(nextUsers) {
+
+    if (!nextUsers || typeof nextUsers !== "object" || Array.isArray(nextUsers)) {
+
+        return "بيانات المستخدمين غير صالحة.";
+
+    }
+
+    const seenUsernames = new Set();
+
+    for (const [key, user] of Object.entries(nextUsers)) {
+
+        if (!user || typeof user !== "object" || Array.isArray(user)) {
+
+            return "بيانات أحد المستخدمين غير صالحة.";
+
+        }
+
+        const username = String(user.username || "").trim();
+
+        if (!username) return "اسم المستخدم مطلوب لكل مستخدم.";
+        if (username !== key) return "مفتاح المستخدم يجب أن يطابق اسم المستخدم.";
+        if (seenUsernames.has(username)) return "اسم المستخدم مكرر.";
+
+        seenUsernames.add(username);
+
+        if (typeof user.password !== "string" || user.password.trim() === "") {
+
+            return "كلمة المرور مطلوبة لكل مستخدم.";
+
+        }
+
+        if (!["admin", "committee"].includes(user.role)) {
+
+            return "دور المستخدم غير صالح.";
+
+        }
+
+        if (typeof user.active !== "boolean") {
+
+            return "حالة النشاط يجب أن تكون صحيحة أو غير صحيحة.";
+
+        }
+
+        if (user.role === "committee" &&
+            (typeof user.committeeName !== "string" || user.committeeName.trim() === "")) {
+
+            return "اسم اللجنة مطلوب لكل مستخدم لجنة.";
+
+        }
+
+    }
+
+    if (!nextUsers.admin || nextUsers.admin.role !== "admin") {
+
+        return "لا يمكن حذف مدير النظام.";
+
+    }
+
+    return "";
+
+}
+
+
+function getActiveAssignmentCount(username) {
+
+    return Object.values(facilityAssignments).filter(assignment => {
+
+        return assignment &&
+            assignment.committeeUsername === username &&
+            assignment.status !== "cancelled";
+
+    }).length;
+
+}
+
+
+function canDeleteUser(username) {
+
+    const user = users[username];
+
+    if (!user || user.role === "admin") return false;
+
+    return getActiveAssignmentCount(username) === 0;
+
+}
+
+
+function updateUser(username, updates, options = {}) {
 
     const user = users[username];
 
@@ -297,7 +359,13 @@ function updateUser(username, updates) {
 
     }
 
-    saveUsers(users);
+    if (options.persist !== false) {
+
+        return saveUsers(users);
+
+    }
+
+    return Promise.resolve();
 
 }
 
@@ -995,6 +1063,7 @@ function renderUsersPanel() {
     getUsers().forEach(user => {
 
         const row = document.createElement("tr");
+        const canDelete = canDeleteUser(user.username);
 
         row.dataset.username = user.username;
 
@@ -1012,9 +1081,22 @@ function renderUsersPanel() {
                        value="${escapeHtml(user.committeeName)}">
             </td>
             <td>
-                <input class="form-control form-control-sm user-password"
-                       type="password"
-                       value="${escapeHtml(user.password)}">
+                <div class="input-group input-group-sm user-password-group">
+                    <input class="form-control user-password"
+                           type="password"
+                           value="${escapeHtml(user.password)}">
+                    <button class="btn btn-outline-secondary user-toggle-password"
+                            type="button"
+                            title="إظهار كلمة المرور"
+                            aria-label="إظهار كلمة المرور">
+                        <i class="fa-solid fa-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary user-reset-password"
+                            type="button"
+                            title="إعادة تعيين كلمة المرور إلى 1234">
+                        1234
+                    </button>
+                </div>
             </td>
             <td class="text-center">
                 <input class="form-check-input user-active"
@@ -1022,11 +1104,84 @@ function renderUsersPanel() {
                        ${user.active ? "checked" : ""}
                        ${user.role === "admin" ? "disabled" : ""}>
             </td>
+            <td class="text-center">
+                <button class="btn btn-outline-danger btn-sm user-delete"
+                        type="button"
+                        title="${user.role === "admin" ? "لا يمكن حذف مدير النظام" : canDelete ? "حذف المستخدم" : "لا يمكن حذف لجنة لديها إسنادات نشطة"}"
+                        ${canDelete ? "" : "disabled"}>
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
         `;
 
         usersTableBody.appendChild(row);
 
     });
+
+}
+
+
+function showUsersSaveMessage(text, className) {
+
+    const usersSaveMessage = document.getElementById("usersSaveMessage");
+
+    if (!usersSaveMessage) return;
+
+    usersSaveMessage.textContent = text;
+    usersSaveMessage.className = `${className} small`;
+
+}
+
+
+function getUsersFromPanel(usersTableBody) {
+
+    const nextUsers = {};
+
+    usersTableBody.querySelectorAll("tr").forEach(row => {
+
+        const username = row.dataset.username;
+        const existingUser = users[username];
+
+        if (!existingUser) return;
+
+        nextUsers[username] = {
+            ...existingUser,
+            displayName: row.querySelector(".user-display-name").value.trim(),
+            committeeName: row.querySelector(".user-committee-name").value.trim(),
+            password: row.querySelector(".user-password").value,
+            active: existingUser.role === "admin"
+                ? true
+                : row.querySelector(".user-active").checked
+        };
+
+    });
+
+    return nextUsers;
+
+}
+
+
+async function persistUsers(nextUsers) {
+
+    const validationMessage = validateUsersObject(nextUsers);
+
+    if (validationMessage) {
+
+        showUsersSaveMessage(validationMessage, "text-danger");
+
+        return false;
+
+    }
+
+    users = nextUsers;
+
+    await saveUsers(users, { throwOnError: true });
+
+    renderUsersPanel();
+    renderCommitteeAssignmentCards();
+    renderAssignmentBoard(allFacilities);
+
+    return true;
 
 }
 
@@ -1098,6 +1253,16 @@ async function importAppData(file) {
 
         }
 
+        const validationMessage = validateUsersObject(importedData.users);
+
+        if (validationMessage) {
+
+            showDataPortabilityMessage(validationMessage, "text-danger");
+
+            return;
+
+        }
+
         await Promise.all([
             saveUsers(importedData.users),
             saveAssignments(importedData.facilityAssignments),
@@ -1147,39 +1312,196 @@ function initializeUsersPanel() {
     const usersTableBody = document.getElementById("usersTableBody");
     const saveUsersButton = document.getElementById("saveUsers");
     const usersSaveMessage = document.getElementById("usersSaveMessage");
+    const showAddCommitteeFormButton = document.getElementById("showAddCommitteeForm");
+    const addCommitteeForm = document.getElementById("addCommitteeForm");
 
     if (!usersTableBody || !saveUsersButton || !isAdminUser()) return;
 
     renderUsersPanel();
 
-    saveUsersButton.addEventListener("click", function () {
+    if (showAddCommitteeFormButton && addCommitteeForm) {
 
-        usersTableBody.querySelectorAll("tr").forEach(row => {
+        showAddCommitteeFormButton.addEventListener("click", () => {
 
-            updateUser(row.dataset.username, {
-                displayName: row.querySelector(".user-display-name").value,
-                committeeName: row.querySelector(".user-committee-name").value,
-                password: row.querySelector(".user-password").value,
-                active: row.querySelector(".user-active").checked
-            });
+            addCommitteeForm.classList.toggle("d-none");
 
         });
 
-        renderUsersPanel();
+        addCommitteeForm.addEventListener("submit", async event => {
 
-        renderCommitteeAssignmentCards();
+            event.preventDefault();
 
-        renderAssignmentBoard(allFacilities);
+            const committeeName = document.getElementById("newCommitteeName").value.trim();
+            const username = document.getElementById("newCommitteeUsername").value.trim();
+            const password = document.getElementById("newCommitteePassword").value;
+            const active = document.getElementById("newCommitteeActive").checked;
 
-        if (usersSaveMessage) {
+            if (!committeeName) {
 
-            usersSaveMessage.classList.remove("d-none");
+                showUsersSaveMessage("اسم اللجنة مطلوب.", "text-danger");
 
-            setTimeout(() => {
+                return;
 
-                usersSaveMessage.classList.add("d-none");
+            }
 
-            }, 2500);
+            if (!username) {
+
+                showUsersSaveMessage("اسم المستخدم مطلوب.", "text-danger");
+
+                return;
+
+            }
+
+            if (users[username]) {
+
+                showUsersSaveMessage("اسم المستخدم موجود مسبقاً.", "text-danger");
+
+                return;
+
+            }
+
+            if (!password.trim()) {
+
+                showUsersSaveMessage("كلمة المرور مطلوبة.", "text-danger");
+
+                return;
+
+            }
+
+            const nextUsers = {
+                ...users,
+                [username]: {
+                    username,
+                    password,
+                    displayName: committeeName,
+                    role: "committee",
+                    active,
+                    committeeName
+                }
+            };
+
+            try {
+
+                if (await persistUsers(nextUsers)) {
+
+                    addCommitteeForm.reset();
+                    document.getElementById("newCommitteeActive").checked = true;
+                    addCommitteeForm.classList.add("d-none");
+                    showUsersSaveMessage("تمت إضافة اللجنة وحفظها.", "text-success");
+
+                }
+
+            } catch (error) {
+
+                showUsersSaveMessage("تعذر حفظ اللجنة الجديدة.", "text-danger");
+
+            }
+
+        });
+
+    }
+
+    usersTableBody.addEventListener("click", event => {
+
+        const toggleButton = event.target.closest(".user-toggle-password");
+        const resetButton = event.target.closest(".user-reset-password");
+        const deleteButton = event.target.closest(".user-delete");
+        const row = event.target.closest("tr");
+
+        if (!row || (!toggleButton && !resetButton && !deleteButton)) return;
+
+        const passwordInput = row.querySelector(".user-password");
+
+        if (!passwordInput && !deleteButton) return;
+
+        if (deleteButton) {
+
+            const username = row.dataset.username;
+
+            if (!canDeleteUser(username)) {
+
+                showUsersSaveMessage("لا يمكن حذف مدير النظام أو لجنة لديها إسنادات نشطة.", "text-danger");
+
+                return;
+
+            }
+
+            const nextUsers = { ...users };
+
+            delete nextUsers[username];
+
+            persistUsers(nextUsers)
+                .then(saved => {
+
+                    if (saved) {
+
+                        showUsersSaveMessage("تم حذف المستخدم وحفظ التغيير.", "text-success");
+
+                    }
+
+                })
+                .catch(() => {
+
+                    showUsersSaveMessage("تعذر حذف المستخدم.", "text-danger");
+
+                });
+
+            return;
+
+        }
+
+        if (toggleButton) {
+
+            const shouldShowPassword = passwordInput.type === "password";
+
+            passwordInput.type = shouldShowPassword ? "text" : "password";
+            toggleButton.title = shouldShowPassword
+                ? "إخفاء كلمة المرور"
+                : "إظهار كلمة المرور";
+            toggleButton.setAttribute("aria-label", toggleButton.title);
+            toggleButton.innerHTML = shouldShowPassword
+                ? '<i class="fa-solid fa-eye-slash"></i>'
+                : '<i class="fa-solid fa-eye"></i>';
+
+            return;
+
+        }
+
+        passwordInput.value = "1234";
+        passwordInput.focus();
+
+    });
+
+    saveUsersButton.addEventListener("click", async function () {
+
+        saveUsersButton.disabled = true;
+        showUsersSaveMessage("جاري حفظ بيانات المستخدمين...", "text-muted");
+
+        try {
+
+            if (await persistUsers(getUsersFromPanel(usersTableBody))) {
+
+                showUsersSaveMessage("تم حفظ بيانات المستخدمين.", "text-success");
+
+                setTimeout(() => {
+
+                    if (usersSaveMessage) {
+
+                        usersSaveMessage.classList.add("d-none");
+
+                    }
+
+                }, 2500);
+
+            }
+
+        } catch (error) {
+
+            showUsersSaveMessage("تعذر حفظ بيانات المستخدمين. تحقق من الاتصال أو إعدادات Supabase.", "text-danger");
+
+        } finally {
+
+            saveUsersButton.disabled = false;
 
         }
 

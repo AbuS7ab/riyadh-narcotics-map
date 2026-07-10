@@ -240,7 +240,7 @@ async function readCloudObject(key, fallback = {}) {
 }
 
 
-async function writeCloudObject(key, value) {
+async function writeCloudObject(key, value, options = {}) {
 
     const dataSet = getDataSetByCloudKey(key);
 
@@ -266,6 +266,12 @@ async function writeCloudObject(key, value) {
             console.warn(`Supabase save failed for ${dataSet.cloudKey}; using localStorage fallback.`, error);
             useLocalStorageFallback();
             writeLocalObject(dataSet.localKey, value);
+
+            if (options.throwOnError) {
+
+                throw error;
+
+            }
 
         }
 
@@ -346,9 +352,9 @@ function loadUsers() {
 }
 
 
-function saveUsers(users) {
+function saveUsers(users, options) {
 
-    return writeCloudObject(cloudStorageKeys.users, users);
+    return writeCloudObject(cloudStorageKeys.users, users, options);
 
 }
 
