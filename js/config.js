@@ -9,9 +9,9 @@ var CONFIG = {
     },
 
     supabase: {
-        url: "https://g7zrdvjpzxaslvqbxloa.supabase.co",
-        anonKey: "sb_publishable__BNgnqWS29yU0Ks4nEUOxQ_ZK_KMQhz"
-    },
+    url: "https://g7zrdvjpzxaslvqbxloa.supabase.co",
+    anonKey: "sb_publishable__BNgnqWS29yU0Ks4nEUOxQ_ZK_KMQhz"
+},
 
     app: {
         version: "0.5-alpha"
