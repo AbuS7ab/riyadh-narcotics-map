@@ -14,7 +14,11 @@ const defaultUsers = [
         displayName: "مدير النظام",
         role: "admin",
         active: true,
-        committeeName: "إدارة الامتثال"
+        committeeName: "إدارة الامتثال",
+        team: {
+            leader: "",
+            members: []
+        }
     }
 ];
 
@@ -109,6 +113,21 @@ function initializeUsers() {
 
     }
 
+    Object.values(storedUsers).forEach(user => {
+
+        if (!user || typeof user !== "object") return;
+
+        const normalizedTeam = normalizeTeam(user.team);
+
+        if (JSON.stringify(user.team) !== JSON.stringify(normalizedTeam)) {
+
+            user.team = normalizedTeam;
+            changed = true;
+
+        }
+
+    });
+
     if (storedUsers.admin) {
 
         if (storedUsers.admin.role !== "admin") {
@@ -163,6 +182,29 @@ function normalizeAssignments(storedAssignments) {
         if (!assignmentStatuses.includes(assignment.status)) {
 
             assignment.status = "assigned";
+            changed = true;
+
+        }
+
+        if (!assignment.id) {
+
+            assignment.id = createAssignmentId(assignment.facilityLicense);
+            changed = true;
+
+        }
+
+        if (!assignment.visitType) {
+
+            assignment.visitType = "periodic";
+            changed = true;
+
+        }
+
+        if (typeof assignment.visitReason !== "string") {
+
+            assignment.visitReason = assignment.visitType === "reactive"
+                ? ""
+                : "الخطة الدورية";
             changed = true;
 
         }
@@ -286,6 +328,12 @@ function validateUsersObject(nextUsers) {
 
         }
 
+        if (user.role === "committee" && !user.team) {
+
+            return "بيانات فريق اللجنة مطلوبة.";
+
+        }
+
     }
 
     if (!nextUsers.admin || nextUsers.admin.role !== "admin") {
@@ -303,9 +351,8 @@ function getActiveAssignmentCount(username) {
 
     return Object.values(facilityAssignments).filter(assignment => {
 
-        return assignment &&
-            assignment.committeeUsername === username &&
-            assignment.status !== "cancelled";
+        return isActiveAssignment(assignment) &&
+            assignment.committeeUsername === username;
 
     }).length;
 
@@ -347,6 +394,12 @@ function updateUser(username, updates, options = {}) {
 
     }
 
+    if (updates.team && typeof updates.team === "object") {
+
+        user.team = normalizeTeam(updates.team);
+
+    }
+
     if (user.role === "committee" && typeof updates.active === "boolean") {
 
         user.active = updates.active;
@@ -379,26 +432,85 @@ function getFacilityAssignment(license) {
 
 function isActiveAssignment(assignment) {
 
-    return assignment && assignment.status !== "cancelled";
+    return assignment &&
+        assignment.status !== "cancelled" &&
+        assignment.status !== "completed";
 
 }
 
 
-function assignFacilityToCommittee(facilityLicense, committeeUsername, status = "assigned") {
+function normalizeTeam(team) {
+
+    const source = team && typeof team === "object" ? team : {};
+
+    return {
+        leader: String(source.leader || "").trim(),
+        members: Array.isArray(source.members)
+            ? source.members.map(member => String(member || "").trim()).filter(Boolean)
+            : []
+    };
+
+}
+
+
+function createTeamSnapshot(committee) {
+
+    const team = normalizeTeam(committee.team);
+
+    return {
+        committeeName: committee.committeeName || committee.displayName || committee.username,
+        leader: team.leader,
+        members: [...team.members]
+    };
+
+}
+
+
+function createAssignmentId(facilityLicense) {
+
+    return `${String(facilityLicense)}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+}
+
+
+function normalizeAssignmentMetadata(options = {}) {
+
+    const visitType = options.visitType === "reactive" ? "reactive" : "periodic";
+    const visitReason = visitType === "reactive"
+        ? String(options.visitReason || "").trim()
+        : "الخطة الدورية";
+
+    return { visitType, visitReason };
+
+}
+
+
+function assignFacilityToCommittee(
+    facilityLicense,
+    committeeUsername,
+    status = "assigned",
+    options = {}
+) {
 
     const committee = users[committeeUsername];
 
     if (!committee || committee.role !== "committee") return;
 
     const existingAssignment = getFacilityAssignment(facilityLicense);
+    const assignedAt = isActiveAssignment(existingAssignment)
+        ? existingAssignment.assignedAt
+        : new Date().toISOString();
+    const metadata = normalizeAssignmentMetadata(options);
 
     facilityAssignments[String(facilityLicense)] = {
+        id: createAssignmentId(facilityLicense),
         facilityLicense: String(facilityLicense),
         committeeUsername,
-        assignedAt: existingAssignment
-            ? existingAssignment.assignedAt
-            : new Date().toISOString(),
-        status: assignmentStatuses.includes(status) ? status : "assigned"
+        assignedAt,
+        status: assignmentStatuses.includes(status) ? status : "assigned",
+        teamSnapshot: createTeamSnapshot(committee),
+        visitType: metadata.visitType,
+        visitReason: metadata.visitReason
     };
 
     saveAssignments(facilityAssignments);
@@ -408,7 +520,7 @@ function assignFacilityToCommittee(facilityLicense, committeeUsername, status = 
 }
 
 
-function updateAssignmentFromVisit(facilityLicense, visitStatus) {
+function updateAssignmentFromVisit(facilityLicense, result) {
 
     if (!isCommitteeUser()) return;
 
@@ -418,9 +530,9 @@ function updateAssignmentFromVisit(facilityLicense, visitStatus) {
         assignment.committeeUsername !== currentUser.username ||
         assignment.status === "cancelled") return;
 
-    const status = visitStatus === "visited"
+    const status = ["no_violation", "violation", "visited"].includes(result)
         ? "completed"
-        : visitStatus === "partial"
+        : ["incomplete", "partial"].includes(result)
             ? "in_progress"
             : null;
 
@@ -433,7 +545,7 @@ function updateAssignmentFromVisit(facilityLicense, visitStatus) {
 }
 
 
-function assignFacilitiesToCommittee(facilityLicenses, committeeUsername) {
+function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, options = {}) {
 
     if (!isAdminUser()) return false;
 
@@ -442,14 +554,19 @@ function assignFacilitiesToCommittee(facilityLicenses, committeeUsername) {
     if (!committee || committee.role !== "committee" || !committee.active) return false;
 
     const assignedAt = new Date().toISOString();
+    const metadata = normalizeAssignmentMetadata(options);
 
     facilityLicenses.forEach(license => {
 
         facilityAssignments[String(license)] = {
+            id: createAssignmentId(license),
             facilityLicense: String(license),
             committeeUsername,
             assignedAt,
-            status: "assigned"
+            status: "assigned",
+            teamSnapshot: createTeamSnapshot(committee),
+            visitType: metadata.visitType,
+            visitReason: metadata.visitReason
         };
 
     });
@@ -602,7 +719,11 @@ function smartAssignFacilities(
 
     assignFacilitiesToCommittee(
         nearestFacilities.map(facility => facility.license),
-        committeeUsername
+        committeeUsername,
+        {
+            visitType: "periodic",
+            visitReason: "الخطة الدورية"
+        }
     );
 
     return nearestFacilities;
@@ -660,17 +781,13 @@ function renderCommitteeAssignmentCards() {
 
         });
 
-        const activeAssignments = committeeAssignments.filter(assignment => {
-
-            return assignment.status !== "cancelled";
-
-        });
+        const activeAssignments = committeeAssignments.filter(isActiveAssignment);
         const inProgress = activeAssignments.filter(assignment => {
 
             return assignment.status === "in_progress";
 
         }).length;
-        const completed = activeAssignments.filter(assignment => {
+        const completed = committeeAssignments.filter(assignment => {
 
             return assignment.status === "completed";
 
@@ -787,12 +904,16 @@ function renderAssignmentBoard(facilities) {
     const list = document.getElementById("unassignedFacilitiesList");
     const committeeSelect = document.getElementById("assignmentCommittee");
     const searchInput = document.getElementById("assignmentSearch");
+    const visitTypeSelect = document.getElementById("assignmentVisitType");
+    const visitReasonSelect = document.getElementById("assignmentVisitReason");
     const startFacilitySelect =
         document.getElementById("smartAssignmentStartFacility");
 
     if (!list ||
         !committeeSelect ||
         !searchInput ||
+        !visitTypeSelect ||
+        !visitReasonSelect ||
         !startFacilitySelect ||
         !isAdminUser()) return;
 
@@ -881,6 +1002,9 @@ function initializeAssignmentBoard() {
     const list = document.getElementById("unassignedFacilitiesList");
     const assignButton = document.getElementById("assignSelectedFacilities");
     const committeeSelect = document.getElementById("assignmentCommittee");
+    const visitTypeSelect = document.getElementById("assignmentVisitType");
+    const visitReasonGroup = document.getElementById("assignmentVisitReasonGroup");
+    const visitReasonSelect = document.getElementById("assignmentVisitReason");
     const message = document.getElementById("assignmentBoardMessage");
     const smartAssignmentCount = document.getElementById("smartAssignmentCount");
     const startFacilitySelect =
@@ -891,6 +1015,9 @@ function initializeAssignmentBoard() {
         !list ||
         !assignButton ||
         !committeeSelect ||
+        !visitTypeSelect ||
+        !visitReasonGroup ||
+        !visitReasonSelect ||
         !smartAssignmentCount ||
         !startFacilitySelect ||
         !smartAssignButton ||
@@ -918,6 +1045,43 @@ function initializeAssignmentBoard() {
 
     });
 
+    const syncVisitReasonVisibility = () => {
+
+        if (visitTypeSelect.value === "periodic") {
+
+            visitReasonGroup.classList.add("d-none");
+            visitReasonSelect.value = "";
+
+            return;
+
+        }
+
+        visitReasonGroup.classList.remove("d-none");
+
+    };
+
+    visitTypeSelect.addEventListener("change", syncVisitReasonVisibility);
+
+    syncVisitReasonVisibility();
+
+    const getManualAssignmentMetadata = () => {
+
+        if (visitTypeSelect.value !== "reactive") {
+
+            return {
+                visitType: "periodic",
+                visitReason: "الخطة الدورية"
+            };
+
+        }
+
+        return {
+            visitType: "reactive",
+            visitReason: visitReasonSelect.value
+        };
+
+    };
+
     assignButton.addEventListener("click", () => {
 
         const selectedFacilities = [...document.querySelectorAll(
@@ -933,7 +1097,23 @@ function initializeAssignmentBoard() {
 
         }
 
-        assignFacilitiesToCommittee(selectedFacilities, committeeSelect.value);
+        const assignmentMetadata = getManualAssignmentMetadata();
+
+        if (assignmentMetadata.visitType === "reactive" &&
+            !assignmentMetadata.visitReason) {
+
+            message.textContent = "اختر سبب الزيارة التفاعلية.";
+            message.className = "small text-danger";
+
+            return;
+
+        }
+
+        assignFacilitiesToCommittee(
+            selectedFacilities,
+            committeeSelect.value,
+            assignmentMetadata
+        );
         smartAssignmentStartMode = "auto";
         renderAssignmentBoard(allFacilities);
 
@@ -1072,6 +1252,7 @@ function renderUsersPanel() {
 
         const row = document.createElement("tr");
         const canDelete = canDeleteUser(user.username);
+        const team = normalizeTeam(user.team);
 
         row.dataset.username = user.username;
 
@@ -1087,6 +1268,26 @@ function renderUsersPanel() {
             <td>
                 <input class="form-control form-control-sm user-committee-name"
                        value="${escapeHtml(user.committeeName)}">
+            </td>
+            <td>
+                <div class="committee-team-fields">
+                    <input class="form-control form-control-sm user-team-leader"
+                           placeholder="رئيس اللجنة"
+                           value="${escapeHtml(team.leader)}"
+                           ${user.role === "admin" ? "disabled" : ""}>
+                    <input class="form-control form-control-sm user-team-member"
+                           placeholder="عضو 1"
+                           value="${escapeHtml(team.members[0] || "")}"
+                           ${user.role === "admin" ? "disabled" : ""}>
+                    <input class="form-control form-control-sm user-team-member"
+                           placeholder="عضو 2"
+                           value="${escapeHtml(team.members[1] || "")}"
+                           ${user.role === "admin" ? "disabled" : ""}>
+                    <input class="form-control form-control-sm user-team-member"
+                           placeholder="عضو 3"
+                           value="${escapeHtml(team.members[2] || "")}"
+                           ${user.role === "admin" ? "disabled" : ""}>
+                </div>
             </td>
             <td>
                 <div class="input-group input-group-sm user-password-group">
@@ -1157,6 +1358,11 @@ function getUsersFromPanel(usersTableBody) {
             displayName: row.querySelector(".user-display-name").value.trim(),
             committeeName: row.querySelector(".user-committee-name").value.trim(),
             password: row.querySelector(".user-password").value,
+            team: normalizeTeam({
+                leader: row.querySelector(".user-team-leader").value,
+                members: [...row.querySelectorAll(".user-team-member")]
+                    .map(input => input.value)
+            }),
             active: existingUser.role === "admin"
                 ? true
                 : row.querySelector(".user-active").checked
@@ -1384,7 +1590,11 @@ function initializeUsersPanel() {
                     displayName: committeeName,
                     role: "committee",
                     active,
-                    committeeName
+                    committeeName,
+                    team: {
+                        leader: "",
+                        members: []
+                    }
                 }
             };
 

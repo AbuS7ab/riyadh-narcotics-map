@@ -49,15 +49,48 @@ function initializeFacilityStatusState() {
 
 function createVisitRecord(visit) {
 
+    const normalizedResult = ["no_violation", "violation", "incomplete"].includes(visit.result)
+        ? visit.result
+        : "";
+    const result = normalizedResult ||
+        (visit.visitStatus === "partial"
+            ? "incomplete"
+            : visit.violation
+                ? "violation"
+                : visit.visitStatus === "visited"
+                    ? "no_violation"
+                    : "no_violation");
+    const visitStatus = result === "incomplete"
+        ? "partial"
+        : ["pending", "visited", "partial"].includes(visit.visitStatus)
+            ? visit.visitStatus
+            : "visited";
+    const teamSnapshot = visit.teamSnapshot && typeof visit.teamSnapshot === "object"
+        ? visit.teamSnapshot
+        : {};
+
     return {
 
         id: visit.id || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        assignmentId: visit.assignmentId || null,
+        facilityLicense: visit.facilityLicense || null,
         date: visit.date || new Date().toISOString().slice(0, 10),
-        visitStatus: ["pending", "visited", "partial"].includes(visit.visitStatus)
-            ? visit.visitStatus
-            : "pending",
-        violation: Boolean(visit.violation),
+        committeeUsername: visit.committeeUsername || "",
+        committeeName: visit.committeeName || "",
+        teamSnapshot: {
+            leader: teamSnapshot.leader || "",
+            members: Array.isArray(teamSnapshot.members)
+                ? teamSnapshot.members.filter(Boolean)
+                : []
+        },
+        visitType: visit.visitType || "periodic",
+        visitReason: visit.visitReason || "الخطة الدورية",
+        result,
+        incompleteReason: visit.incompleteReason || "",
+        visitStatus,
+        violation: result === "violation" || Boolean(visit.violation),
         notes: visit.notes || "",
+        createdBy: visit.createdBy || "",
         createdAt: visit.createdAt || new Date().toISOString()
 
     };

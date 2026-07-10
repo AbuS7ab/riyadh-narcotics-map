@@ -241,6 +241,23 @@
                         <select id="assignmentCommittee" class="form-select">
                             <option value="">اختر اللجنة</option>
                         </select>
+                        <label for="assignmentVisitType" class="form-label mb-0">نوع الزيارة</label>
+                        <select id="assignmentVisitType" class="form-select">
+                            <option value="periodic">دوري</option>
+                            <option value="reactive">تفاعلي</option>
+                        </select>
+                        <div id="assignmentVisitReasonGroup" class="d-none">
+                            <label for="assignmentVisitReason" class="form-label mb-0">سبب الزيارة</label>
+                            <select id="assignmentVisitReason" class="form-select">
+                                <option value="">اختر السبب</option>
+                                <option value="شكوى">شكوى</option>
+                                <option value="بلاغ">بلاغ</option>
+                                <option value="إعادة تحقق">إعادة تحقق</option>
+                                <option value="متابعة مخالفة">متابعة مخالفة</option>
+                                <option value="توجيه إداري">توجيه إداري</option>
+                                <option value="أخرى">أخرى</option>
+                            </select>
+                        </div>
                         <button id="assignSelectedFacilities" type="button" class="btn btn-primary">
                             <i class="fa-solid fa-user-group"></i> إسناد
                         </button>
@@ -319,6 +336,7 @@
                                 <th>المستخدم</th>
                                 <th>الاسم المعروض</th>
                                 <th>اسم اللجنة</th>
+                                <th>فريق اللجنة</th>
                                 <th>كلمة المرور</th>
                                 <th class="text-center">نشط</th>
                                 <th class="text-center">حذف</th>

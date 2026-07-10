@@ -133,7 +133,7 @@ function showCommitteeFacilityList(committee, facilities) {
         const state = getFacilityStatus(facility.license);
         const assignment = getFacilityAssignment(facility.license);
 
-        if (!assignment || assignment.status === "cancelled") return;
+        if (!isActiveAssignment(assignment)) return;
 
         const visitDisplay = getVisitStatusDisplay(state);
         const item = document.createElement("button");
@@ -195,6 +195,100 @@ function getVisitStatusDisplay(state) {
 }
 
 
+function getVisitTypeLabel(visitType) {
+
+    return visitType === "reactive" ? "تفاعلي" : "دوري";
+
+}
+
+
+function getVisitResultLabel(visit) {
+
+    if (visit.result === "violation" || visit.violation) return "توجد مخالفة";
+
+    if (visit.result === "incomplete" || visit.visitStatus === "partial") {
+
+        return "لم تكتمل";
+
+    }
+
+    return "لا توجد مخالفة";
+
+}
+
+
+function renderTeamMembers(members) {
+
+    const filteredMembers = Array.isArray(members)
+        ? members.filter(Boolean)
+        : [];
+
+    return filteredMembers.length ? filteredMembers.join("، ") : "-";
+
+}
+
+
+function getAssignmentSnapshot(assignment) {
+
+    if (!assignment) {
+
+        return {
+            committeeName: "",
+            leader: "",
+            members: []
+        };
+
+    }
+
+    if (assignment.teamSnapshot) {
+
+        return {
+            committeeName: assignment.teamSnapshot.committeeName || "",
+            leader: assignment.teamSnapshot.leader || "",
+            members: Array.isArray(assignment.teamSnapshot.members)
+                ? assignment.teamSnapshot.members
+                : []
+        };
+
+    }
+
+    const committee = typeof users !== "undefined"
+        ? users[assignment.committeeUsername]
+        : null;
+    const team = committee && typeof normalizeTeam === "function"
+        ? normalizeTeam(committee.team)
+        : { leader: "", members: [] };
+
+    return {
+        committeeName: committee
+            ? committee.committeeName || committee.displayName || committee.username
+            : assignment.committeeUsername || "",
+        leader: team.leader,
+        members: team.members
+    };
+
+}
+
+
+function renderAssignmentVisitContext(assignment) {
+
+    if (!assignment) return "";
+
+    const snapshot = getAssignmentSnapshot(assignment);
+
+    return `
+        <div class="visit-context border rounded p-2 mb-3">
+            <div><strong>اللجنة:</strong> ${escapeHtml(snapshot.committeeName || assignment.committeeUsername || "-")}</div>
+            <div><strong>رئيس اللجنة:</strong> ${escapeHtml(snapshot.leader || "-")}</div>
+            <div><strong>أعضاء اللجنة:</strong> ${escapeHtml(renderTeamMembers(snapshot.members))}</div>
+            <div><strong>نوع الزيارة:</strong> ${getVisitTypeLabel(assignment.visitType)}</div>
+            <div><strong>سبب الزيارة:</strong> ${escapeHtml(assignment.visitReason || "الخطة الدورية")}</div>
+        </div>
+    `;
+
+}
+
+
 function renderVisitHistory(visits) {
 
     if (visits.length === 0) {
@@ -210,20 +304,26 @@ function renderVisitHistory(visits) {
     return visits.map(visit => {
 
         const display = getVisitStatusDisplay(visit);
+        const teamSnapshot = visit.teamSnapshot || {};
 
         return `
             <div class="border rounded p-2 mb-2">
                 <div class="d-flex justify-content-between gap-2">
                     <span class="badge bg-${display.badge}">
-                        ${display.text}
+                        ${getVisitResultLabel(visit)}
                     </span>
                     <span class="text-muted small">${visit.date || "-"}</span>
                 </div>
-                ${visit.violation
-                    ? '<div class="text-danger small mt-2">يوجد مخالفة</div>'
-                    : ''}
+                <div class="small mt-2"><strong>اللجنة:</strong> ${escapeHtml(visit.committeeName || "-")}</div>
+                <div class="small"><strong>رئيس اللجنة:</strong> ${escapeHtml(teamSnapshot.leader || "-")}</div>
+                <div class="small"><strong>الأعضاء:</strong> ${escapeHtml(renderTeamMembers(teamSnapshot.members))}</div>
+                <div class="small"><strong>نوع الزيارة:</strong> ${getVisitTypeLabel(visit.visitType)}</div>
+                <div class="small"><strong>سبب الزيارة:</strong> ${escapeHtml(visit.visitReason || "الخطة الدورية")}</div>
+                ${visit.incompleteReason
+                    ? `<div class="small"><strong>سبب عدم الاكتمال:</strong> ${escapeHtml(visit.incompleteReason)}</div>`
+                    : ""}
                 ${visit.notes
-                    ? `<div class="small mt-2">${visit.notes}</div>`
+                    ? `<div class="small mt-2"><strong>الملاحظات:</strong> ${escapeHtml(visit.notes)}</div>`
                     : ''}
             </div>
         `;
@@ -238,7 +338,7 @@ function renderAssignmentControl(facility) {
     if (!isAdminUser()) return "";
 
     const storedAssignment = getFacilityAssignment(facility.license);
-    const assignment = storedAssignment && storedAssignment.status !== "cancelled"
+    const assignment = isActiveAssignment(storedAssignment)
         ? storedAssignment
         : null;
     const committeeOptions = getCommitteeUsers().map(user => `
@@ -300,6 +400,8 @@ function showFacilityDetails(facility) {
     const state = getFacilityStatus(facility.license);
     const visits = getFacilityVisits(facility.license);
     const annualVisitCount = getAnnualVisitCount(facility.license);
+    const storedAssignment = getFacilityAssignment(facility.license);
+    const assignment = isActiveAssignment(storedAssignment) ? storedAssignment : null;
 
     const statusDisplay = getVisitStatusDisplay(state);
 
@@ -344,6 +446,8 @@ function showFacilityDetails(facility) {
             </button>
         ` : ""}
 
+        ${isCommitteeUser() ? renderAssignmentVisitContext(assignment) : ""}
+
         <hr>
 
         <button id="newVisit" class="btn btn-outline-success w-100 mb-3">
@@ -356,19 +460,28 @@ function showFacilityDetails(facility) {
             <label for="visitDate" class="form-label">تاريخ الزيارة</label>
             <input id="visitDate" class="form-control mb-3" type="date">
 
+            <label for="visitResult" class="form-label">نتيجة الزيارة</label>
             <select id="visitResult" class="form-select mb-3">
-                <option value="pending">قيد الانتظار</option>
-                <option value="visited">تمت الزيارة - لا توجد ملاحظات</option>
-                <option value="partial">زيارة جزئية</option>
+                <option value="no_violation">لا توجد مخالفة</option>
+                <option value="violation">توجد مخالفة</option>
+                <option value="incomplete">لم تكتمل</option>
             </select>
 
-            <div class="form-check mb-3">
-                <input id="visitViolation" class="form-check-input" type="checkbox">
-                <label for="visitViolation" class="form-check-label">يوجد مخالفة</label>
+            <div id="incompleteReasonGroup" class="mb-3 d-none">
+                <label for="incompleteReason" class="form-label">سبب عدم اكتمال الزيارة</label>
+                <select id="incompleteReason" class="form-select">
+                    <option value="">اختر السبب</option>
+                    <option value="المنشأة مغلقة">المنشأة مغلقة</option>
+                    <option value="المسؤول غير موجود">المسؤول غير موجود</option>
+                    <option value="تعذر الوصول">تعذر الوصول</option>
+                    <option value="أخرى">أخرى</option>
+                </select>
             </div>
 
             <label for="visitNotes" class="form-label">ملاحظات</label>
             <textarea id="visitNotes" class="form-control mb-3" rows="3"></textarea>
+
+            <div id="visitSaveMessage" class="small d-none mb-2"></div>
 
             <button id="saveVisit" class="btn btn-primary w-100">
                 حفظ
@@ -377,7 +490,7 @@ function showFacilityDetails(facility) {
 
         <hr>
 
-        <h6 class="mb-3">سجل الزيارات</h6>
+        <h6 class="mb-3">السجل الرقابي</h6>
 
         ${renderVisitHistory(visits)}
 
@@ -387,14 +500,28 @@ function showFacilityDetails(facility) {
     const visitForm = document.getElementById("visitForm");
     const visitDate = document.getElementById("visitDate");
     const visitResult = document.getElementById("visitResult");
-    const visitViolation = document.getElementById("visitViolation");
+    const incompleteReasonGroup = document.getElementById("incompleteReasonGroup");
+    const incompleteReason = document.getElementById("incompleteReason");
     const visitNotes = document.getElementById("visitNotes");
+    const visitSaveMessage = document.getElementById("visitSaveMessage");
     const saveVisit = document.getElementById("saveVisit");
     const saveAssignment = document.getElementById("saveAssignment");
     const backToAssignedFacilities =
         document.getElementById("backToAssignedFacilities");
 
     visitDate.value = new Date().toISOString().slice(0, 10);
+
+    const toggleIncompleteReason = () => {
+
+        incompleteReasonGroup.classList.toggle(
+            "d-none",
+            visitResult.value !== "incomplete"
+        );
+
+    };
+
+    visitResult.addEventListener("change", toggleIncompleteReason);
+    toggleIncompleteReason();
 
     newVisit.addEventListener("click", function () {
 
@@ -430,24 +557,55 @@ function showFacilityDetails(facility) {
             showFacilityDetails(facility);
 
         });
-
     }
 
     saveVisit.addEventListener("click", function () {
 
-        const visitStatus = visitResult.value;
-        const violation = visitStatus === "pending"
-            ? false
-            : visitViolation.checked;
+        const result = visitResult.value;
+
+        if (result === "incomplete" && !incompleteReason.value) {
+
+            visitSaveMessage.textContent = "اختر سبب عدم اكتمال الزيارة.";
+            visitSaveMessage.className = "small text-danger mb-2";
+
+            return;
+
+        }
+
+        const storedCurrentAssignment = getFacilityAssignment(facility.license);
+        const currentAssignment = isActiveAssignment(storedCurrentAssignment)
+            ? storedCurrentAssignment
+            : null;
+        const assignmentSnapshot = getAssignmentSnapshot(currentAssignment);
+        const visitStatus = result === "incomplete" ? "partial" : "visited";
 
         addVisit(facility.license, {
+            assignmentId: currentAssignment ? currentAssignment.id || null : null,
+            facilityLicense: facility.license,
             date: visitDate.value,
+            committeeUsername: currentAssignment
+                ? currentAssignment.committeeUsername
+                : currentUser.username,
+            committeeName: assignmentSnapshot.committeeName,
+            teamSnapshot: {
+                leader: assignmentSnapshot.leader,
+                members: assignmentSnapshot.members
+            },
+            visitType: currentAssignment
+                ? currentAssignment.visitType || "periodic"
+                : "periodic",
+            visitReason: currentAssignment
+                ? currentAssignment.visitReason || "الخطة الدورية"
+                : "الخطة الدورية",
+            result,
+            incompleteReason: result === "incomplete" ? incompleteReason.value : "",
             visitStatus,
-            violation,
-            notes: visitNotes.value
+            violation: result === "violation",
+            notes: visitNotes.value,
+            createdBy: currentUser.username
         });
 
-        updateAssignmentFromVisit(facility.license, visitStatus);
+        updateAssignmentFromVisit(facility.license, result);
 
         applyFilters();
 
