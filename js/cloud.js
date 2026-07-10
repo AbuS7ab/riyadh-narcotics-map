@@ -35,6 +35,24 @@ function getSupabaseConfig() {
 }
 
 
+function getSupabaseClientFactory() {
+
+    return window.supabase;
+
+}
+
+
+function logSupabaseError(error) {
+
+    const message = error && error.message
+        ? error.message
+        : JSON.stringify(error);
+
+    console.error(`Supabase error: ${message}`);
+
+}
+
+
 function isPortableDataObject(value) {
 
     return value &&
@@ -168,6 +186,7 @@ async function readCloudObject(key, fallback = {}) {
 
     } catch (error) {
 
+        logSupabaseError(error);
         console.warn(`Supabase load failed for ${key}; using localStorage.`, error);
 
         useLocalStorageFallback();
@@ -194,6 +213,7 @@ async function writeCloudObject(key, value) {
 
         } catch (error) {
 
+            logSupabaseError(error);
             console.warn(`Supabase save failed for ${key}; localStorage backup kept.`, error);
             useLocalStorageFallback();
 
@@ -213,17 +233,18 @@ async function initializeCloudData() {
     if (cloudInitialized) return;
 
     const { url, anonKey } = getSupabaseConfig();
+    const supabaseClientFactory = getSupabaseClientFactory();
 
     cloudUseSupabase = Boolean(
         url &&
         anonKey &&
-        window.supabase &&
-        typeof window.supabase.createClient === "function"
+        supabaseClientFactory &&
+        typeof supabaseClientFactory.createClient === "function"
     );
 
     if (cloudUseSupabase) {
 
-        cloudSupabaseClient = window.supabase.createClient(url, anonKey);
+        cloudSupabaseClient = supabaseClientFactory.createClient(url, anonKey);
         console.log("Cloud mode: Supabase");
 
     } else {
@@ -232,11 +253,11 @@ async function initializeCloudData() {
 
     }
 
-    await Promise.all(Object.values(cloudStorageKeys).map(async key => {
+    for (const key of Object.values(cloudStorageKeys)) {
 
         cloudCache[key] = await readCloudObject(key, {});
 
-    }));
+    }
 
     cloudInitialized = true;
 
