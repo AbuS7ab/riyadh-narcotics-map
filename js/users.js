@@ -829,6 +829,95 @@ function selectNearestNeighborFacilities(candidates, requestedCount, referencePo
 }
 
 
+function getSmartAssignmentIneligibilityReason(facility, duplicateLicenses = new Set()) {
+
+    if (!facility || duplicateLicenses.has(String(facility.license))) {
+
+        return "duplicate";
+
+    }
+
+    if (!hasValidCoordinates(facility)) {
+
+        return "coordinates";
+
+    }
+
+    const assignment = getFacilityAssignment(facility.license);
+
+    if (isActiveAssignment(assignment)) {
+
+        return "assignment";
+
+    }
+
+    const visits = typeof getFacilityVisits === "function"
+        ? getFacilityVisits(facility.license)
+        : [];
+
+    if (visits.length > 0) {
+
+        return "visited";
+
+    }
+
+    const status = typeof getFacilityStatus === "function"
+        ? getFacilityStatus(facility.license)
+        : null;
+
+    if (status &&
+        (status.visitStatus === "visited" ||
+            status.visitStatus === "partial" ||
+            status.visitStatus === "violation" ||
+            status.violation === true)) {
+
+        return "visited";
+
+    }
+
+    return "";
+
+}
+
+
+function getSmartAssignmentCandidates(facilities, excludedLicense = "") {
+
+    let excludedVisitedCount = 0;
+    const candidates = [];
+    const selectedLicenses = new Set();
+
+    facilities.forEach(facility => {
+
+        if (!facility || typeof facility.license === "undefined") return;
+
+        const license = String(facility.license);
+
+        if (license === String(excludedLicense)) return;
+
+        if (selectedLicenses.has(license)) return;
+
+        const reason = getSmartAssignmentIneligibilityReason(facility);
+
+        if (reason === "visited") {
+
+            excludedVisitedCount += 1;
+
+        }
+
+        if (!reason) {
+
+            candidates.push(facility);
+            selectedLicenses.add(license);
+
+        }
+
+    });
+
+    return { candidates, excludedVisitedCount };
+
+}
+
+
 function smartAssignFacilities(
     facilities,
     committeeUsername,
@@ -851,30 +940,76 @@ function smartAssignFacilities(
 
     console.log(`Smart assignment existing active count: ${existingActiveCount}`);
     console.log(`Smart assignment requested: ${requestedCount}`);
+    console.log(`Smart assignment explicitStartFacility: ${startFacilityLicense || ""}`);
 
     const selectedStartFacility = facilities.find(facility => {
 
         return String(facility.license) === String(startFacilityLicense);
 
     });
-    const referencePoint = hasValidCoordinates(selectedStartFacility)
+    const explicitStartSelected = Boolean(startFacilityLicense);
+    const startDuplicateLicenses = new Set();
+    const startLicenseCount = facilities.filter(facility => {
+
+        return String(facility.license) === String(startFacilityLicense);
+
+    }).length;
+
+    if (startLicenseCount > 1) {
+
+        startDuplicateLicenses.add(String(startFacilityLicense));
+
+    }
+
+    if (explicitStartSelected) {
+
+        const startReason = getSmartAssignmentIneligibilityReason(
+            selectedStartFacility,
+            startDuplicateLicenses
+        );
+
+        console.log(`Smart assignment eligibility result: ${startReason || "eligible"}`);
+
+        if (startReason) {
+
+            return {
+                ok: false,
+                message: "منشأة البداية غير مؤهلة للإسناد لأنها مسندة أو تمت زيارتها سابقاً."
+            };
+
+        }
+
+    }
+
+    const referencePoint = explicitStartSelected
         ? selectedStartFacility
         : getSmartAssignmentReferencePoint(committeeUsername, facilities);
-    const candidates = getUniqueFacilitiesByLicense(getUnassignedFacilities(facilities))
-        .filter(facility => {
-
-            return String(facility.license) !== String(startFacilityLicense);
-
-        })
-        .filter(hasValidCoordinates);
-    const nearestFacilities = selectNearestNeighborFacilities(
+    const {
         candidates,
-        requestedCount,
-        referencePoint
+        excludedVisitedCount
+    } = getSmartAssignmentCandidates(
+        facilities,
+        explicitStartSelected ? startFacilityLicense : ""
     );
+    const startFacilities = explicitStartSelected ? [selectedStartFacility] : [];
+    const remainingCount = Math.max(requestedCount - startFacilities.length, 0);
+    const nearestFacilities = [
+        ...startFacilities,
+        ...selectNearestNeighborFacilities(
+            candidates,
+            remainingCount,
+            referencePoint
+        )
+    ];
 
     console.log(`Smart assignment selected: ${nearestFacilities.length}`);
     console.log(`Smart assignment selected new count: ${nearestFacilities.length}`);
+    console.log(
+        `Smart assignment selected licenses in order: ${
+            nearestFacilities.map(facility => facility.license).join(",")
+        }`
+    );
+    console.log(`Smart assignment excluded visited count: ${excludedVisitedCount}`);
 
     if (nearestFacilities.length === 0) return [];
 
@@ -1360,6 +1495,15 @@ function initializeAssignmentBoard() {
             count,
             startFacilitySelect.value
         );
+
+        if (!Array.isArray(assignedFacilities)) {
+
+            message.textContent = assignedFacilities.message || "تعذر تنفيذ الإسناد التلقائي.";
+            message.className = "small text-danger";
+
+            return;
+
+        }
 
         if (assignedFacilities.length === 0) {
 
