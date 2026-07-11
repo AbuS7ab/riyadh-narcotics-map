@@ -593,6 +593,7 @@ function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, option
     const assignedAt = new Date().toISOString();
     const metadata = normalizeAssignmentMetadata(options);
     const uniqueLicenses = [...new Set(facilityLicenses.map(license => String(license)))];
+    let assignedCount = 0;
 
     uniqueLicenses.forEach(license => {
 
@@ -613,8 +614,15 @@ function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, option
             status: "assigned",
             teamSnapshot: createTeamSnapshot(committee),
             visitType: metadata.visitType,
-            visitReason: metadata.visitReason
+            visitReason: metadata.visitReason,
+            assignmentSource: options.assignmentSource || "manual",
+            smartBatchId: options.smartBatchId || null,
+            smartSequence: typeof options.smartSequenceStart === "number"
+                ? options.smartSequenceStart + assignedCount
+                : null
         };
+
+        assignedCount += 1;
 
     });
 
@@ -676,6 +684,45 @@ function getSmartAssignmentReferencePoint(committeeUsername, facilities) {
 
     }, {});
     const committeeAssignments = getActiveAssignmentsForCommittee(committeeUsername);
+    const latestSmartBatchAssignment = [...committeeAssignments]
+        .filter(assignment => assignment.assignmentSource === "smart" &&
+            assignment.smartBatchId)
+        .sort((a, b) => {
+
+            const dateDifference =
+                new Date(b.assignedAt || 0) - new Date(a.assignedAt || 0);
+
+            if (dateDifference !== 0) return dateDifference;
+
+            return Number(b.smartSequence || 0) - Number(a.smartSequence || 0);
+
+        })[0];
+
+    if (latestSmartBatchAssignment) {
+
+        const facility = facilityByLicense[
+            String(latestSmartBatchAssignment.facilityLicense)
+        ];
+
+        if (hasValidCoordinates(facility)) return facility;
+
+    }
+
+    const latestActiveAssignment = [...committeeAssignments]
+        .sort((a, b) => {
+
+            return new Date(b.assignedAt || 0) - new Date(a.assignedAt || 0);
+
+        })[0];
+
+    if (latestActiveAssignment) {
+
+        const facility = facilityByLicense[String(latestActiveAssignment.facilityLicense)];
+
+        if (hasValidCoordinates(facility)) return facility;
+
+    }
+
     const visitedFacilities = [];
 
     committeeAssignments.forEach(assignment => {
@@ -799,6 +846,10 @@ function smartAssignFacilities(
         !committee.active ||
         requestedCount < 1) return [];
 
+    const existingActiveCount =
+        getActiveAssignmentsForCommittee(committeeUsername).length;
+
+    console.log(`Smart assignment existing active count: ${existingActiveCount}`);
     console.log(`Smart assignment requested: ${requestedCount}`);
 
     const selectedStartFacility = facilities.find(facility => {
@@ -823,16 +874,28 @@ function smartAssignFacilities(
     );
 
     console.log(`Smart assignment selected: ${nearestFacilities.length}`);
+    console.log(`Smart assignment selected new count: ${nearestFacilities.length}`);
 
     if (nearestFacilities.length === 0) return [];
+
+    const smartBatchId = `smart-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
     assignFacilitiesToCommittee(
         nearestFacilities.map(facility => facility.license),
         committeeUsername,
         {
             visitType: "periodic",
-            visitReason: "الخطة الدورية"
+            visitReason: "الخطة الدورية",
+            assignmentSource: "smart",
+            smartBatchId,
+            smartSequenceStart: 0
         }
+    );
+
+    console.log(
+        `Smart assignment final active count: ${
+            getActiveAssignmentsForCommittee(committeeUsername).length
+        }`
     );
 
     return nearestFacilities;
