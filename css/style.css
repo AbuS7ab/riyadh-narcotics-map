@@ -819,6 +819,12 @@ body.role-committee .main-grid {
     font-size: 12px;
 }
 
+.committee-team-fields {
+    display: grid;
+    gap: 6px;
+    min-width: 150px;
+}
+
 .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;

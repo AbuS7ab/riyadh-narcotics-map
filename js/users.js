@@ -349,12 +349,7 @@ function validateUsersObject(nextUsers) {
 
 function getActiveAssignmentCount(username) {
 
-    return Object.values(facilityAssignments).filter(assignment => {
-
-        return isActiveAssignment(assignment) &&
-            assignment.committeeUsername === username;
-
-    }).length;
+    return getActiveAssignmentsForCommittee(username).length;
 
 }
 
@@ -433,8 +428,25 @@ function getFacilityAssignment(license) {
 function isActiveAssignment(assignment) {
 
     return assignment &&
-        assignment.status !== "cancelled" &&
-        assignment.status !== "completed";
+        assignment.status !== "cancelled";
+
+}
+
+
+function getActiveAssignmentsForCommittee(username) {
+
+    const activeAssignments = Object.values(facilityAssignments).filter(assignment => {
+
+        return isActiveAssignment(assignment) &&
+            assignment.committeeUsername === username;
+
+    });
+
+    console.log(
+        `Active assignment count for committee ${username}: ${activeAssignments.length}`
+    );
+
+    return activeAssignments;
 
 }
 
@@ -497,6 +509,29 @@ function assignFacilityToCommittee(
     if (!committee || committee.role !== "committee") return;
 
     const existingAssignment = getFacilityAssignment(facilityLicense);
+
+    if (status === "cancelled") {
+
+        if (!existingAssignment) return false;
+
+        existingAssignment.status = "cancelled";
+
+        console.log(`Cancelled facility license: ${facilityLicense}`);
+
+        saveAssignments(facilityAssignments);
+        refreshAssignmentViews(existingAssignment.committeeUsername);
+
+        return true;
+
+    }
+
+    if (isActiveAssignment(existingAssignment) &&
+        existingAssignment.committeeUsername !== committeeUsername) {
+
+        return false;
+
+    }
+
     const assignedAt = isActiveAssignment(existingAssignment)
         ? existingAssignment.assignedAt
         : new Date().toISOString();
@@ -515,7 +550,9 @@ function assignFacilityToCommittee(
 
     saveAssignments(facilityAssignments);
 
-    renderCommitteeAssignmentCards();
+    refreshAssignmentViews(committeeUsername);
+
+    return true;
 
 }
 
@@ -555,8 +592,18 @@ function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, option
 
     const assignedAt = new Date().toISOString();
     const metadata = normalizeAssignmentMetadata(options);
+    const uniqueLicenses = [...new Set(facilityLicenses.map(license => String(license)))];
 
-    facilityLicenses.forEach(license => {
+    uniqueLicenses.forEach(license => {
+
+        const existingAssignment = getFacilityAssignment(license);
+
+        if (isActiveAssignment(existingAssignment) &&
+            existingAssignment.committeeUsername !== committeeUsername) {
+
+            return;
+
+        }
 
         facilityAssignments[String(license)] = {
             id: createAssignmentId(license),
@@ -572,7 +619,7 @@ function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, option
     });
 
     saveAssignments(facilityAssignments);
-    renderCommitteeAssignmentCards();
+    refreshAssignmentViews(committeeUsername);
 
     return true;
 
@@ -628,12 +675,7 @@ function getSmartAssignmentReferencePoint(committeeUsername, facilities) {
         return result;
 
     }, {});
-    const committeeAssignments = Object.values(facilityAssignments).filter(assignment => {
-
-        return isActiveAssignment(assignment) &&
-            assignment.committeeUsername === committeeUsername;
-
-    });
+    const committeeAssignments = getActiveAssignmentsForCommittee(committeeUsername);
     const visitedFacilities = [];
 
     committeeAssignments.forEach(assignment => {
@@ -680,6 +722,66 @@ function getSmartAssignmentReferencePoint(committeeUsername, facilities) {
 }
 
 
+function getUniqueFacilitiesByLicense(facilities) {
+
+    const facilityByLicense = new Map();
+
+    facilities.forEach(facility => {
+
+        if (!facility || typeof facility.license === "undefined") return;
+
+        const license = String(facility.license);
+
+        if (!facilityByLicense.has(license)) {
+
+            facilityByLicense.set(license, facility);
+
+        }
+
+    });
+
+    return [...facilityByLicense.values()];
+
+}
+
+
+function selectNearestNeighborFacilities(candidates, requestedCount, referencePoint) {
+
+    const remainingCandidates = [...candidates];
+    const selectedFacilities = [];
+    let currentReferencePoint = referencePoint;
+    const selectionLimit = Math.min(requestedCount, remainingCandidates.length);
+
+    while (selectedFacilities.length < selectionLimit) {
+
+        let nearestIndex = 0;
+        let nearestDistance = Number.POSITIVE_INFINITY;
+
+        remainingCandidates.forEach((facility, index) => {
+
+            const distance = calculateHaversineDistance(currentReferencePoint, facility);
+
+            if (distance < nearestDistance) {
+
+                nearestDistance = distance;
+                nearestIndex = index;
+
+            }
+
+        });
+
+        const [nearestFacility] = remainingCandidates.splice(nearestIndex, 1);
+
+        selectedFacilities.push(nearestFacility);
+        currentReferencePoint = nearestFacility;
+
+    }
+
+    return selectedFacilities;
+
+}
+
+
 function smartAssignFacilities(
     facilities,
     committeeUsername,
@@ -690,12 +792,14 @@ function smartAssignFacilities(
     if (!isAdminUser()) return [];
 
     const committee = users[committeeUsername];
-    const assignmentCount = Math.floor(Number(count));
+    const requestedCount = Math.floor(Number(count));
 
     if (!committee ||
         committee.role !== "committee" ||
         !committee.active ||
-        assignmentCount < 1) return [];
+        requestedCount < 1) return [];
+
+    console.log(`Smart assignment requested: ${requestedCount}`);
 
     const selectedStartFacility = facilities.find(facility => {
 
@@ -705,15 +809,20 @@ function smartAssignFacilities(
     const referencePoint = hasValidCoordinates(selectedStartFacility)
         ? selectedStartFacility
         : getSmartAssignmentReferencePoint(committeeUsername, facilities);
-    const nearestFacilities = getUnassignedFacilities(facilities)
-        .filter(hasValidCoordinates)
-        .map(facility => ({
-            facility,
-            distance: calculateHaversineDistance(referencePoint, facility)
-        }))
-        .sort((a, b) => a.distance - b.distance)
-        .slice(0, assignmentCount)
-        .map(candidate => candidate.facility);
+    const candidates = getUniqueFacilitiesByLicense(getUnassignedFacilities(facilities))
+        .filter(facility => {
+
+            return String(facility.license) !== String(startFacilityLicense);
+
+        })
+        .filter(hasValidCoordinates);
+    const nearestFacilities = selectNearestNeighborFacilities(
+        candidates,
+        requestedCount,
+        referencePoint
+    );
+
+    console.log(`Smart assignment selected: ${nearestFacilities.length}`);
 
     if (nearestFacilities.length === 0) return [];
 
@@ -756,11 +865,62 @@ function isFacilityAssignedToCurrentCommittee(facility) {
 
 function getAssignedFacilitiesForCurrentUser(facilities) {
 
+    if (!isCommitteeUser()) return [];
+
+    return getFacilitiesForActiveAssignments(currentUser.username, facilities);
+
+}
+
+
+function getFacilitiesForActiveAssignments(username, facilities) {
+
+    const activeAssignments = getActiveAssignmentsForCommittee(username);
+    const activeFacilityLicenses = new Set(activeAssignments.map(assignment => {
+
+        return String(assignment.facilityLicense);
+
+    }));
+
     return facilities.filter(facility => {
 
-        return isFacilityAssignedToCurrentCommittee(facility);
+        return activeFacilityLicenses.has(String(facility.license));
 
     });
+
+}
+
+
+function refreshAssignmentViews(username = "") {
+
+    renderCommitteeAssignmentCards();
+
+    if (typeof allFacilities === "undefined" ||
+        !Array.isArray(allFacilities) ||
+        allFacilities.length === 0) return;
+
+    renderAssignmentBoard(allFacilities);
+
+    if (username &&
+        selectedCommitteeUsername === username &&
+        typeof showCommitteeFacilityList === "function") {
+
+        showCommitteeFacilityList(
+            users[username],
+            getFacilitiesForActiveAssignments(username, allFacilities)
+        );
+
+    }
+
+    if (isCommitteeUser() &&
+        currentUser.username === username &&
+        typeof showFacilityList === "function") {
+
+        showFacilityList(
+            getAssignedFacilitiesForCurrentUser(allFacilities),
+            { fitBounds: false }
+        );
+
+    }
 
 }
 
@@ -771,23 +931,15 @@ function renderCommitteeAssignmentCards() {
 
     if (!container || !isAdminUser()) return;
 
-    const assignments = Object.values(facilityAssignments);
-
     container.innerHTML = getCommitteeUsers().map(committee => {
 
-        const committeeAssignments = assignments.filter(assignment => {
-
-            return assignment.committeeUsername === committee.username;
-
-        });
-
-        const activeAssignments = committeeAssignments.filter(isActiveAssignment);
+        const activeAssignments = getActiveAssignmentsForCommittee(committee.username);
         const inProgress = activeAssignments.filter(assignment => {
 
             return assignment.status === "in_progress";
 
         }).length;
-        const completed = committeeAssignments.filter(assignment => {
+        const completed = activeAssignments.filter(assignment => {
 
             return assignment.status === "completed";
 
@@ -837,12 +989,15 @@ function renderCommitteeAssignmentCards() {
             selectedCommitteeUsername = username;
             renderCommitteeAssignmentCards();
 
+            const activeAssignments = getActiveAssignmentsForCommittee(username);
+            const activeFacilityLicenses = new Set(activeAssignments.map(assignment => {
+
+                return String(assignment.facilityLicense);
+
+            }));
             const assignedFacilities = allFacilities.filter(facility => {
 
-                const assignment = getFacilityAssignment(facility.license);
-
-                return isActiveAssignment(assignment) &&
-                    assignment.committeeUsername === username;
+                return activeFacilityLicenses.has(String(facility.license));
 
             });
 

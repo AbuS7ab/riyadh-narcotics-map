@@ -217,17 +217,6 @@ function getVisitResultLabel(visit) {
 }
 
 
-function renderTeamMembers(members) {
-
-    const filteredMembers = Array.isArray(members)
-        ? members.filter(Boolean)
-        : [];
-
-    return filteredMembers.length ? filteredMembers.join("، ") : "-";
-
-}
-
-
 function getAssignmentSnapshot(assignment) {
 
     if (!assignment) {
@@ -275,12 +264,13 @@ function renderAssignmentVisitContext(assignment) {
     if (!assignment) return "";
 
     const snapshot = getAssignmentSnapshot(assignment);
+    const committeeName = snapshot.committeeName || assignment.committeeUsername || "";
 
     return `
         <div class="visit-context border rounded p-2 mb-3">
-            <div><strong>اللجنة:</strong> ${escapeHtml(snapshot.committeeName || assignment.committeeUsername || "-")}</div>
-            <div><strong>رئيس اللجنة:</strong> ${escapeHtml(snapshot.leader || "-")}</div>
-            <div><strong>أعضاء اللجنة:</strong> ${escapeHtml(renderTeamMembers(snapshot.members))}</div>
+            ${committeeName
+                ? `<div><strong>اللجنة:</strong> ${escapeHtml(committeeName)}</div>`
+                : ""}
             <div><strong>نوع الزيارة:</strong> ${getVisitTypeLabel(assignment.visitType)}</div>
             <div><strong>سبب الزيارة:</strong> ${escapeHtml(assignment.visitReason || "الخطة الدورية")}</div>
         </div>
@@ -304,7 +294,7 @@ function renderVisitHistory(visits) {
     return visits.map(visit => {
 
         const display = getVisitStatusDisplay(visit);
-        const teamSnapshot = visit.teamSnapshot || {};
+        const committeeName = visit.committeeName || "";
 
         return `
             <div class="border rounded p-2 mb-2">
@@ -312,11 +302,11 @@ function renderVisitHistory(visits) {
                     <span class="badge bg-${display.badge}">
                         ${getVisitResultLabel(visit)}
                     </span>
-                    <span class="text-muted small">${visit.date || "-"}</span>
+                    <span class="text-muted small">${visit.date || ""}</span>
                 </div>
-                <div class="small mt-2"><strong>اللجنة:</strong> ${escapeHtml(visit.committeeName || "-")}</div>
-                <div class="small"><strong>رئيس اللجنة:</strong> ${escapeHtml(teamSnapshot.leader || "-")}</div>
-                <div class="small"><strong>الأعضاء:</strong> ${escapeHtml(renderTeamMembers(teamSnapshot.members))}</div>
+                ${committeeName
+                    ? `<div class="small mt-2"><strong>اللجنة:</strong> ${escapeHtml(committeeName)}</div>`
+                    : ""}
                 <div class="small"><strong>نوع الزيارة:</strong> ${getVisitTypeLabel(visit.visitType)}</div>
                 <div class="small"><strong>سبب الزيارة:</strong> ${escapeHtml(visit.visitReason || "الخطة الدورية")}</div>
                 ${visit.incompleteReason
