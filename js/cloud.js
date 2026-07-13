@@ -9,7 +9,8 @@ const cloudStorageKeys = {
     users: "users",
     assignments: "facilityAssignments",
     facilityStatus: "facilityStatus",
-    appSettings: "appSettings"
+    appSettings: "appSettings",
+    customFacilities: "customFacilities"
 };
 
 const cloudDataSets = {
@@ -32,6 +33,11 @@ const cloudDataSets = {
         cloudKey: cloudStorageKeys.appSettings,
         localKey: "appSettings",
         label: "appSettings"
+    },
+    customFacilities: {
+        cloudKey: cloudStorageKeys.customFacilities,
+        localKey: "customFacilities",
+        label: "customFacilities"
     }
 };
 
@@ -407,6 +413,22 @@ function saveAppSettings(appSettings) {
 }
 
 
+function loadCustomFacilities() {
+
+    return isPortableDataObject(cloudCache[cloudStorageKeys.customFacilities])
+        ? cloudCache[cloudStorageKeys.customFacilities]
+        : {};
+
+}
+
+
+function saveCustomFacilities(customFacilities) {
+
+    return writeCloudObject(cloudStorageKeys.customFacilities, customFacilities);
+
+}
+
+
 async function testCloudWrite() {
 
     if (!cloudInitialized) {
@@ -450,5 +472,7 @@ window.cloudDebug = {
     loadAssignments,
     saveAssignments,
     loadFacilityStatus,
-    saveFacilityStatus
+    saveFacilityStatus,
+    loadCustomFacilities,
+    saveCustomFacilities
 };

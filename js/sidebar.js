@@ -464,6 +464,28 @@ function renderAssignmentControl(facility) {
 }
 
 
+function renderCustomFacilityActions(facility) {
+
+    if (!isAdminUser() || !facility.isCustom) return "";
+
+    return `
+        <div class="d-flex gap-2 mt-3">
+            <button id="editCustomFacility"
+                    class="btn btn-outline-primary w-50"
+                    type="button">
+                تعديل المنشأة
+            </button>
+            <button id="deleteCustomFacility"
+                    class="btn btn-outline-danger w-50"
+                    type="button">
+                حذف المنشأة
+            </button>
+        </div>
+    `;
+
+}
+
+
 function showFacilityDetails(facility) {
 
     const details = document.querySelector(".card-body");
@@ -507,6 +529,8 @@ function showFacilityDetails(facility) {
             فتح في Google Maps
 
         </a>
+
+        ${renderCustomFacilityActions(facility)}
 
         ${renderAssignmentControl(facility)}
 
@@ -577,6 +601,8 @@ function showFacilityDetails(facility) {
     const visitSaveMessage = document.getElementById("visitSaveMessage");
     const saveVisit = document.getElementById("saveVisit");
     const saveAssignment = document.getElementById("saveAssignment");
+    const editCustomFacilityButton = document.getElementById("editCustomFacility");
+    const deleteCustomFacilityButton = document.getElementById("deleteCustomFacility");
     const backToAssignedFacilities =
         document.getElementById("backToAssignedFacilities");
 
@@ -628,6 +654,26 @@ function showFacilityDetails(facility) {
             showFacilityDetails(facility);
 
         });
+    }
+
+    if (editCustomFacilityButton) {
+
+        editCustomFacilityButton.addEventListener("click", () => {
+
+            editCustomFacility(facility.license);
+
+        });
+
+    }
+
+    if (deleteCustomFacilityButton) {
+
+        deleteCustomFacilityButton.addEventListener("click", () => {
+
+            deleteCustomFacility(facility.license);
+
+        });
+
     }
 
     saveVisit.addEventListener("click", function () {

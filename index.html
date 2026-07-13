@@ -286,6 +286,70 @@
                 </div>
             </section>
 
+            <section id="customFacilitiesPanel" class="workspace-card admin-only">
+                <div class="panel-header">
+                    <span><i class="fa-solid fa-hospital-user"></i> المنشآت المضافة</span>
+                    <small>Custom Facilities</small>
+                </div>
+
+                <div class="users-panel-body">
+                    <button id="showCustomFacilityForm"
+                            type="button"
+                            class="btn btn-outline-primary mb-3">
+                        <i class="fa-solid fa-plus"></i> إضافة منشأة
+                    </button>
+
+                    <form id="customFacilityForm" class="row g-2 d-none">
+                        <input id="customFacilityOriginalLicense" type="hidden">
+                        <div class="col-md-4">
+                            <label for="customFacilityName" class="form-label small mb-1">اسم المنشأة</label>
+                            <input id="customFacilityName" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customFacilityType" class="form-label small mb-1">نوع المنشأة</label>
+                            <input id="customFacilityType" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customFacilityLicense" class="form-label small mb-1">رقم الترخيص</label>
+                            <input id="customFacilityLicense" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customFacilityDistrict" class="form-label small mb-1">الحي</label>
+                            <input id="customFacilityDistrict" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customFacilityStreet" class="form-label small mb-1">الشارع</label>
+                            <input id="customFacilityStreet" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customFacilitySector" class="form-label small mb-1">القطاع</label>
+                            <input id="customFacilitySector" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customFacilityLat" class="form-label small mb-1">خط العرض</label>
+                            <input id="customFacilityLat" class="form-control form-control-sm" type="number" step="any">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customFacilityLng" class="form-label small mb-1">خط الطول</label>
+                            <input id="customFacilityLng" class="form-control form-control-sm" type="number" step="any">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="customFacilityMaps" class="form-label small mb-1">رابط خرائط Google (اختياري)</label>
+                            <input id="customFacilityMaps" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-12 d-flex align-items-center gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">حفظ المنشأة</button>
+                            <button id="cancelCustomFacilityEdit"
+                                    type="button"
+                                    class="btn btn-outline-secondary btn-sm">
+                                إلغاء
+                            </button>
+                            <div id="customFacilityMessage" class="small d-none" role="status"></div>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
             <section id="usersPanel" class="workspace-card users-panel admin-only">
                 <div class="panel-header">
                     <span><i class="fa-solid fa-user-gear"></i> إدارة المستخدمين</span>

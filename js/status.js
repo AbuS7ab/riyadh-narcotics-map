@@ -200,13 +200,13 @@ function normalizeFacilityStatus(status) {
 
 
 // إنشاء حالة افتراضية لكل منشأة
-function createFacilityStatus(license) {
+function createFacilityStatus(license, options = {}) {
 
     const existingStatus = facilityStatus[String(license)];
 
     if (existingStatus) {
 
-        if (normalizeFacilityStatus(existingStatus)) {
+        if (normalizeFacilityStatus(existingStatus) && options.persist !== false) {
             saveFacilityStatus(facilityStatus);
         }
 
@@ -216,7 +216,11 @@ function createFacilityStatus(license) {
 
     facilityStatus[String(license)] = getDefaultFacilityStatus();
 
-    saveFacilityStatus(facilityStatus);
+    if (options.persist !== false) {
+
+        saveFacilityStatus(facilityStatus);
+
+    }
 
 }
 
