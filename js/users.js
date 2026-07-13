@@ -557,6 +557,41 @@ function assignFacilityToCommittee(
 }
 
 
+function cancelAssignmentsForCommittee(committeeUsername, facilityLicenses) {
+
+    if (!isAdminUser()) return 0;
+
+    const selectedLicenses = new Set(
+        facilityLicenses.map(license => String(license))
+    );
+    let cancelledCount = 0;
+
+    selectedLicenses.forEach(license => {
+
+        const assignment = getFacilityAssignment(license);
+
+        if (!isActiveAssignment(assignment) ||
+            assignment.committeeUsername !== committeeUsername) {
+
+            return;
+
+        }
+
+        assignment.status = "cancelled";
+        cancelledCount += 1;
+
+    });
+
+    if (cancelledCount === 0) return 0;
+
+    saveAssignments(facilityAssignments);
+    refreshAssignmentViews(committeeUsername);
+
+    return cancelledCount;
+
+}
+
+
 function updateAssignmentFromVisit(facilityLicense, result) {
 
     if (!isCommitteeUser()) return;

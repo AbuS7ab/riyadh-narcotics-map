@@ -98,25 +98,52 @@ function showCommitteeFacilityList(committee, facilities) {
 
     if (!isAdminUser()) return;
 
+    const visibleFacilities = facilities.filter(facility => {
+
+        const assignment = getFacilityAssignment(facility.license);
+
+        return isActiveAssignment(assignment) &&
+            assignment.committeeUsername === committee.username;
+
+    });
+
     if (typeof fitFacilityBounds === "function") {
 
-        fitFacilityBounds(facilities);
+        fitFacilityBounds(visibleFacilities);
 
     }
 
     const details = document.querySelector(".card-body");
 
     details.innerHTML = `
-        <div id="committeeFacilityList" class="list-group">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <label class="form-check mb-0">
+                <input id="selectAllCommitteeFacilities"
+                       class="form-check-input"
+                       type="checkbox">
+                <span class="form-check-label">تحديد الكل</span>
+            </label>
+            <button id="cancelSelectedAssignments"
+                    class="btn btn-outline-danger btn-sm"
+                    type="button"
+                    disabled>
+                إلغاء إسناد المحدد (0)
+            </button>
+        </div>
+        <div id="committeeFacilityList"
+             class="list-group"
+             data-committee-username="${escapeHtml(committee.username)}">
             <div class="list-group-item active">
-                ${escapeHtml(committee.committeeName)} — ${facilities.length} منشأة
+                ${escapeHtml(committee.committeeName)} — ${visibleFacilities.length} منشأة
             </div>
         </div>
     `;
 
     const list = document.getElementById("committeeFacilityList");
+    const selectAll = document.getElementById("selectAllCommitteeFacilities");
+    const cancelSelected = document.getElementById("cancelSelectedAssignments");
 
-    if (facilities.length === 0) {
+    if (visibleFacilities.length === 0) {
 
         list.innerHTML += `
             <div class="list-group-item text-muted">
@@ -128,39 +155,93 @@ function showCommitteeFacilityList(committee, facilities) {
 
     }
 
-    facilities.forEach(facility => {
+    const updateBulkCancelState = () => {
+
+        const checkboxes = [...list.querySelectorAll(".committee-facility-checkbox")];
+        const selectedCount = checkboxes.filter(checkbox => checkbox.checked).length;
+
+        cancelSelected.disabled = selectedCount === 0;
+        cancelSelected.textContent = `إلغاء إسناد المحدد (${selectedCount})`;
+        selectAll.checked = checkboxes.length > 0 &&
+            selectedCount === checkboxes.length;
+        selectAll.indeterminate = selectedCount > 0 &&
+            selectedCount < checkboxes.length;
+
+    };
+
+    visibleFacilities.forEach(facility => {
 
         const state = getFacilityStatus(facility.license);
-        const assignment = getFacilityAssignment(facility.license);
-
-        if (!isActiveAssignment(assignment)) return;
-
         const visitDisplay = getVisitStatusDisplay(state);
-        const item = document.createElement("button");
+        const item = document.createElement("div");
 
-        item.className = "list-group-item list-group-item-action";
+        item.className = "list-group-item";
         item.innerHTML = `
-            <div class="fw-bold">${escapeHtml(facility.name)}</div>
-            <div class="text-muted small">📄 رقم الترخيص: ${escapeHtml(facility.license)}</div>
-            <div class="text-muted small">📍 الحي: ${escapeHtml(facility.district)}</div>
-            <div class="text-muted small">🏥 النوع: ${escapeHtml(facility.type)}</div>
-            <div class="mt-2">
-                <span class="badge bg-${visitDisplay.badge}">${visitDisplay.text}</span>
-                ${state.violation
-                    ? '<span class="badge bg-danger">يوجد مخالفة</span>'
-                    : ''}
+            <div class="d-flex align-items-start gap-2">
+                <input class="form-check-input committee-facility-checkbox mt-1"
+                       type="checkbox"
+                       value="${escapeHtml(facility.license)}"
+                       aria-label="تحديد ${escapeHtml(facility.name)}">
+                <button class="btn btn-link text-start p-0 flex-grow-1 facility-drilldown-button"
+                        type="button">
+                    <div class="fw-bold">${escapeHtml(facility.name)}</div>
+                    <div class="text-muted small">📄 رقم الترخيص: ${escapeHtml(facility.license)}</div>
+                    <div class="text-muted small">📍 الحي: ${escapeHtml(facility.district)}</div>
+                    <div class="text-muted small">🏥 النوع: ${escapeHtml(facility.type)}</div>
+                    <div class="mt-2">
+                        <span class="badge bg-${visitDisplay.badge}">${visitDisplay.text}</span>
+                        ${state.violation
+                            ? '<span class="badge bg-danger">يوجد مخالفة</span>'
+                            : ''}
+                    </div>
+                </button>
             </div>
         `;
 
-        item.addEventListener("click", () => {
+        item.querySelector(".facility-drilldown-button").addEventListener("click", () => {
 
             goToFacility(facility);
 
         });
 
+        item.querySelector(".committee-facility-checkbox")
+            .addEventListener("change", updateBulkCancelState);
+
         list.appendChild(item);
 
     });
+
+    selectAll.addEventListener("change", () => {
+
+        list.querySelectorAll(".committee-facility-checkbox").forEach(checkbox => {
+
+            checkbox.checked = selectAll.checked;
+
+        });
+
+        updateBulkCancelState();
+
+    });
+
+    cancelSelected.addEventListener("click", () => {
+
+        const selectedLicenses = [...list.querySelectorAll(
+            ".committee-facility-checkbox:checked"
+        )].map(checkbox => checkbox.value);
+
+        if (selectedLicenses.length === 0) return;
+
+        const confirmed = window.confirm(
+            `سيتم إلغاء إسناد ${selectedLicenses.length} منشآت وإعادتها إلى قائمة غير المسندة. هل تريد المتابعة؟`
+        );
+
+        if (!confirmed) return;
+
+        cancelAssignmentsForCommittee(committee.username, selectedLicenses);
+
+    });
+
+    updateBulkCancelState();
 
 }
 
