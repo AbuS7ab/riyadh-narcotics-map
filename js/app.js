@@ -639,3 +639,11 @@ function refreshView() {
     renderMarkers(filteredFacilities);
 
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    const version = document.getElementById("appVersion");
+
+    if (version && window.CONFIG?.app?.version) {
+        version.textContent = CONFIG.app.version;
+    }
+});
