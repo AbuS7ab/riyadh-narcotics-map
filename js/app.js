@@ -13,6 +13,8 @@ let baseFacilities = [];
 
 let customFacilities = {};
 
+let facilityOverrides = {};
+
 initializeApp();
 
 
@@ -26,6 +28,7 @@ async function initializeApp() {
 
     seedCloudKey("appSettings", loadAppSettings());
     seedCloudKey("customFacilities", loadCustomFacilities());
+    seedCloudKey("facilityOverrides", loadFacilityOverrides());
 
     await flushCloudWrites();
 
@@ -112,6 +115,7 @@ function loadFacilities() {
                 isCustom: false
             }));
             customFacilities = loadCustomFacilities();
+            facilityOverrides = loadFacilityOverrides();
 
             syncFacilityCollections();
 
@@ -160,28 +164,73 @@ function getMergedFacilities() {
         const license = String(facility.license);
 
         licenses.add(license);
-        mergedFacilities.push({
+        mergedFacilities.push(applyFacilityOverride({
             ...facility,
+            license,
+            originalLicense: license,
             isCustom: false
-        });
+        }));
 
     });
 
     Object.values(customFacilities).forEach(facility => {
 
-        const license = String(facility.license);
+        const license = String(facility.originalLicense || facility.license);
 
         if (licenses.has(license)) return;
 
         licenses.add(license);
-        mergedFacilities.push({
+        mergedFacilities.push(applyFacilityOverride({
             ...facility,
+            license,
+            originalLicense: license,
             isCustom: true
-        });
+        }));
 
     });
 
     return mergedFacilities;
+
+}
+
+
+function applyFacilityOverride(facility) {
+
+    const originalLicense = String(facility.originalLicense || facility.license);
+    const override = facilityOverrides[originalLicense] || {};
+    const updatedLicense = override.updatedLicense ||
+        facility.updatedLicense ||
+        originalLicense;
+
+    return {
+        ...facility,
+        ...override,
+        license: originalLicense,
+        originalLicense,
+        updatedLicense,
+        displayLicense: updatedLicense,
+        isCustom: Boolean(facility.isCustom)
+    };
+
+}
+
+
+function getFacilityDisplayLicense(facility) {
+
+    return facility
+        ? String(facility.displayLicense || facility.updatedLicense || facility.license || "")
+        : "";
+
+}
+
+
+function findFacilityByOriginalLicense(license) {
+
+    return getMergedFacilities().find(facility => {
+
+        return String(facility.license) === String(license);
+
+    }) || null;
 
 }
 
@@ -260,7 +309,10 @@ function buildCustomFacility(data) {
     return {
         name: data.name,
         type: data.type,
-        license: data.license,
+        license: data.originalLicense || data.license,
+        originalLicense: data.originalLicense || data.license,
+        updatedLicense: data.license,
+        displayLicense: data.license,
         district: data.district,
         street: data.street,
         sector: data.sector,
@@ -273,11 +325,40 @@ function buildCustomFacility(data) {
 }
 
 
+function buildFacilityOverride(data) {
+
+    const googleMapsUrl = data.google_maps ||
+        `https://www.google.com/maps?q=${data.lat},${data.lng}`;
+
+    return {
+        originalLicense: data.originalLicense,
+        updatedLicense: data.license,
+        displayLicense: data.license,
+        name: data.name,
+        type: data.type,
+        district: data.district,
+        street: data.street,
+        sector: data.sector,
+        lat: data.lat,
+        lng: data.lng,
+        google_maps: googleMapsUrl
+    };
+
+}
+
+
+function getEditableFacilitySource(originalLicense) {
+
+    if (!originalLicense) return "custom";
+
+    return customFacilities[String(originalLicense)] ? "custom" : "base";
+
+}
+
+
 function validateCustomFacility(data) {
 
     const originalLicense = data.originalLicense;
-    const editingSameLicense = originalLicense &&
-        originalLicense === data.license;
 
     if (!data.name) return "اسم المنشأة مطلوب.";
     if (!data.license) return "رقم الترخيص مطلوب.";
@@ -294,23 +375,21 @@ function validateCustomFacility(data) {
 
     }
 
-    const licenseExistsInBase = baseFacilities.some(facility => {
+    const duplicateLicense = getMergedFacilities().some(facility => {
 
-        return String(facility.license) === data.license;
+        if (originalLicense &&
+            String(facility.license) === originalLicense) return false;
+
+        return getFacilityDisplayLicense(facility) === data.license ||
+            String(facility.license) === data.license;
 
     });
-    const licenseExistsInCustom = Boolean(customFacilities[data.license]);
 
-    if (licenseExistsInBase ||
-        (licenseExistsInCustom && !editingSameLicense)) {
-
-        return "رقم الترخيص موجود مسبقاً.";
-
-    }
+    if (duplicateLicense) return "رقم الترخيص موجود مسبقاً.";
 
     const duplicateNameAndCoordinates = getMergedFacilities().some(facility => {
 
-        if (editingSameLicense &&
+        if (originalLicense &&
             String(facility.license) === originalLicense) return false;
 
         return facility.name === data.name &&
@@ -345,11 +424,15 @@ function showCustomFacilityMessage(text, className) {
 function resetCustomFacilityForm() {
 
     const form = document.getElementById("customFacilityForm");
+    const title = document.getElementById("customFacilityFormTitle");
+    const submit = document.getElementById("customFacilitySubmit");
 
     if (!form) return;
 
     form.reset();
     document.getElementById("customFacilityOriginalLicense").value = "";
+    if (title) title.textContent = "إضافة منشأة";
+    if (submit) submit.textContent = "حفظ المنشأة";
     form.classList.add("d-none");
     showCustomFacilityMessage("", "d-none");
 
@@ -361,6 +444,17 @@ async function persistCustomFacilities(nextCustomFacilities) {
     customFacilities = nextCustomFacilities;
 
     await saveCustomFacilities(customFacilities);
+
+    syncFacilityCollections();
+
+}
+
+
+async function persistFacilityOverrides(nextFacilityOverrides) {
+
+    facilityOverrides = nextFacilityOverrides;
+
+    await saveFacilityOverrides(facilityOverrides);
 
     syncFacilityCollections();
 
@@ -380,36 +474,63 @@ async function saveCustomFacilityFromForm() {
 
     }
 
-    const nextCustomFacilities = { ...customFacilities };
+    const source = getEditableFacilitySource(data.originalLicense);
 
-    if (data.originalLicense && data.originalLicense !== data.license) {
+    if (!data.originalLicense || source === "custom") {
 
-        delete nextCustomFacilities[data.originalLicense];
+        const originalLicense = data.originalLicense || data.license;
+        const nextCustomFacilities = { ...customFacilities };
+
+        nextCustomFacilities[originalLicense] = buildCustomFacility({
+            ...data,
+            originalLicense
+        });
+
+        await persistCustomFacilities(nextCustomFacilities);
+
+    } else {
+
+        const nextFacilityOverrides = { ...facilityOverrides };
+
+        nextFacilityOverrides[data.originalLicense] = buildFacilityOverride(data);
+
+        await persistFacilityOverrides(nextFacilityOverrides);
 
     }
 
-    nextCustomFacilities[data.license] = buildCustomFacility(data);
+    const savedOriginalLicense = data.originalLicense || data.license;
+    const savedFacility = findFacilityByOriginalLicense(savedOriginalLicense);
 
-    await persistCustomFacilities(nextCustomFacilities);
     resetCustomFacilityForm();
+
+    if (savedFacility && typeof showFacilityDetails === "function") {
+
+        showFacilityDetails(savedFacility);
+
+    }
 
 }
 
 
-function editCustomFacility(license) {
+function editFacility(license) {
 
     if (!isAdminUser()) return;
 
-    const facility = customFacilities[String(license)];
+    const facility = findFacilityByOriginalLicense(license);
     const form = document.getElementById("customFacilityForm");
+    const title = document.getElementById("customFacilityFormTitle");
+    const submit = document.getElementById("customFacilitySubmit");
 
     if (!facility || !form) return;
 
     form.classList.remove("d-none");
+    if (title) title.textContent = "تعديل المنشأة";
+    if (submit) submit.textContent = "حفظ التعديلات";
     document.getElementById("customFacilityOriginalLicense").value = facility.license;
     document.getElementById("customFacilityName").value = facility.name || "";
     document.getElementById("customFacilityType").value = facility.type || "";
-    document.getElementById("customFacilityLicense").value = facility.license || "";
+    document.getElementById("customFacilityLicense").value =
+        getFacilityDisplayLicense(facility);
     document.getElementById("customFacilityDistrict").value = facility.district || "";
     document.getElementById("customFacilityStreet").value = facility.street || "";
     document.getElementById("customFacilitySector").value = facility.sector || "";
@@ -419,6 +540,13 @@ function editCustomFacility(license) {
         typeof facility.lng === "undefined" ? "" : facility.lng;
     document.getElementById("customFacilityMaps").value = facility.google_maps || "";
     showCustomFacilityMessage("", "d-none");
+
+}
+
+
+function editCustomFacility(license) {
+
+    editFacility(license);
 
 }
 
@@ -446,9 +574,13 @@ async function deleteCustomFacility(license) {
     if (!confirm("هل تريد حذف المنشأة المضافة؟")) return;
 
     const nextCustomFacilities = { ...customFacilities };
+    const nextFacilityOverrides = { ...facilityOverrides };
 
     delete nextCustomFacilities[key];
+    delete nextFacilityOverrides[key];
 
+    facilityOverrides = nextFacilityOverrides;
+    await saveFacilityOverrides(facilityOverrides);
     await persistCustomFacilities(nextCustomFacilities);
     showDashboardNeutralState();
 
@@ -465,7 +597,16 @@ function initializeCustomFacilitiesPanel() {
 
     showFormButton.addEventListener("click", () => {
 
-        form.classList.toggle("d-none");
+        if (form.classList.contains("d-none")) {
+
+            resetCustomFacilityForm();
+            form.classList.remove("d-none");
+
+        } else {
+
+            resetCustomFacilityForm();
+
+        }
 
     });
 

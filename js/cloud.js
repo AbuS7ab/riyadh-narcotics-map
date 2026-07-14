@@ -10,7 +10,8 @@ const cloudStorageKeys = {
     assignments: "facilityAssignments",
     facilityStatus: "facilityStatus",
     appSettings: "appSettings",
-    customFacilities: "customFacilities"
+    customFacilities: "customFacilities",
+    facilityOverrides: "facilityOverrides"
 };
 
 const cloudDataSets = {
@@ -38,6 +39,11 @@ const cloudDataSets = {
         cloudKey: cloudStorageKeys.customFacilities,
         localKey: "customFacilities",
         label: "customFacilities"
+    },
+    facilityOverrides: {
+        cloudKey: cloudStorageKeys.facilityOverrides,
+        localKey: "facilityOverrides",
+        label: "facilityOverrides"
     }
 };
 
@@ -429,6 +435,22 @@ function saveCustomFacilities(customFacilities) {
 }
 
 
+function loadFacilityOverrides() {
+
+    return isPortableDataObject(cloudCache[cloudStorageKeys.facilityOverrides])
+        ? cloudCache[cloudStorageKeys.facilityOverrides]
+        : {};
+
+}
+
+
+function saveFacilityOverrides(facilityOverrides) {
+
+    return writeCloudObject(cloudStorageKeys.facilityOverrides, facilityOverrides);
+
+}
+
+
 async function testCloudWrite() {
 
     if (!cloudInitialized) {
@@ -474,5 +496,7 @@ window.cloudDebug = {
     loadFacilityStatus,
     saveFacilityStatus,
     loadCustomFacilities,
-    saveCustomFacilities
+    saveCustomFacilities,
+    loadFacilityOverrides,
+    saveFacilityOverrides
 };

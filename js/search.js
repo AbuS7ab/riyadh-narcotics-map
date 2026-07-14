@@ -15,9 +15,12 @@ function searchFacilities(query) {
     return allFacilities
     .filter(facility => {
 
+        const displayLicense = getFacilityDisplayLicense(facility);
+
         return (
             facility.name.toLowerCase().includes(query) ||
             String(facility.license).includes(query) ||
+            displayLicense.toLowerCase().includes(query) ||
             facility.district.toLowerCase().includes(query) ||
             facility.type.toLowerCase().includes(query)
         );
@@ -27,6 +30,8 @@ function searchFacilities(query) {
 
         const score = (facility) => {
 
+            const displayLicense = getFacilityDisplayLicense(facility);
+
             if (facility.name.toLowerCase().startsWith(query)) return 1;
 
             if (facility.name.toLowerCase().includes(query)) return 2;
@@ -35,7 +40,8 @@ function searchFacilities(query) {
 
             if (facility.type.toLowerCase().includes(query)) return 4;
 
-            if (String(facility.license).includes(query)) return 5;
+            if (String(facility.license).includes(query) ||
+                displayLicense.toLowerCase().includes(query)) return 5;
 
             return 99;
 
@@ -117,6 +123,7 @@ if (query.length > 0) {
         visibleResults.forEach(facility => {
 
     const item = document.createElement("button");
+    const displayLicense = getFacilityDisplayLicense(facility);
 
     item.className = "list-group-item list-group-item-action";
 
@@ -126,7 +133,7 @@ if (query.length > 0) {
         </div>
 
         <div class="text-muted small">
-            📄 رقم الترخيص: ${facility.license}
+            📄 رقم الترخيص: ${displayLicense}
         </div>
 
         <div class="text-muted small">

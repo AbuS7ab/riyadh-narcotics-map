@@ -300,6 +300,9 @@
                     </button>
 
                     <form id="customFacilityForm" class="row g-2 d-none">
+                        <div class="col-12">
+                            <h6 id="customFacilityFormTitle" class="mb-1">إضافة منشأة</h6>
+                        </div>
                         <input id="customFacilityOriginalLicense" type="hidden">
                         <div class="col-md-4">
                             <label for="customFacilityName" class="form-label small mb-1">اسم المنشأة</label>
@@ -338,7 +341,11 @@
                             <input id="customFacilityMaps" class="form-control form-control-sm">
                         </div>
                         <div class="col-12 d-flex align-items-center gap-2">
-                            <button type="submit" class="btn btn-primary btn-sm">حفظ المنشأة</button>
+                            <button id="customFacilitySubmit"
+                                    type="submit"
+                                    class="btn btn-primary btn-sm">
+                                حفظ المنشأة
+                            </button>
                             <button id="cancelCustomFacilityEdit"
                                     type="button"
                                     class="btn btn-outline-secondary btn-sm">

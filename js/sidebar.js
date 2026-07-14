@@ -50,6 +50,7 @@ function showFacilityList(facilities, options = {}) {
     facilities.forEach(facility => {
 
         const state = getFacilityStatus(facility.license);
+        const displayLicense = getFacilityDisplayLicense(facility);
         const item = document.createElement("button");
 
         let statusText = "قيد الانتظار";
@@ -70,7 +71,7 @@ function showFacilityList(facilities, options = {}) {
         item.className = "list-group-item list-group-item-action";
         item.innerHTML = `
             <div class="fw-bold">${facility.name}</div>
-            <div class="text-muted small">📄 رقم الترخيص: ${facility.license}</div>
+            <div class="text-muted small">📄 رقم الترخيص: ${displayLicense}</div>
             <div class="text-muted small">📍 الحي: ${facility.district}</div>
             <div class="text-muted small">🏥 النوع: ${facility.type}</div>
             <div class="mt-2">
@@ -172,6 +173,7 @@ function showCommitteeFacilityList(committee, facilities) {
     visibleFacilities.forEach(facility => {
 
         const state = getFacilityStatus(facility.license);
+        const displayLicense = getFacilityDisplayLicense(facility);
         const visitDisplay = getVisitStatusDisplay(state);
         const item = document.createElement("div");
 
@@ -185,7 +187,7 @@ function showCommitteeFacilityList(committee, facilities) {
                 <button class="btn btn-link text-start p-0 flex-grow-1 facility-drilldown-button"
                         type="button">
                     <div class="fw-bold">${escapeHtml(facility.name)}</div>
-                    <div class="text-muted small">📄 رقم الترخيص: ${escapeHtml(facility.license)}</div>
+                    <div class="text-muted small">📄 رقم الترخيص: ${escapeHtml(displayLicense)}</div>
                     <div class="text-muted small">📍 الحي: ${escapeHtml(facility.district)}</div>
                     <div class="text-muted small">🏥 النوع: ${escapeHtml(facility.type)}</div>
                     <div class="mt-2">
@@ -466,20 +468,22 @@ function renderAssignmentControl(facility) {
 
 function renderCustomFacilityActions(facility) {
 
-    if (!isAdminUser() || !facility.isCustom) return "";
+    if (!isAdminUser()) return "";
 
     return `
         <div class="d-flex gap-2 mt-3">
             <button id="editCustomFacility"
-                    class="btn btn-outline-primary w-50"
+                    class="btn btn-outline-primary ${facility.isCustom ? "w-50" : "w-100"}"
                     type="button">
                 تعديل المنشأة
             </button>
+            ${facility.isCustom ? `
             <button id="deleteCustomFacility"
                     class="btn btn-outline-danger w-50"
                     type="button">
                 حذف المنشأة
             </button>
+            ` : ""}
         </div>
     `;
 
@@ -497,6 +501,7 @@ function showFacilityDetails(facility) {
     const assignment = isActiveAssignment(storedAssignment) ? storedAssignment : null;
 
     const statusDisplay = getVisitStatusDisplay(state);
+    const displayLicense = getFacilityDisplayLicense(facility);
 
     details.innerHTML = `
 
@@ -508,7 +513,7 @@ function showFacilityDetails(facility) {
 
         <p><strong>🛣️ الشارع:</strong> ${facility.street}</p>
 
-        <p><strong>📄 الترخيص:</strong> ${facility.license}</p>
+        <p><strong>📄 الترخيص:</strong> ${displayLicense}</p>
 
         <hr>
 
@@ -660,7 +665,7 @@ function showFacilityDetails(facility) {
 
         editCustomFacilityButton.addEventListener("click", () => {
 
-            editCustomFacility(facility.license);
+            editFacility(facility.license);
 
         });
 

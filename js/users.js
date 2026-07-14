@@ -1329,13 +1329,17 @@ function renderAssignmentBoard(facilities) {
         <option value="">تحديد تلقائي لنقطة البداية</option>
         ${facilities
             .filter(hasValidCoordinates)
-            .map(facility => `
+            .map(facility => {
+                const displayLicense = getFacilityDisplayLicense(facility);
+
+                return `
                 <option value="${escapeHtml(facility.license)}">
                     ${escapeHtml(facility.name)} —
                     ${escapeHtml(facility.district)} —
-                    ${escapeHtml(facility.license)}
+                    ${escapeHtml(displayLicense)}
                 </option>
-            `).join("")}
+            `;
+            }).join("")}
     `;
 
     if (facilities.some(facility => {
@@ -1352,7 +1356,13 @@ function renderAssignmentBoard(facilities) {
     const query = searchInput.value.trim().toLowerCase();
     const unassignedFacilities = getUnassignedFacilities(facilities).filter(facility => {
 
-        return [facility.name, facility.license, facility.district, facility.type]
+        return [
+            facility.name,
+            facility.license,
+            getFacilityDisplayLicense(facility),
+            facility.district,
+            facility.type
+        ]
             .some(value => String(value || "").toLowerCase().includes(query));
 
     });
@@ -1367,17 +1377,21 @@ function renderAssignmentBoard(facilities) {
 
     }
 
-    list.innerHTML = unassignedFacilities.map(facility => `
+    list.innerHTML = unassignedFacilities.map(facility => {
+        const displayLicense = getFacilityDisplayLicense(facility);
+
+        return `
         <label class="assignment-facility-item">
             <input class="form-check-input assignment-facility-checkbox"
                    type="checkbox" value="${escapeHtml(facility.license)}">
             <span>
                 <strong>${escapeHtml(facility.name)}</strong>
-                <small>الترخيص: ${escapeHtml(facility.license)}</small>
+                <small>الترخيص: ${escapeHtml(displayLicense)}</small>
                 <small>${escapeHtml(facility.district)} · ${escapeHtml(facility.type)}</small>
             </span>
         </label>
-    `).join("");
+    `;
+    }).join("");
 
     syncSmartAssignmentStartFromChecked();
 
