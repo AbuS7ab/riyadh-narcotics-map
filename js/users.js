@@ -451,6 +451,122 @@ function getActiveAssignmentsForCommittee(username) {
 }
 
 
+function visitIndicatesViolation(visit) {
+
+    if (!visit || typeof visit !== "object") return false;
+
+    return visit.violation === true ||
+        visit.result === "violation" ||
+        visit.status === "violation" ||
+        visit.visitStatus === "violation" ||
+        (Array.isArray(visit.violations) && visit.violations.length > 0);
+
+}
+
+
+function visitIndicatesCompletion(visit) {
+
+    if (!visit || typeof visit !== "object") return false;
+
+    return visit.result === "no_violation" ||
+        visit.result === "violation" ||
+        visit.status === "completed" ||
+        visit.status === "visited" ||
+        visit.visitStatus === "visited";
+
+}
+
+
+function facilityHasViolation(license) {
+
+    const status = getFacilityStatus(license);
+
+    if (!status) return false;
+
+    if (status.violation === true ||
+        status.result === "violation" ||
+        status.status === "violation" ||
+        status.visitStatus === "violation" ||
+        (Array.isArray(status.violations) && status.violations.length > 0)) {
+
+        return true;
+
+    }
+
+    return Array.isArray(status.visits) &&
+        status.visits.some(visitIndicatesViolation);
+
+}
+
+
+function facilityHasCompletedVisit(license) {
+
+    const status = getFacilityStatus(license);
+
+    if (!status) return false;
+
+    if (status.visitStatus === "visited" ||
+        status.status === "completed" ||
+        status.status === "visited") {
+
+        return true;
+
+    }
+
+    return Array.isArray(status.visits) &&
+        status.visits.some(visitIndicatesCompletion);
+
+}
+
+
+function getCommitteeKpis(username) {
+
+    const activeAssignments = getActiveAssignmentsForCommittee(username);
+    const assignedCount = activeAssignments.length;
+    const completedCount = activeAssignments.filter(assignment => {
+
+        return assignment.status === "completed" ||
+            facilityHasCompletedVisit(assignment.facilityLicense);
+
+    }).length;
+    const violatingFacilities = new Set();
+
+    activeAssignments.forEach(assignment => {
+
+        const license = String(assignment.facilityLicense);
+
+        if (facilityHasViolation(license)) {
+
+            violatingFacilities.add(license);
+
+        }
+
+    });
+
+    const completionRate = assignedCount === 0
+        ? 0
+        : Math.round((completedCount / assignedCount) * 100);
+
+    return {
+        assignedCount,
+        completedCount,
+        violatingFacilityCount: violatingFacilities.size,
+        completionRate
+    };
+
+}
+
+
+function getCompletionRateClass(completionRate) {
+
+    if (completionRate >= 80) return "success";
+    if (completionRate >= 50) return "warning";
+
+    return "danger";
+
+}
+
+
 function normalizeTeam(team) {
 
     const source = team && typeof team === "object" ? team : {};
@@ -1166,18 +1282,8 @@ function renderCommitteeAssignmentCards() {
 
     container.innerHTML = getCommitteeUsers().map(committee => {
 
-        const activeAssignments = getActiveAssignmentsForCommittee(committee.username);
-        const inProgress = activeAssignments.filter(assignment => {
-
-            return assignment.status === "in_progress";
-
-        }).length;
-        const completed = activeAssignments.filter(assignment => {
-
-            return assignment.status === "completed";
-
-        }).length;
-        const assigned = activeAssignments.length;
+        const kpis = getCommitteeKpis(committee.username);
+        const progressClass = getCompletionRateClass(kpis.completionRate);
 
         return `
             <article class="committee-card ${selectedCommitteeUsername === committee.username ? "active" : ""}"
@@ -1194,9 +1300,15 @@ function renderCommitteeAssignmentCards() {
                     </span>
                 </div>
                 <div class="committee-card-counts">
-                    <span>المسندة <strong>${assigned}</strong></span>
-                    <span>قيد التنفيذ <strong>${inProgress}</strong></span>
-                    <span>المكتملة <strong>${completed}</strong></span>
+                    <span>المسندة <strong>${kpis.assignedCount}</strong></span>
+                    <span>المنجزة <strong>${kpis.completedCount}</strong></span>
+                    <span>المخالفات <strong>${kpis.violatingFacilityCount}</strong></span>
+                    <span>نسبة الإنجاز <strong>${kpis.completionRate}%</strong></span>
+                </div>
+                <div class="committee-card-progress"
+                     aria-label="نسبة الإنجاز ${kpis.completionRate}%">
+                    <div class="committee-card-progress-bar ${progressClass}"
+                         style="width: ${kpis.completionRate}%"></div>
                 </div>
             </article>
         `;

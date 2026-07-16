@@ -380,6 +380,31 @@ body:not(.role-committee) .committee-only {
     font-size: 18px;
 }
 
+.committee-card-progress {
+    height: 6px;
+    margin-top: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #edf1ef;
+}
+
+.committee-card-progress-bar {
+    height: 100%;
+    border-radius: inherit;
+}
+
+.committee-card-progress-bar.danger {
+    background: #dc3545;
+}
+
+.committee-card-progress-bar.warning {
+    background: #f0ad4e;
+}
+
+.committee-card-progress-bar.success {
+    background: #198754;
+}
+
 .kpi-row {
     display: grid;
     grid-template-columns: repeat(6, minmax(145px, 1fr));
