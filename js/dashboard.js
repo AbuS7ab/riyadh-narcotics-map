@@ -104,14 +104,29 @@ function updateDashboard(facilities) {
     document.getElementById("otherCount").textContent = others;
 
     const states = facilities.map(f => getFacilityStatus(f.license));
+    const plannedVisitTotal = states.reduce((total, state) => {
+
+        return total + (Array.isArray(state.visits) ? state.visits.length : 0);
+
+    }, 0);
+    const plannedViolationTotal = states.filter(state => state.violation === true).length;
+    const externalStats = typeof getExternalVisitStats === "function"
+        ? getExternalVisitStats()
+        : { total: 0, violations: 0, periodic: 0, reactive: 0 };
 
     const visited =
         states.filter(state => state.visitStatus === "visited").length;
 
-    document.getElementById("visitedCount").textContent = visited;
+    document.getElementById("visitedCount").textContent =
+        plannedVisitTotal + externalStats.total;
+    document.getElementById("visitPlanBreakdown").textContent =
+        `زيارات الخطة ${plannedVisitTotal} · خارج الخطة ${externalStats.total}` +
+        ` · دوري ${externalStats.periodic} / تفاعلي ${externalStats.reactive}`;
 
     document.getElementById("violationCount").textContent =
-        states.filter(state => state.violation === true).length;
+        plannedViolationTotal + externalStats.violations;
+    document.getElementById("violationPlanBreakdown").textContent =
+        `الخطة ${plannedViolationTotal} · خارج الخطة ${externalStats.violations}`;
 
     document.getElementById("pendingCount").textContent =
         states.filter(state => state.visitStatus === "pending").length;

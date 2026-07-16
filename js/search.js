@@ -95,6 +95,9 @@ if (query.length > 0) {
 
         const results = searchFacilities(query);
         const visibleResults = results.slice(0, 10);
+        const externalResults = typeof searchExternalVisits === "function"
+            ? searchExternalVisits(query).slice(0, 10)
+            : [];
 
         if (typeof fitFacilityBounds === "function") {
 
@@ -108,7 +111,7 @@ if (query.length > 0) {
 </div>
 `;
 
-        if (results.length === 0) {
+        if (results.length === 0 && externalResults.length === 0) {
 
             resultsBox.innerHTML = `
                 <div class="list-group-item text-muted">
@@ -158,6 +161,51 @@ if (query.length > 0) {
     resultsBox.appendChild(item);
 
 });
+
+        if (externalResults.length > 0) {
+
+            resultsBox.innerHTML += `
+                <div class="list-group-item active">
+                    زيارات خارج الخطة
+                </div>
+            `;
+
+        }
+
+        externalResults.forEach(visit => {
+
+            const snapshot = visit.facilitySnapshot || {};
+            const item = document.createElement("button");
+
+            item.className = "list-group-item list-group-item-action";
+
+            item.innerHTML = `
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                    <div class="fw-bold">${escapeHtml(snapshot.name || "")}</div>
+                    <span class="badge text-bg-info">خارج الخطة</span>
+                </div>
+                <div class="text-muted small">📍 المدينة: ${escapeHtml(snapshot.city || "")}</div>
+                ${snapshot.license
+                    ? `<div class="text-muted small">📄 رقم الترخيص: ${escapeHtml(snapshot.license)}</div>`
+                    : ""}
+                ${visit.transactionNumber
+                    ? `<div class="text-muted small">رقم المهمة: ${escapeHtml(visit.transactionNumber)}</div>`
+                    : ""}
+            `;
+
+            item.addEventListener("click", () => {
+
+                showExternalVisitDetails(visit.externalVisitId);
+
+                searchBox.value = "";
+
+                resultsBox.innerHTML = "";
+
+            });
+
+            resultsBox.appendChild(item);
+
+        });
 
     });
 

@@ -29,11 +29,13 @@ async function initializeApp() {
     seedCloudKey("appSettings", loadAppSettings());
     seedCloudKey("customFacilities", loadCustomFacilities());
     seedCloudKey("facilityOverrides", loadFacilityOverrides());
+    initializeExternalVisitsState();
 
     await flushCloudWrites();
 
     initializeUserInterface();
     initializeCustomFacilitiesPanel();
+    initializeExternalVisitControls();
 
     if (!isAdminUser() && !isCommitteeUser()) return;
 

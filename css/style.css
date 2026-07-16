@@ -235,6 +235,10 @@ body:not(.role-committee) .committee-only {
     display: none !important;
 }
 
+body:not(.role-admin):not(.role-committee) .external-visit-action {
+    display: none !important;
+}
+
 .top-header {
     min-height: 112px;
     padding: 23px 32px;

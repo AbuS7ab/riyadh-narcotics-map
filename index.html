@@ -120,7 +120,11 @@
                      data-filter-name="visitStatus" data-filter-value="visited"
                      role="button" tabindex="0">
                     <div class="kpi-icon"><i class="fa-solid fa-circle-check"></i></div>
-                    <div><h6>تمت الزيارة</h6><h2 id="visitedCount">0</h2></div>
+                    <div>
+                        <h6>تمت الزيارة</h6>
+                        <h2 id="visitedCount">0</h2>
+                        <small id="visitPlanBreakdown" class="text-muted"></small>
+                    </div>
                 </div>
 
                 <div class="dashboard-card operational-kpi kpi-partial"
@@ -134,7 +138,11 @@
                      data-filter-name="violation" data-filter-value="true"
                      role="button" tabindex="0">
                     <div class="kpi-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                    <div><h6>المخالفات</h6><h2 id="violationCount">0</h2></div>
+                    <div>
+                        <h6>المخالفات</h6>
+                        <h2 id="violationCount">0</h2>
+                        <small id="violationPlanBreakdown" class="text-muted"></small>
+                    </div>
                 </div>
 
                 <div class="dashboard-card kpi-rate">
@@ -164,6 +172,13 @@
                     <div id="searchResults" class="list-group"></div>
                 </div>
 
+                <button id="showExternalVisitForm"
+                        type="button"
+                        class="btn btn-outline-primary external-visit-action">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                    زيارة خارج الخطة
+                </button>
+
                 <select id="visitStatusFilter" class="form-select admin-only">
                     <option value="all">جميع حالات الزيارة</option>
                     <option value="pending">لم تتم زيارتها</option>
@@ -183,6 +198,110 @@
                 <select class="form-select admin-only" aria-label="الحي">
                     <option>الحي</option>
                 </select>
+            </section>
+
+            <section id="externalVisitPanel" class="workspace-card d-none">
+                <div class="panel-header">
+                    <span><i class="fa-solid fa-clipboard-list"></i> زيارة خارج الخطة</span>
+                    <small>External Visit</small>
+                </div>
+
+                <div class="users-panel-body">
+                    <form id="externalVisitForm" class="row g-2">
+                        <input id="externalVisitId" type="hidden">
+
+                        <div class="col-md-4">
+                            <label for="externalFacilityName" class="form-label small mb-1">اسم المنشأة</label>
+                            <input id="externalFacilityName" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalFacilityType" class="form-label small mb-1">نوع المنشأة</label>
+                            <input id="externalFacilityType" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalFacilityCity" class="form-label small mb-1">المدينة</label>
+                            <input id="externalFacilityCity" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="externalFacilityLicense" class="form-label small mb-1">رقم الترخيص</label>
+                            <input id="externalFacilityLicense" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalFacilityDistrict" class="form-label small mb-1">الحي</label>
+                            <input id="externalFacilityDistrict" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalFacilityAddress" class="form-label small mb-1">العنوان</label>
+                            <input id="externalFacilityAddress" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="externalVisitType" class="form-label small mb-1">نوع الزيارة</label>
+                            <select id="externalVisitType" class="form-select form-select-sm">
+                                <option value="periodic">دوري</option>
+                                <option value="reactive">تفاعلي</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalVisitReason" class="form-label small mb-1">سبب الزيارة</label>
+                            <select id="externalVisitReason" class="form-select form-select-sm">
+                                <option value="الخطة الدورية">الخطة الدورية</option>
+                                <option value="شكوى">شكوى</option>
+                                <option value="بلاغ">بلاغ</option>
+                                <option value="إعادة تحقق">إعادة تحقق</option>
+                                <option value="متابعة مخالفة">متابعة مخالفة</option>
+                                <option value="توجيه إداري">توجيه إداري</option>
+                                <option value="أخرى">أخرى</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalVisitResult" class="form-label small mb-1">نتيجة الزيارة</label>
+                            <select id="externalVisitResult" class="form-select form-select-sm">
+                                <option value="no_violation">لا توجد مخالفة</option>
+                                <option value="violation">توجد مخالفة</option>
+                                <option value="incomplete">لم تكتمل</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="externalVisitDate" class="form-label small mb-1">تاريخ الزيارة</label>
+                            <input id="externalVisitDate" class="form-control form-control-sm" type="date">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalFacilityLat" class="form-label small mb-1">خط العرض</label>
+                            <input id="externalFacilityLat" class="form-control form-control-sm" type="number" step="any">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalFacilityLng" class="form-label small mb-1">خط الطول</label>
+                            <input id="externalFacilityLng" class="form-control form-control-sm" type="number" step="any">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="externalFacilityMapUrl" class="form-label small mb-1">رابط الموقع</label>
+                            <input id="externalFacilityMapUrl" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="externalTransactionNumber" class="form-label small mb-1">رقم المعاملة أو المهمة</label>
+                            <input id="externalTransactionNumber" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-12">
+                            <label for="externalVisitNotes" class="form-label small mb-1">الملاحظات</label>
+                            <textarea id="externalVisitNotes" class="form-control form-control-sm" rows="3"></textarea>
+                        </div>
+
+                        <div class="col-12 d-flex align-items-center gap-2 flex-wrap">
+                            <button id="saveExternalVisit" type="submit" class="btn btn-primary btn-sm">
+                                حفظ الزيارة
+                            </button>
+                            <button id="cancelExternalVisit" type="button" class="btn btn-outline-secondary btn-sm">
+                                إلغاء
+                            </button>
+                            <div id="externalVisitMessage" class="small d-none" role="status"></div>
+                        </div>
+                    </form>
+                </div>
             </section>
 
             <section class="main-grid">
@@ -455,6 +574,8 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
 <script src="js/sidebar.js"></script>
+
+<script src="js/external-visits.js"></script>
 
 <script src="js/search.js"></script>
 

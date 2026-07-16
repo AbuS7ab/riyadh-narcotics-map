@@ -11,7 +11,8 @@ const cloudStorageKeys = {
     facilityStatus: "facilityStatus",
     appSettings: "appSettings",
     customFacilities: "customFacilities",
-    facilityOverrides: "facilityOverrides"
+    facilityOverrides: "facilityOverrides",
+    externalVisits: "externalVisits"
 };
 
 const cloudDataSets = {
@@ -44,6 +45,11 @@ const cloudDataSets = {
         cloudKey: cloudStorageKeys.facilityOverrides,
         localKey: "facilityOverrides",
         label: "facilityOverrides"
+    },
+    externalVisits: {
+        cloudKey: cloudStorageKeys.externalVisits,
+        localKey: "externalVisits",
+        label: "externalVisits"
     }
 };
 
@@ -451,6 +457,22 @@ function saveFacilityOverrides(facilityOverrides) {
 }
 
 
+function loadExternalVisits() {
+
+    return isPortableDataObject(cloudCache[cloudStorageKeys.externalVisits])
+        ? cloudCache[cloudStorageKeys.externalVisits]
+        : {};
+
+}
+
+
+function saveExternalVisits(externalVisits) {
+
+    return writeCloudObject(cloudStorageKeys.externalVisits, externalVisits);
+
+}
+
+
 async function testCloudWrite() {
 
     if (!cloudInitialized) {
@@ -498,5 +520,7 @@ window.cloudDebug = {
     loadCustomFacilities,
     saveCustomFacilities,
     loadFacilityOverrides,
-    saveFacilityOverrides
+    saveFacilityOverrides,
+    loadExternalVisits,
+    saveExternalVisits
 };
