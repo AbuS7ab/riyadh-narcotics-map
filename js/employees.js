@@ -475,17 +475,179 @@ function getEmployeeProfile(employeeId) {
 }
 
 
+function getEmployeeAchievementVisitType(value) {
+
+    if (value === "reactive") return "تفاعلية";
+    if (value === "periodic") return "اعتيادية";
+
+    return "-";
+
+}
+
+
+function getEmployeeAchievementLocation(city, district) {
+
+    return [city, district].map(value => String(value || "").trim()).filter(Boolean).join(" / ");
+
+}
+
+
+function getEmployeeAchievementRecords(employeeId) {
+
+    const employee = getEmployeeById(employeeId);
+
+    if (!employee) return [];
+
+    const plannedRecords = getEmployeeVisitRecords(employeeId).map(visit => {
+
+        const facility = typeof findFacilityByOriginalLicense === "function"
+            ? findFacilityByOriginalLicense(visit.facilityLicense)
+            : null;
+
+        return {
+            id: visit.id,
+            date: visit.date || visit.createdAt || "",
+            createdAt: visit.createdAt || "",
+            facilityName: facility && facility.name || "-",
+            facilityLicense: facility
+                ? typeof getFacilityDisplayLicense === "function"
+                    ? getFacilityDisplayLicense(facility)
+                    : facility.license
+                : visit.facilityLicense || "-",
+            location: getEmployeeAchievementLocation(
+                facility && facility.city,
+                facility && facility.district
+            ) || "-",
+            missionType: "مهمة عمل ميدانية",
+            missionDetails: visit.visitReason || "-",
+            visitType: getEmployeeAchievementVisitType(visit.visitType),
+            committeeName: visit.committeeName || "-",
+            status: visit.visitStatus === "visited" ? "مكتملة" : "غير مكتملة",
+            missionNumber: ""
+        };
+
+    });
+    const externalRecords = getEmployeeExternalMissions(employee)
+        .filter(mission => !mission.missionStatus || mission.missionStatus === "مكتملة")
+        .map(mission => {
+
+            const snapshot = mission.facilitySnapshot || {};
+
+            return {
+                id: mission.id || mission.externalVisitId || mission.missionNumber,
+                date: mission.visitDate || mission.date || mission.createdAt || "",
+                createdAt: mission.createdAt || "",
+                facilityName: mission.facilityName || snapshot.name || "-",
+                facilityLicense: snapshot.license || "-",
+                location: getEmployeeAchievementLocation(snapshot.city, snapshot.district) || "-",
+                missionType: "مهمة خارج الخطة",
+                missionDetails: mission.visitReason || mission.missionTypeOther || mission.missionType || "-",
+                visitType: getEmployeeAchievementVisitType(mission.visitType),
+                committeeName: mission.committeeName || "-",
+                status: mission.missionStatus === "مكتملة" || !mission.missionStatus
+                    ? "مكتملة"
+                    : "غير مكتملة",
+                missionNumber: mission.missionNumber || ""
+            };
+
+        });
+
+    return [...plannedRecords, ...externalRecords].sort((first, second) => {
+
+        const dateDifference = new Date(second.date || 0) - new Date(first.date || 0);
+
+        if (dateDifference !== 0) return dateDifference;
+
+        return new Date(second.createdAt || 0) - new Date(first.createdAt || 0);
+
+    });
+
+}
+
+
+function getEmployeeAchievementExportData(employeeId) {
+
+    const employee = getEmployeeById(employeeId);
+
+    if (!employee) return null;
+
+    const achievements = getEmployeeAchievementRecords(employeeId);
+    const rows = [
+        ["سجل إنجاز الموظف"],
+        ["اسم الموظف", employee.fullName || ""],
+        ["رقم الموظف", employee.employeeNumber || ""],
+        ["المسمى الوظيفي", employee.jobTitle || ""],
+        [],
+        [
+            "التاريخ",
+            "اسم المنشأة",
+            "رقم الترخيص",
+            "نوع المهمة",
+            "تفاصيل المهمة",
+            "نوع الزيارة",
+            "اللجنة",
+            "الحالة"
+        ],
+        ...achievements.map(record => [
+            record.date,
+            record.facilityName,
+            record.facilityLicense,
+            record.missionType,
+            record.missionDetails,
+            record.visitType,
+            record.committeeName,
+            record.status
+        ])
+    ];
+
+    return { employee, achievements, rows };
+
+}
+
+
+function exportEmployeeAchievementRecord(employeeId) {
+
+    if (!isAdminUser() || !window.XLSX) return;
+
+    const report = getEmployeeAchievementExportData(employeeId);
+
+    if (!report) return;
+
+    const workbook = window.XLSX.utils.book_new();
+    const worksheet = window.XLSX.utils.aoa_to_sheet(report.rows);
+
+    worksheet["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
+    worksheet["!cols"] = [
+        { wch: 14 }, { wch: 30 }, { wch: 18 }, { wch: 22 },
+        { wch: 28 }, { wch: 14 }, { wch: 22 }, { wch: 14 }
+    ];
+    window.XLSX.utils.book_append_sheet(workbook, worksheet, "سجل الإنجازات");
+
+    const safeName = String(report.employee.fullName || "موظف").replace(/[\\/:*?"<>|]/g, "-");
+
+    window.XLSX.writeFile(workbook, `سجل إنجاز الموظف - ${safeName}.xlsx`);
+
+}
+
+
 function showEmployeeDetails(employeeId) {
 
     const profile = getEmployeeProfile(employeeId);
-    const details = document.querySelector(".card-body");
+    const detailsPanel = document.getElementById("employeeAchievementPanel");
+    const details = document.getElementById("employeeAchievementContent");
 
-    if (!isAdminUser() || !profile || !details) return;
+    if (!isAdminUser() || !profile || !detailsPanel || !details) return;
 
     const employee = profile.employee;
+    const achievements = getEmployeeAchievementRecords(employeeId);
 
     details.innerHTML = `
-        <h5 class="mb-3">${escapeHtml(employee.fullName)}</h5>
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-3 flex-wrap">
+            <h5 class="mb-0">سجل إنجازات ${escapeHtml(employee.fullName)}</h5>
+            <button id="exportEmployeeAchievements" type="button" class="btn btn-outline-success btn-sm">
+                <i class="fa-solid fa-file-excel"></i> تصدير Excel
+            </button>
+        </div>
         <p><strong>المسمى الوظيفي:</strong> ${escapeHtml(employee.jobTitle || "-")}</p>
         <p><strong>الحالة:</strong> ${employee.isActive ? "نشط" : "غير نشط"}</p>
         <p><strong>اللجان الحالية:</strong> ${escapeHtml(profile.currentCommittees.map(item => item.committeeName).join("، ") || "-")}</p>
@@ -493,7 +655,40 @@ function showEmployeeDetails(employeeId) {
         <p><strong>المنشآت المكتملة المسجلة:</strong> ${profile.completedFacilities}</p>
         <p><strong>المخالفات المسجلة:</strong> ${profile.violations}</p>
         <p><strong>المهام خارج الخطة:</strong> ${profile.externalMissions}</p>
+        <div class="table-responsive mt-3 employee-achievement-table-wrap">
+            <table class="table table-sm align-middle employee-achievement-table">
+                <thead><tr>
+                    <th>التاريخ</th><th>اسم المنشأة</th><th>رقم الترخيص</th><th>المدينة/الحي</th>
+                    <th>نوع المهمة</th><th>تفاصيل المهمة</th><th>نوع الزيارة</th><th>اللجنة</th>
+                    <th>الحالة</th><th>رقم المهمة</th>
+                </tr></thead>
+                <tbody>
+                    ${achievements.length > 0 ? achievements.map(record => `
+                        <tr>
+                            <td>${escapeHtml(record.date || "-")}</td>
+                            <td>${escapeHtml(record.facilityName)}</td>
+                            <td>${escapeHtml(record.facilityLicense)}</td>
+                            <td>${escapeHtml(record.location)}</td>
+                            <td>${escapeHtml(record.missionType)}</td>
+                            <td>${escapeHtml(record.missionDetails)}</td>
+                            <td>${escapeHtml(record.visitType)}</td>
+                            <td>${escapeHtml(record.committeeName)}</td>
+                            <td><span class="badge ${record.status === "مكتملة" ? "text-bg-success" : "text-bg-warning"}">${record.status}</span></td>
+                            <td>${escapeHtml(record.missionNumber || "-")}</td>
+                        </tr>
+                    `).join("") : `
+                        <tr><td colspan="10" class="text-muted text-center py-3">لا توجد إنجازات مكتملة مسجلة.</td></tr>
+                    `}
+                </tbody>
+            </table>
+        </div>
     `;
+
+    document.getElementById("exportEmployeeAchievements")
+        .addEventListener("click", () => exportEmployeeAchievementRecord(employeeId));
+
+    detailsPanel.classList.remove("d-none");
+    detailsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 
 }
 
@@ -970,7 +1165,11 @@ function renderEmployeePerformanceDashboard(resetPage = false) {
     body.innerHTML = employeePerformanceVisibleRows.map((row, index) => `
         <tr data-employee-id="${escapeHtml(row.id)}">
             <td>${startIndex + index + 1}</td>
-            <td><strong>${escapeHtml(row.fullName)}</strong></td>
+            <td>
+                <button type="button" class="employee-achievement-link" data-employee-id="${escapeHtml(row.id)}">
+                    ${escapeHtml(row.fullName)}
+                </button>
+            </td>
             <td>${escapeHtml(row.employeeNumber || "-")}</td>
             <td>${escapeHtml(row.committeeNames || "-")}</td>
             <td>${row.completedFacilities}</td><td>${row.violations}</td><td>${row.externalMissions}</td>
@@ -984,6 +1183,12 @@ function renderEmployeePerformanceDashboard(resetPage = false) {
     body.querySelectorAll("tr").forEach(row => {
 
         row.addEventListener("click", () => showEmployeeDetails(row.dataset.employeeId));
+        row.querySelector(".employee-achievement-link").addEventListener("click", event => {
+
+            event.stopPropagation();
+            showEmployeeDetails(event.currentTarget.dataset.employeeId);
+
+        });
         row.querySelector(".performance-details").addEventListener("click", event => {
 
             event.stopPropagation();

@@ -1003,6 +1003,35 @@ body.role-committee .main-grid {
     gap: 12px;
 }
 
+.employee-achievement-link {
+    padding: 0;
+    border: 0;
+    color: var(--primary);
+    background: transparent;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.employee-achievement-panel {
+    margin-top: 18px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: #fff;
+}
+
+.employee-achievement-table-wrap { max-height: 520px; }
+.employee-achievement-table { min-width: 1250px; }
+.employee-achievement-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    white-space: nowrap;
+    background: #F5F8F7;
+}
+
 @media (max-width: 991.98px) {
     .employee-performance-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .employee-performance-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
