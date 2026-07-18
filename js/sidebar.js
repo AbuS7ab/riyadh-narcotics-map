@@ -3,6 +3,7 @@
 // ========================================
 
 let committeeAssignedListFilter = "all";
+let adminAssignedListFilter = "all";
 
 
 function getCommitteeAssignedDisplayStatus(facility) {
@@ -67,6 +68,64 @@ function sortCommitteeAssignedFacilities(facilities) {
         const secondOrder = assignmentOrder.has(String(second.license))
             ? assignmentOrder.get(String(second.license))
             : sourceOrder.get(String(second.license));
+
+        return firstOrder - secondOrder;
+
+    });
+
+}
+
+
+function sortAdminAssignedFacilities(committeeUsername, facilities) {
+
+    const assignmentOrder = new Map(
+        getActiveAssignmentsForCommittee(committeeUsername)
+            .map((assignment, sourceIndex) => ({ assignment, sourceIndex }))
+            .sort((first, second) => {
+
+                const dateDifference =
+                    new Date(first.assignment.assignedAt || 0) -
+                    new Date(second.assignment.assignedAt || 0);
+
+                if (dateDifference !== 0) return dateDifference;
+
+                if (first.assignment.smartBatchId &&
+                    first.assignment.smartBatchId === second.assignment.smartBatchId) {
+
+                    const sequenceDifference =
+                        Number(first.assignment.smartSequence || 0) -
+                        Number(second.assignment.smartSequence || 0);
+
+                    if (sequenceDifference !== 0) return sequenceDifference;
+
+                }
+
+                return first.sourceIndex - second.sourceIndex;
+
+            })
+            .map(({ assignment }, index) => [String(assignment.facilityLicense), index])
+    );
+    const sourceOrder = new Map(
+        facilities.map((facility, index) => [String(facility.license), index])
+    );
+    const statusOrder = { pending: 0, in_progress: 1, completed: 2 };
+
+    return [...facilities].sort((first, second) => {
+
+        const statusDifference =
+            statusOrder[getCommitteeAssignedDisplayStatus(first)] -
+            statusOrder[getCommitteeAssignedDisplayStatus(second)];
+
+        if (statusDifference !== 0) return statusDifference;
+
+        const firstLicense = String(first.license);
+        const secondLicense = String(second.license);
+        const firstOrder = assignmentOrder.has(firstLicense)
+            ? assignmentOrder.get(firstLicense)
+            : sourceOrder.get(firstLicense);
+        const secondOrder = assignmentOrder.has(secondLicense)
+            ? assignmentOrder.get(secondLicense)
+            : sourceOrder.get(secondLicense);
 
         return firstOrder - secondOrder;
 
@@ -227,7 +286,7 @@ function showCommitteeFacilityList(committee, facilities) {
 
     if (!isAdminUser()) return;
 
-    const visibleFacilities = facilities.filter(facility => {
+    const assignedFacilities = facilities.filter(facility => {
 
         const assignment = getFacilityAssignment(facility.license);
 
@@ -235,6 +294,29 @@ function showCommitteeFacilityList(committee, facilities) {
             assignment.committeeUsername === committee.username;
 
     });
+
+    const sortedFacilities = sortAdminAssignedFacilities(
+        committee.username,
+        assignedFacilities
+    );
+    const counts = sortedFacilities.reduce((result, facility) => {
+
+        result[getCommitteeAssignedDisplayStatus(facility)] += 1;
+
+        return result;
+
+    }, { pending: 0, in_progress: 0, completed: 0 });
+    const remainingCount = counts.pending + counts.in_progress;
+    const completionRate = sortedFacilities.length === 0
+        ? 0
+        : Math.round((counts.completed / sortedFacilities.length) * 100);
+    const visibleFacilities = adminAssignedListFilter === "all"
+        ? sortedFacilities
+        : sortedFacilities.filter(facility => {
+
+            return getCommitteeAssignedDisplayStatus(facility) === adminAssignedListFilter;
+
+        });
 
     if (typeof fitFacilityBounds === "function") {
 
@@ -245,6 +327,26 @@ function showCommitteeFacilityList(committee, facilities) {
     const details = document.querySelector(".card-body");
 
     details.innerHTML = `
+        <div class="admin-assigned-summary" aria-label="ملخص المنشآت المسندة">
+            <div><span>إجمالي المنشآت المسندة</span><strong>${sortedFacilities.length}</strong></div>
+            <div><span>عدد المتبقي</span><strong>${remainingCount}</strong></div>
+            <div><span>عدد المكتمل</span><strong>${counts.completed}</strong></div>
+            <div><span>نسبة الإنجاز</span><strong>${completionRate}%</strong></div>
+        </div>
+        <div class="assigned-list-filters" role="group" aria-label="تصفية المنشآت المسندة">
+            <button type="button" data-admin-assigned-list-filter="all"
+                    class="btn btn-sm ${adminAssignedListFilter === "all" ? "btn-primary" : "btn-outline-primary"}">
+                الكل (${sortedFacilities.length})
+            </button>
+            <button type="button" data-admin-assigned-list-filter="pending"
+                    class="btn btn-sm ${adminAssignedListFilter === "pending" ? "btn-primary" : "btn-outline-primary"}">
+                قيد الانتظار (${counts.pending})
+            </button>
+            <button type="button" data-admin-assigned-list-filter="completed"
+                    class="btn btn-sm ${adminAssignedListFilter === "completed" ? "btn-primary" : "btn-outline-primary"}">
+                تمت الزيارة (${counts.completed})
+            </button>
+        </div>
         <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <label class="form-check mb-0">
                 <input id="selectAllCommitteeFacilities"
@@ -263,10 +365,21 @@ function showCommitteeFacilityList(committee, facilities) {
              class="list-group"
              data-committee-username="${escapeHtml(committee.username)}">
             <div class="list-group-item active">
-                ${escapeHtml(committee.committeeName)} — ${visibleFacilities.length} منشأة
+                ${escapeHtml(committee.committeeName)} — ${visibleFacilities.length} منشأة معروضة
             </div>
         </div>
     `;
+
+    details.querySelectorAll("[data-admin-assigned-list-filter]").forEach(button => {
+
+        button.addEventListener("click", () => {
+
+            adminAssignedListFilter = button.dataset.adminAssignedListFilter;
+            showCommitteeFacilityList(committee, facilities);
+
+        });
+
+    });
 
     const list = document.getElementById("committeeFacilityList");
     const selectAll = document.getElementById("selectAllCommitteeFacilities");
@@ -303,9 +416,10 @@ function showCommitteeFacilityList(committee, facilities) {
         const state = getFacilityStatus(facility.license);
         const displayLicense = getFacilityDisplayLicense(facility);
         const visitDisplay = getVisitStatusDisplay(state);
+        const displayStatus = getCommitteeAssignedDisplayStatus(facility);
         const item = document.createElement("div");
 
-        item.className = "list-group-item";
+        item.className = `list-group-item assigned-facility-card status-${displayStatus}`;
         item.innerHTML = `
             <div class="d-flex align-items-start gap-2">
                 <input class="form-check-input committee-facility-checkbox mt-1"

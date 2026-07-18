@@ -864,6 +864,58 @@ body.role-committee .main-grid {
     flex-wrap: wrap;
 }
 
+.admin-assigned-summary {
+    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.admin-assigned-summary div {
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #F8FBF9;
+}
+
+.admin-assigned-summary span,
+.admin-assigned-summary strong {
+    display: block;
+}
+
+.admin-assigned-summary span {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.admin-assigned-summary strong {
+    margin-top: 3px;
+    color: var(--primary-dark);
+    font-size: 18px;
+}
+
+.assigned-facility-card {
+    border-right-width: 5px;
+}
+
+.assigned-facility-card.status-pending {
+    border-right-color: #F4C430;
+}
+
+.assigned-facility-card.status-in_progress {
+    border-right-color: #2878D0;
+}
+
+.assigned-facility-card.status-completed {
+    border-right-color: #2E9B62;
+}
+
+@media (max-width: 720px) {
+    .admin-assigned-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 .assignment-facility-item small {
     margin-top: 3px;
     color: var(--muted);
