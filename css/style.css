@@ -856,6 +856,14 @@ body.role-committee .main-grid {
     font-size: 13px;
 }
 
+.assigned-list-filters {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
 .assignment-facility-item small {
     margin-top: 3px;
     color: var(--muted);

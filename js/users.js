@@ -1276,7 +1276,7 @@ function refreshAssignmentViews(username = "") {
 
         showFacilityList(
             getAssignedFacilitiesForCurrentUser(allFacilities),
-            { fitBounds: false }
+            { fitBounds: false, committeeAssignedView: true }
         );
 
     }

@@ -2,6 +2,78 @@
 // Facility Details
 // ========================================
 
+let committeeAssignedListFilter = "all";
+
+
+function getCommitteeAssignedDisplayStatus(facility) {
+
+    const state = getFacilityStatus(facility.license);
+
+    if (state.visitStatus === "visited") return "completed";
+    if (state.visitStatus === "partial") return "in_progress";
+
+    return "pending";
+
+}
+
+
+function sortCommitteeAssignedFacilities(facilities) {
+
+    const orderedAssignments = getActiveAssignmentsForCommittee(currentUser.username)
+        .map((assignment, sourceIndex) => ({ assignment, sourceIndex }))
+        .sort((first, second) => {
+
+            const dateDifference =
+                new Date(first.assignment.assignedAt || 0) -
+                new Date(second.assignment.assignedAt || 0);
+
+            if (dateDifference !== 0) return dateDifference;
+
+            if (first.assignment.smartBatchId &&
+                first.assignment.smartBatchId === second.assignment.smartBatchId) {
+
+                const sequenceDifference =
+                    Number(first.assignment.smartSequence || 0) -
+                    Number(second.assignment.smartSequence || 0);
+
+                if (sequenceDifference !== 0) return sequenceDifference;
+
+            }
+
+            return first.sourceIndex - second.sourceIndex;
+
+        });
+    const assignmentOrder = new Map(
+        orderedAssignments.map(({ assignment }, index) => {
+
+            return [String(assignment.facilityLicense), index];
+
+        })
+    );
+    const sourceOrder = new Map(facilities.map((facility, index) => [String(facility.license), index]));
+    const statusOrder = { pending: 0, in_progress: 1, completed: 2 };
+
+    return [...facilities].sort((first, second) => {
+
+        const statusDifference =
+            statusOrder[getCommitteeAssignedDisplayStatus(first)] -
+            statusOrder[getCommitteeAssignedDisplayStatus(second)];
+
+        if (statusDifference !== 0) return statusDifference;
+
+        const firstOrder = assignmentOrder.has(String(first.license))
+            ? assignmentOrder.get(String(first.license))
+            : sourceOrder.get(String(first.license));
+        const secondOrder = assignmentOrder.has(String(second.license))
+            ? assignmentOrder.get(String(second.license))
+            : sourceOrder.get(String(second.license));
+
+        return firstOrder - secondOrder;
+
+    });
+
+}
+
 function showDashboardNeutralState() {
 
     const details = document.querySelector(".card-body");
@@ -18,24 +90,80 @@ function showDashboardNeutralState() {
 function showFacilityList(facilities, options = {}) {
 
     const details = document.querySelector(".card-body");
+    const isCommitteeAssignedView = Boolean(
+        options.committeeAssignedView && isCommitteeUser()
+    );
+    const sortedFacilities = isCommitteeAssignedView
+        ? sortCommitteeAssignedFacilities(facilities)
+        : [...facilities];
+    const counts = isCommitteeAssignedView
+        ? sortedFacilities.reduce((result, facility) => {
+
+            result[getCommitteeAssignedDisplayStatus(facility)] += 1;
+
+            return result;
+
+        }, { pending: 0, in_progress: 0, completed: 0 })
+        : null;
+    const visibleFacilities = isCommitteeAssignedView && committeeAssignedListFilter !== "all"
+        ? sortedFacilities.filter(facility => {
+
+            return getCommitteeAssignedDisplayStatus(facility) === committeeAssignedListFilter;
+
+        })
+        : sortedFacilities;
 
     if (options.fitBounds !== false && typeof fitFacilityBounds === "function") {
 
-        fitFacilityBounds(facilities);
+        fitFacilityBounds(visibleFacilities);
 
     }
 
     details.innerHTML = `
+        ${isCommitteeAssignedView ? `
+            <div class="assigned-list-filters" role="group" aria-label="تصفية المنشآت المسندة">
+                <button type="button" data-assigned-list-filter="all"
+                        class="btn btn-sm ${committeeAssignedListFilter === "all" ? "btn-primary" : "btn-outline-primary"}">
+                    الكل (${sortedFacilities.length})
+                </button>
+                <button type="button" data-assigned-list-filter="pending"
+                        class="btn btn-sm ${committeeAssignedListFilter === "pending" ? "btn-primary" : "btn-outline-primary"}">
+                    قيد الانتظار (${counts.pending})
+                </button>
+                <button type="button" data-assigned-list-filter="completed"
+                        class="btn btn-sm ${committeeAssignedListFilter === "completed" ? "btn-primary" : "btn-outline-primary"}">
+                    تمت الزيارة (${counts.completed})
+                </button>
+            </div>
+        ` : ""}
         <div id="facilityDrilldownList" class="list-group">
             <div class="list-group-item active">
-                تم العثور على ${facilities.length} نتيجة
+                تم العثور على ${visibleFacilities.length} نتيجة
             </div>
         </div>
     `;
 
+    if (isCommitteeAssignedView) {
+
+        details.querySelectorAll("[data-assigned-list-filter]").forEach(button => {
+
+            button.addEventListener("click", () => {
+
+                committeeAssignedListFilter = button.dataset.assignedListFilter;
+                showFacilityList(facilities, {
+                    ...options,
+                    fitBounds: false
+                });
+
+            });
+
+        });
+
+    }
+
     const list = document.getElementById("facilityDrilldownList");
 
-    if (facilities.length === 0) {
+    if (visibleFacilities.length === 0) {
 
         list.innerHTML += `
             <div class="list-group-item text-muted">
@@ -47,7 +175,7 @@ function showFacilityList(facilities, options = {}) {
 
     }
 
-    facilities.forEach(facility => {
+    visibleFacilities.forEach(facility => {
 
         const state = getFacilityStatus(facility.license);
         const displayLicense = getFacilityDisplayLicense(facility);
@@ -645,7 +773,10 @@ function showFacilityDetails(facility) {
 
         backToAssignedFacilities.addEventListener("click", function () {
 
-            showFacilityList(getAssignedFacilitiesForCurrentUser(allFacilities));
+            showFacilityList(
+                getAssignedFacilitiesForCurrentUser(allFacilities),
+                { committeeAssignedView: true }
+            );
 
         });
 
@@ -752,7 +883,18 @@ function showFacilityDetails(facility) {
 
         applyFilters();
 
-        showFacilityDetails(facility);
+        if (result === "incomplete") {
+
+            showFacilityDetails(facility);
+
+        } else {
+
+            showFacilityList(
+                getAssignedFacilitiesForCurrentUser(allFacilities),
+                { fitBounds: false, committeeAssignedView: true }
+            );
+
+        }
 
     });
 

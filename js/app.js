@@ -144,7 +144,9 @@ visitStatusFilter.addEventListener("change", function () {
 
                     if (isCommitteeUser()) {
 
-                        showFacilityList(filteredFacilities);
+                        showFacilityList(filteredFacilities, {
+                            committeeAssignedView: this.value === "assigned"
+                        });
 
                     }
 
@@ -267,7 +269,7 @@ function syncFacilityCollections() {
 
         showFacilityList(
             getAssignedFacilitiesForCurrentUser(allFacilities),
-            { fitBounds: false }
+            { fitBounds: false, committeeAssignedView: true }
         );
 
     }
