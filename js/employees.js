@@ -480,7 +480,7 @@ function showEmployeeDetails(employeeId) {
     const profile = getEmployeeProfile(employeeId);
     const details = document.querySelector(".card-body");
 
-    if (!profile || !details || (!isAdminUser() && !isCommitteeUser())) return;
+    if (!isAdminUser() || !profile || !details) return;
 
     const employee = profile.employee;
 
@@ -592,10 +592,10 @@ function updateEmployeeDashboard() {
 
 function initializeEmployeesInterface() {
 
+    if (!isAdminUser()) return;
+
     updateEmployeeDashboard();
     initializeEmployeePerformanceDashboard();
-
-    if (!isAdminUser()) return;
 
     const form = document.getElementById("employeeForm");
     const search = document.getElementById("employeeSearch");
@@ -951,7 +951,7 @@ function renderEmployeePerformanceDashboard(resetPage = false) {
 
     const body = document.getElementById("employeePerformanceTableBody");
 
-    if (!body) return;
+    if (!isAdminUser() || !body) return;
     if (resetPage) employeePerformancePage = 1;
 
     employeePerformanceRows = sortEmployeePerformanceRows(
@@ -1024,6 +1024,8 @@ function getEmployeePerformanceExportRows(rows = employeePerformanceVisibleRows)
 
 function exportVisibleEmployeePerformanceRows() {
 
+    if (!isAdminUser()) return;
+
     if (!window.XLSX) {
 
         alert("مكتبة تصدير Excel غير متاحة.");
@@ -1045,7 +1047,7 @@ function initializeEmployeePerformanceDashboard() {
 
     const panel = document.getElementById("employeePerformancePanel");
 
-    if (!panel || (!isAdminUser() && !isCommitteeUser())) return;
+    if (!isAdminUser() || !panel) return;
 
     const committeeSelect = document.getElementById("performanceCommittee");
 
@@ -1110,6 +1112,8 @@ function initializeEmployeePerformanceDashboard() {
 
 
 function refreshEmployeePerformanceDashboard() {
+
+    if (!isAdminUser()) return;
 
     invalidateEmployeePerformanceCache();
     renderEmployeePerformanceDashboard();

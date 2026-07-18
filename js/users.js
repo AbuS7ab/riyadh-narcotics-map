@@ -1711,6 +1711,20 @@ function applyRoleView() {
     document.body.classList.toggle("role-admin", isAdminUser());
     document.body.classList.toggle("role-committee", isCommitteeUser());
 
+    document.querySelectorAll(".sidebar-nav .admin-only").forEach(link => {
+
+        link.classList.toggle("d-none", !isAdminUser());
+
+    });
+
+    ["employeesPanel", "employeePerformancePanel"].forEach(panelId => {
+
+        const panel = document.getElementById(panelId);
+
+        if (panel) panel.classList.toggle("d-none", !isAdminUser());
+
+    });
+
 }
 
 
