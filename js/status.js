@@ -68,6 +68,9 @@ function createVisitRecord(visit) {
     const teamSnapshot = visit.teamSnapshot && typeof visit.teamSnapshot === "object"
         ? visit.teamSnapshot
         : {};
+    const employeeSnapshot = visit.employeeSnapshot && typeof visit.employeeSnapshot === "object"
+        ? visit.employeeSnapshot
+        : null;
 
     return {
 
@@ -81,8 +84,21 @@ function createVisitRecord(visit) {
             leader: teamSnapshot.leader || "",
             members: Array.isArray(teamSnapshot.members)
                 ? teamSnapshot.members.filter(Boolean)
+                : [],
+            leaderId: teamSnapshot.leaderId || "",
+            memberIds: Array.isArray(teamSnapshot.memberIds)
+                ? teamSnapshot.memberIds.filter(Boolean)
                 : []
         },
+        employeeSnapshot: employeeSnapshot ? {
+            leaderId: employeeSnapshot.leaderId || "",
+            memberIds: Array.isArray(employeeSnapshot.memberIds)
+                ? [...employeeSnapshot.memberIds]
+                : [],
+            employeeIds: Array.isArray(employeeSnapshot.employeeIds)
+                ? [...employeeSnapshot.employeeIds]
+                : []
+        } : null,
         visitType: visit.visitType || "periodic",
         visitReason: visit.visitReason || "الخطة الدورية",
         result,
@@ -248,6 +264,12 @@ function addVisit(license, visit) {
     facility.visits.push(createVisitRecord(visit));
 
     syncLatestVisitState(facility);
+
+    if (typeof invalidateEmployeePerformanceCache === "function") {
+
+        invalidateEmployeePerformanceCache();
+
+    }
 
     saveFacilityStatus(facilityStatus);
 

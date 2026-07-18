@@ -584,11 +584,21 @@ function normalizeTeam(team) {
 function createTeamSnapshot(committee) {
 
     const team = normalizeTeam(committee.team);
+    const leaderId = String(committee.leaderId || "");
+    const memberIds = Array.isArray(committee.memberIds)
+        ? committee.memberIds.map(String).filter(Boolean)
+        : [];
 
     return {
         committeeName: committee.committeeName || committee.displayName || committee.username,
-        leader: team.leader,
-        members: [...team.members]
+        leader: typeof getEmployeeName === "function"
+            ? getEmployeeName(leaderId) || team.leader
+            : team.leader,
+        members: memberIds.length > 0 && typeof getEmployeeName === "function"
+            ? memberIds.map(getEmployeeName).filter(Boolean)
+            : [...team.members],
+        leaderId,
+        memberIds: [...memberIds]
     };
 
 }
@@ -1776,6 +1786,8 @@ function renderUsersPanel() {
         const row = document.createElement("tr");
         const canDelete = canDeleteUser(user.username);
         const team = normalizeTeam(user.team);
+        const leaderId = String(user.leaderId || "");
+        const memberIds = Array.isArray(user.memberIds) ? user.memberIds.map(String) : [];
 
         row.dataset.username = user.username;
 
@@ -1794,22 +1806,21 @@ function renderUsersPanel() {
             </td>
             <td>
                 <div class="committee-team-fields">
-                    <input class="form-control form-control-sm user-team-leader"
-                           placeholder="رئيس اللجنة"
-                           value="${escapeHtml(team.leader)}"
-                           ${user.role === "admin" ? "disabled" : ""}>
-                    <input class="form-control form-control-sm user-team-member"
-                           placeholder="عضو 1"
-                           value="${escapeHtml(team.members[0] || "")}"
-                           ${user.role === "admin" ? "disabled" : ""}>
-                    <input class="form-control form-control-sm user-team-member"
-                           placeholder="عضو 2"
-                           value="${escapeHtml(team.members[1] || "")}"
-                           ${user.role === "admin" ? "disabled" : ""}>
-                    <input class="form-control form-control-sm user-team-member"
-                           placeholder="عضو 3"
-                           value="${escapeHtml(team.members[2] || "")}"
-                           ${user.role === "admin" ? "disabled" : ""}>
+                    <label class="small text-muted">رئيس اللجنة</label>
+                    <select class="form-select form-select-sm user-team-leader"
+                            ${user.role === "admin" ? "disabled" : ""}>
+                        <option value="">بدون رئيس</option>
+                        ${user.role === "admin" || typeof getEmployeeOptions !== "function"
+                            ? ""
+                            : getEmployeeOptions(leaderId ? [leaderId] : [])}
+                    </select>
+                    <label class="small text-muted mt-1">الأعضاء</label>
+                    <select class="form-select form-select-sm user-team-members" multiple
+                            ${user.role === "admin" ? "disabled" : ""}>
+                        ${user.role === "admin" || typeof getEmployeeOptions !== "function"
+                            ? ""
+                            : getEmployeeOptions(memberIds)}
+                    </select>
                 </div>
             </td>
             <td>
@@ -1881,15 +1892,31 @@ function getUsersFromPanel(usersTableBody) {
             displayName: row.querySelector(".user-display-name").value.trim(),
             committeeName: row.querySelector(".user-committee-name").value.trim(),
             password: row.querySelector(".user-password").value,
-            team: normalizeTeam({
-                leader: row.querySelector(".user-team-leader").value,
-                members: [...row.querySelectorAll(".user-team-member")]
-                    .map(input => input.value)
-            }),
+            leaderId: existingUser.role === "committee"
+                ? row.querySelector(".user-team-leader").value
+                : "",
+            memberIds: existingUser.role === "committee"
+                ? [...row.querySelector(".user-team-members").selectedOptions]
+                    .map(option => option.value)
+                    .filter(id => id !== row.querySelector(".user-team-leader").value)
+                : [],
             active: existingUser.role === "admin"
                 ? true
                 : row.querySelector(".user-active").checked
         };
+
+        if (existingUser.role === "committee") {
+
+            nextUsers[username].team = normalizeTeam({
+                leader: typeof getEmployeeName === "function"
+                    ? getEmployeeName(nextUsers[username].leaderId)
+                    : "",
+                members: typeof getEmployeeName === "function"
+                    ? nextUsers[username].memberIds.map(getEmployeeName).filter(Boolean)
+                    : []
+            });
+
+        }
 
     });
 
@@ -1918,6 +1945,12 @@ async function persistUsers(nextUsers) {
     renderCommitteeAssignmentCards();
     renderAssignmentBoard(allFacilities);
 
+    if (typeof refreshEmployeePerformanceDashboard === "function") {
+
+        refreshEmployeePerformanceDashboard();
+
+    }
+
     return true;
 
 }
@@ -1943,6 +1976,7 @@ function exportAppData() {
         users,
         facilityAssignments,
         facilityStatus,
+        employees: typeof employees === "undefined" ? {} : employees,
         appSettings: loadAppSettings()
     };
 
@@ -2003,7 +2037,10 @@ async function importAppData(file) {
         await Promise.all([
             saveUsers(importedData.users),
             saveAssignments(importedData.facilityAssignments),
-            saveFacilityStatus(importedData.facilityStatus)
+            saveFacilityStatus(importedData.facilityStatus),
+            isPortableDataObject(importedData.employees)
+                ? saveEmployees(importedData.employees)
+                : Promise.resolve()
         ]);
 
         if (isPortableDataObject(importedData.appSettings)) {
@@ -2114,6 +2151,9 @@ function initializeUsersPanel() {
                     role: "committee",
                     active,
                     committeeName,
+                    id: `committee-${username}`,
+                    leaderId: "",
+                    memberIds: [],
                     team: {
                         leader: "",
                         members: []

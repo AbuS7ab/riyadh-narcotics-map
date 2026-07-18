@@ -307,7 +307,9 @@ function getAssignmentSnapshot(assignment) {
         return {
             committeeName: "",
             leader: "",
-            members: []
+            members: [],
+            leaderId: "",
+            memberIds: []
         };
 
     }
@@ -319,6 +321,10 @@ function getAssignmentSnapshot(assignment) {
             leader: assignment.teamSnapshot.leader || "",
             members: Array.isArray(assignment.teamSnapshot.members)
                 ? assignment.teamSnapshot.members
+                : [],
+            leaderId: assignment.teamSnapshot.leaderId || "",
+            memberIds: Array.isArray(assignment.teamSnapshot.memberIds)
+                ? assignment.teamSnapshot.memberIds
                 : []
         };
 
@@ -336,7 +342,11 @@ function getAssignmentSnapshot(assignment) {
             ? committee.committeeName || committee.displayName || committee.username
             : assignment.committeeUsername || "",
         leader: team.leader,
-        members: team.members
+        members: team.members,
+        leaderId: committee && committee.leaderId || "",
+        memberIds: committee && Array.isArray(committee.memberIds)
+            ? committee.memberIds
+            : []
     };
 
 }
@@ -700,6 +710,14 @@ function showFacilityDetails(facility) {
             : null;
         const assignmentSnapshot = getAssignmentSnapshot(currentAssignment);
         const visitStatus = result === "incomplete" ? "partial" : "visited";
+        const employeeSnapshot = result === "incomplete" ||
+            typeof getActiveCommitteeEmployeeSnapshot !== "function"
+            ? null
+            : getActiveCommitteeEmployeeSnapshot(
+                currentAssignment
+                    ? currentAssignment.committeeUsername
+                    : currentUser.username
+            );
 
         addVisit(facility.license, {
             assignmentId: currentAssignment ? currentAssignment.id || null : null,
@@ -711,8 +729,11 @@ function showFacilityDetails(facility) {
             committeeName: assignmentSnapshot.committeeName,
             teamSnapshot: {
                 leader: assignmentSnapshot.leader,
-                members: assignmentSnapshot.members
+                members: assignmentSnapshot.members,
+                leaderId: assignmentSnapshot.leaderId,
+                memberIds: assignmentSnapshot.memberIds
             },
+            employeeSnapshot,
             visitType: currentAssignment
                 ? currentAssignment.visitType || "periodic"
                 : "periodic",

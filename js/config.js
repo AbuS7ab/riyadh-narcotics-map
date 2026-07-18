@@ -14,8 +14,8 @@ var CONFIG = {
 },
 
     app: {
-        version: "0.5-alpha"
-    }
+    version: "v0.9.31"
+}
 };
 
 window.CONFIG = CONFIG;

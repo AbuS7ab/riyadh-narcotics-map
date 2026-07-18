@@ -78,6 +78,8 @@
             <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-file-lines"></i>التقارير</a>
             <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-people-group"></i>اللجان</a>
             <a class="admin-only" href="#usersPanel"><i class="fa-solid fa-user-gear"></i>الإعدادات</a>
+            <a class="admin-only" href="#employeesPanel"><i class="fa-solid fa-id-card"></i>الموظفون</a>
+            <a href="#employeePerformancePanel"><i class="fa-solid fa-user-tie"></i>أداء الموظفين</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -152,6 +154,16 @@
                         <h2 id="completionRate">0%</h2>
                         <div class="progress" aria-hidden="true"><div class="progress-bar"></div></div>
                     </div>
+                </div>
+
+                <div class="dashboard-card">
+                    <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
+                    <div><h6>عدد الموظفين</h6><h2 id="employeeCount">0</h2></div>
+                </div>
+
+                <div class="dashboard-card">
+                    <div class="kpi-icon"><i class="fa-solid fa-user-check"></i></div>
+                    <div><h6>عدد الموظفين النشطين</h6><h2 id="activeEmployeeCount">0</h2></div>
                 </div>
             </section>
 
@@ -536,6 +548,128 @@
                 </div>
             </section>
 
+            <section id="employeePerformancePanel" class="workspace-card employee-performance-panel">
+                <div class="panel-header">
+                    <span><i class="fa-solid fa-user-tie"></i> أداء الموظفين</span>
+                    <small>Employee Performance Dashboard</small>
+                </div>
+                <div class="users-panel-body">
+                    <div class="employee-performance-filters">
+                        <div>
+                            <label for="performancePeriod" class="form-label small mb-1">الفترة</label>
+                            <select id="performancePeriod" class="form-select form-select-sm">
+                                <option value="today">اليوم</option>
+                                <option value="week">هذا الأسبوع</option>
+                                <option value="month" selected>هذا الشهر</option>
+                                <option value="quarter">الربع الحالي</option>
+                                <option value="year">هذه السنة</option>
+                                <option value="custom">مخصص</option>
+                            </select>
+                        </div>
+                        <div id="performanceCustomDates" class="performance-custom-dates d-none">
+                            <div><label for="performanceDateFrom" class="form-label small mb-1">من</label><input id="performanceDateFrom" class="form-control form-control-sm" type="date"></div>
+                            <div><label for="performanceDateTo" class="form-label small mb-1">إلى</label><input id="performanceDateTo" class="form-control form-control-sm" type="date"></div>
+                        </div>
+                        <div>
+                            <label for="performanceCommittee" class="form-label small mb-1">اللجنة</label>
+                            <select id="performanceCommittee" class="form-select form-select-sm"><option value="all">الكل</option></select>
+                        </div>
+                        <div>
+                            <label for="performanceEmployeeStatus" class="form-label small mb-1">حالة الموظف</label>
+                            <select id="performanceEmployeeStatus" class="form-select form-select-sm">
+                                <option value="all">الكل</option><option value="active">نشط</option><option value="inactive">غير نشط</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="performanceFacilityType" class="form-label small mb-1">نوع المنشأة</label>
+                            <select id="performanceFacilityType" class="form-select form-select-sm">
+                                <option value="all">الكل</option><option value="hospital">مستشفى</option><option value="pharmacy">صيدلية</option>
+                                <option value="complex">مجمع</option><option value="health_center">مركز صحي</option><option value="ambulance">إسعاف</option><option value="other">أخرى</option>
+                            </select>
+                        </div>
+                        <div class="performance-search-field">
+                            <label for="performanceEmployeeSearch" class="form-label small mb-1">البحث</label>
+                            <input id="performanceEmployeeSearch" class="form-control form-control-sm" placeholder="اسم الموظف أو رقمه">
+                        </div>
+                        <button id="exportEmployeePerformance" type="button" class="btn btn-outline-success align-self-end">
+                            <i class="fa-solid fa-file-excel"></i> تصدير Excel
+                        </button>
+                    </div>
+
+                    <div class="employee-performance-kpis">
+                        <div><span>عدد الموظفين</span><strong id="performanceEmployeeCount">0</strong></div>
+                        <div><span>الموظفون النشطون</span><strong id="performanceActiveCount">0</strong></div>
+                        <div><span>إجمالي المنشآت المنجزة</span><strong id="performanceCompletedCount">0</strong></div>
+                        <div><span>إجمالي المخالفات</span><strong id="performanceViolationCount">0</strong></div>
+                        <div><span>إجمالي المهام خارج الخطة</span><strong id="performanceMissionCount">0</strong></div>
+                    </div>
+
+                    <div class="table-responsive employee-performance-table-wrap">
+                        <table class="table align-middle users-table employee-performance-table">
+                            <thead><tr>
+                                <th>#</th><th data-performance-sort="fullName">الموظف</th><th data-performance-sort="employeeNumber">الرقم الوظيفي</th>
+                                <th data-performance-sort="committeeNames">اللجان الحالية</th><th data-performance-sort="completedFacilities">المنشآت المنجزة</th>
+                                <th data-performance-sort="violations">المخالفات</th><th data-performance-sort="externalMissions">المهام الخارجية</th>
+                                <th data-performance-sort="lastActivity">آخر نشاط</th><th data-performance-sort="daysSinceLastActivity">أيام منذ آخر نشاط</th>
+                                <th data-performance-sort="isActive">الحالة</th><th>الإجراءات</th>
+                            </tr></thead>
+                            <tbody id="employeePerformanceTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div id="employeePerformanceEmpty" class="text-muted text-center py-4 d-none">لا توجد نتائج مطابقة للفلاتر المحددة.</div>
+                    <div class="employee-performance-pagination">
+                        <button id="performancePreviousPage" type="button" class="btn btn-sm btn-outline-secondary">السابق</button>
+                        <span id="performancePageInfo" class="small text-muted"></span>
+                        <button id="performanceNextPage" type="button" class="btn btn-sm btn-outline-secondary">التالي</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="employeesPanel" class="workspace-card users-panel admin-only">
+                <div class="panel-header">
+                    <span><i class="fa-solid fa-id-card"></i> الموظفون</span>
+                    <small>إدارة الموظفين وأعضاء اللجان</small>
+                </div>
+                <div class="users-panel-body">
+                    <form id="employeeForm" class="row g-2 align-items-end mb-3">
+                        <input id="employeeId" type="hidden">
+                        <div class="col-md-3">
+                            <label for="employeeFullName" class="form-label small mb-1">الاسم الكامل</label>
+                            <input id="employeeFullName" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="employeeNumber" class="form-label small mb-1">الرقم الوظيفي</label>
+                            <input id="employeeNumber" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="employeeJobTitle" class="form-label small mb-1">المسمى الوظيفي</label>
+                            <input id="employeeJobTitle" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-center gap-2">
+                            <label class="form-check mb-0">
+                                <input id="employeeIsActive" class="form-check-input" type="checkbox" checked>
+                                <span class="form-check-label small">نشط</span>
+                            </label>
+                            <button type="submit" class="btn btn-primary btn-sm">حفظ الموظف</button>
+                            <button id="cancelEmployeeEdit" type="button" class="btn btn-outline-secondary btn-sm d-none">إلغاء</button>
+                        </div>
+                        <div id="employeeMessage" class="col-12 small d-none" role="status"></div>
+                    </form>
+
+                    <div class="search-control position-relative mb-3">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input id="employeeSearch" class="form-control" placeholder="ابحث بالاسم أو الرقم الوظيفي أو المسمى">
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle users-table">
+                            <thead><tr><th>الموظف</th><th>الرقم الوظيفي</th><th>المسمى</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+                            <tbody id="employeesTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <section id="usersPanel" class="workspace-card users-panel admin-only">
                 <div class="panel-header">
                     <span><i class="fa-solid fa-user-gear"></i> إدارة المستخدمين</span>
@@ -621,11 +755,15 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
 <script src="js/config.js"></script>
 
 <script src="js/cloud.js"></script>
 
 <script src="js/users.js"></script>
+
+<script src="js/employees.js"></script>
 
 <script src="js/status.js"></script>
 

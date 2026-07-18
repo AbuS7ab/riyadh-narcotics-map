@@ -914,6 +914,83 @@ body.role-committee .main-grid {
     min-width: 150px;
 }
 
+.committee-team-fields select[multiple] {
+    min-height: 108px;
+}
+
+.employee-performance-panel { margin-bottom: 18px; }
+
+.employee-performance-filters {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(135px, 1fr));
+    gap: 10px;
+    align-items: end;
+}
+
+.performance-custom-dates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+    gap: 8px;
+    grid-column: span 2;
+}
+
+.performance-search-field { grid-column: span 2; }
+
+.employee-performance-kpis {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.employee-performance-kpis div {
+    padding: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+}
+
+.employee-performance-kpis span { color: var(--muted); font-size: 11px; }
+.employee-performance-kpis strong { color: var(--primary-dark); font-size: 20px; }
+
+.employee-performance-table-wrap { max-height: 560px; }
+.employee-performance-table { min-width: 1250px; }
+.employee-performance-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #F5F8F7;
+    white-space: nowrap;
+}
+
+.employee-performance-table th[data-performance-sort] { cursor: pointer; }
+.employee-performance-table tr { cursor: pointer; }
+.employee-performance-table .activity-warning { color: var(--danger); font-weight: 700; }
+
+.employee-performance-pagination {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+@media (max-width: 991.98px) {
+    .employee-performance-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .employee-performance-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 575.98px) {
+    .employee-performance-filters,
+    .employee-performance-kpis { grid-template-columns: 1fr; }
+    .performance-custom-dates,
+    .performance-search-field { grid-column: auto; }
+}
+
 .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;

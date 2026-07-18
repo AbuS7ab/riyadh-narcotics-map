@@ -12,7 +12,8 @@ const cloudStorageKeys = {
     appSettings: "appSettings",
     customFacilities: "customFacilities",
     facilityOverrides: "facilityOverrides",
-    externalVisits: "externalVisits"
+    externalVisits: "externalVisits",
+    employees: "employees"
 };
 
 const cloudDataSets = {
@@ -50,6 +51,11 @@ const cloudDataSets = {
         cloudKey: cloudStorageKeys.externalVisits,
         localKey: "externalVisits",
         label: "externalVisits"
+    },
+    employees: {
+        cloudKey: cloudStorageKeys.employees,
+        localKey: "employees",
+        label: "employees"
     }
 };
 
@@ -473,6 +479,22 @@ function saveExternalVisits(externalVisits) {
 }
 
 
+function loadEmployees() {
+
+    return isPortableDataObject(cloudCache[cloudStorageKeys.employees])
+        ? cloudCache[cloudStorageKeys.employees]
+        : {};
+
+}
+
+
+function saveEmployees(employees) {
+
+    return writeCloudObject(cloudStorageKeys.employees, employees);
+
+}
+
+
 async function testCloudWrite() {
 
     if (!cloudInitialized) {
@@ -522,5 +544,7 @@ window.cloudDebug = {
     loadFacilityOverrides,
     saveFacilityOverrides,
     loadExternalVisits,
-    saveExternalVisits
+    saveExternalVisits,
+    loadEmployees,
+    saveEmployees
 };

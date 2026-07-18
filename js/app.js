@@ -25,6 +25,7 @@ async function initializeApp() {
     initializeFacilityStatusState();
 
     initializeUserState();
+    await initializeEmployeesState();
 
     seedCloudKey("appSettings", loadAppSettings());
     seedCloudKey("customFacilities", loadCustomFacilities());
@@ -34,6 +35,7 @@ async function initializeApp() {
     await flushCloudWrites();
 
     initializeUserInterface();
+    initializeEmployeesInterface();
     initializeCustomFacilitiesPanel();
     initializeExternalVisitControls();
 
@@ -254,6 +256,12 @@ function syncFacilityCollections() {
 
     refreshView();
     renderAssignmentBoard(allFacilities);
+
+    if (typeof refreshEmployeePerformanceDashboard === "function") {
+
+        refreshEmployeePerformanceDashboard();
+
+    }
 
     if (isCommitteeUser()) {
 

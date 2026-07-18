@@ -323,6 +323,14 @@ function buildExternalVisitRecord(data) {
             committeeSnapshot.teamSnapshot && committeeSnapshot.teamSnapshot.leader,
             ...((committeeSnapshot.teamSnapshot && committeeSnapshot.teamSnapshot.members) || [])
         ].filter(Boolean);
+    const participantIds = existing && Array.isArray(existing.participantIds)
+        ? [...existing.participantIds]
+        : typeof getActiveCommitteeEmployeeSnapshot === "function"
+            ? getActiveCommitteeEmployeeSnapshot(
+                committeeSnapshot.committeeUsername ||
+                (currentUser && currentUser.username) || ""
+            ).employeeIds
+            : [];
 
     return {
         ...(existing || {}),
@@ -363,6 +371,7 @@ function buildExternalVisitRecord(data) {
         directingEntity: data.directingEntity,
         participatingEntity: data.participatingEntity,
         participants,
+        participantIds,
         coordinates: data.latRaw
             ? { lat: data.lat, lng: data.lng }
             : null,
@@ -396,6 +405,12 @@ function showExternalVisitMessage(text, className) {
 async function persistExternalVisits(nextExternalVisits) {
 
     externalVisits = nextExternalVisits;
+
+    if (typeof invalidateEmployeePerformanceCache === "function") {
+
+        invalidateEmployeePerformanceCache();
+
+    }
 
     await saveExternalVisits(externalVisits);
 
