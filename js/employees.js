@@ -203,19 +203,45 @@ function getActiveCommitteeEmployeeSnapshot(committeeUsername) {
 }
 
 
-function getEmployeeOptions(selectedIds = []) {
+function getActiveEmployeeOptions(selectedId = "") {
 
-    const selected = new Set(selectedIds.map(String));
+    const normalizedSelectedId = String(selectedId || "");
 
     return getEmployees()
-        .filter(employee => employee.isActive || selected.has(String(employee.id)))
+        .filter(employee => employee.isActive)
         .map(employee => `
             <option value="${escapeHtml(employee.id)}"
-                    ${selected.has(String(employee.id)) ? "selected" : ""}
-                    ${!employee.isActive && !selected.has(String(employee.id)) ? "disabled" : ""}>
-                ${escapeHtml(employee.fullName)}${employee.isActive ? "" : " — غير نشط"}
+                    ${String(employee.id) === normalizedSelectedId ? "selected" : ""}>
+                ${escapeHtml(employee.fullName)}
             </option>
         `).join("");
+
+}
+
+
+function getActiveEmployeeMemberCheckboxes(selectedIds = [], leaderId = "") {
+
+    const selected = new Set(selectedIds.map(String));
+    const normalizedLeaderId = String(leaderId || "");
+
+    return getEmployees()
+        .filter(employee => employee.isActive)
+        .map(employee => {
+
+            const employeeId = String(employee.id);
+            const isLeader = employeeId === normalizedLeaderId;
+
+            return `
+                <label class="committee-member-option">
+                    <input class="form-check-input user-team-member-checkbox" type="checkbox"
+                           value="${escapeHtml(employee.id)}"
+                           ${selected.has(employeeId) && !isLeader ? "checked" : ""}
+                           ${isLeader ? "disabled" : ""}>
+                    <span>${escapeHtml(employee.fullName)}</span>
+                </label>
+            `;
+
+        }).join("");
 
 }
 

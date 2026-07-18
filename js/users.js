@@ -1773,6 +1773,43 @@ function initializeSession() {
 }
 
 
+function syncCommitteeEmployeePicker(group) {
+
+    const leaderSelect = group.querySelector(".user-team-leader");
+
+    if (!leaderSelect) return;
+
+    group.querySelectorAll(".user-team-member-checkbox").forEach(checkbox => {
+
+        const isLeader = checkbox.value === leaderSelect.value;
+
+        if (isLeader) checkbox.checked = false;
+        checkbox.disabled = isLeader;
+
+    });
+
+}
+
+
+function initializeCommitteeEmployeePickers(container) {
+
+    if (!container) return;
+
+    container.querySelectorAll(".committee-team-fields").forEach(group => {
+
+        const leaderSelect = group.querySelector(".user-team-leader");
+
+        if (!leaderSelect || leaderSelect.dataset.pickerInitialized === "true") return;
+
+        leaderSelect.dataset.pickerInitialized = "true";
+        leaderSelect.addEventListener("change", () => syncCommitteeEmployeePicker(group));
+        syncCommitteeEmployeePicker(group);
+
+    });
+
+}
+
+
 function renderUsersPanel() {
 
     const usersTableBody = document.getElementById("usersTableBody");
@@ -1810,17 +1847,16 @@ function renderUsersPanel() {
                     <select class="form-select form-select-sm user-team-leader"
                             ${user.role === "admin" ? "disabled" : ""}>
                         <option value="">بدون رئيس</option>
-                        ${user.role === "admin" || typeof getEmployeeOptions !== "function"
+                        ${user.role === "admin" || typeof getActiveEmployeeOptions !== "function"
                             ? ""
-                            : getEmployeeOptions(leaderId ? [leaderId] : [])}
+                            : getActiveEmployeeOptions(leaderId)}
                     </select>
                     <label class="small text-muted mt-1">الأعضاء</label>
-                    <select class="form-select form-select-sm user-team-members" multiple
-                            ${user.role === "admin" ? "disabled" : ""}>
-                        ${user.role === "admin" || typeof getEmployeeOptions !== "function"
+                    <div class="user-team-members committee-member-options">
+                        ${user.role === "admin" || typeof getActiveEmployeeMemberCheckboxes !== "function"
                             ? ""
-                            : getEmployeeOptions(memberIds)}
-                    </select>
+                            : getActiveEmployeeMemberCheckboxes(memberIds, leaderId)}
+                    </div>
                 </div>
             </td>
             <td>
@@ -1861,6 +1897,8 @@ function renderUsersPanel() {
 
     });
 
+    initializeCommitteeEmployeePickers(usersTableBody);
+
 }
 
 
@@ -1887,19 +1925,39 @@ function getUsersFromPanel(usersTableBody) {
 
         if (!existingUser) return;
 
+        const leaderSelect = row.querySelector(".user-team-leader");
+        const selectedLeaderId = existingUser.role === "committee" && leaderSelect
+            ? leaderSelect.value
+            : "";
+        const selectedLeader = typeof getEmployeeById === "function"
+            ? getEmployeeById(selectedLeaderId)
+            : null;
+        const leaderId = selectedLeader && selectedLeader.isActive
+            ? selectedLeaderId
+            : "";
+        const memberIds = existingUser.role === "committee"
+            ? [...new Set(
+                [...row.querySelectorAll(".user-team-member-checkbox:checked")]
+                    .map(input => input.value)
+                    .filter(id => {
+
+                        const employee = typeof getEmployeeById === "function"
+                            ? getEmployeeById(id)
+                            : null;
+
+                        return id !== leaderId && employee && employee.isActive;
+
+                    })
+            )]
+            : [];
+
         nextUsers[username] = {
             ...existingUser,
             displayName: row.querySelector(".user-display-name").value.trim(),
             committeeName: row.querySelector(".user-committee-name").value.trim(),
             password: row.querySelector(".user-password").value,
-            leaderId: existingUser.role === "committee"
-                ? row.querySelector(".user-team-leader").value
-                : "",
-            memberIds: existingUser.role === "committee"
-                ? [...row.querySelector(".user-team-members").selectedOptions]
-                    .map(option => option.value)
-                    .filter(id => id !== row.querySelector(".user-team-leader").value)
-                : [],
+            leaderId,
+            memberIds,
             active: existingUser.role === "admin"
                 ? true
                 : row.querySelector(".user-active").checked
@@ -2093,11 +2151,39 @@ function initializeUsersPanel() {
 
     renderUsersPanel();
 
+    const renderNewCommitteeEmployeePicker = () => {
+
+        const leaderSelect = document.getElementById("newCommitteeLeader");
+        const membersContainer = document.getElementById("newCommitteeMembers");
+
+        if (!leaderSelect || !membersContainer) return;
+
+        leaderSelect.innerHTML = `
+            <option value="">بدون رئيس</option>
+            ${typeof getActiveEmployeeOptions === "function"
+                ? getActiveEmployeeOptions("")
+                : ""}
+        `;
+        membersContainer.innerHTML = typeof getActiveEmployeeMemberCheckboxes === "function"
+            ? getActiveEmployeeMemberCheckboxes([], "")
+            : "";
+        initializeCommitteeEmployeePickers(addCommitteeForm);
+        syncCommitteeEmployeePicker(leaderSelect.closest(".committee-team-fields"));
+
+    };
+
+    renderNewCommitteeEmployeePicker();
+
     if (showAddCommitteeFormButton && addCommitteeForm) {
 
         showAddCommitteeFormButton.addEventListener("click", () => {
 
             addCommitteeForm.classList.toggle("d-none");
+            if (!addCommitteeForm.classList.contains("d-none")) {
+
+                renderNewCommitteeEmployeePicker();
+
+            }
 
         });
 
@@ -2109,6 +2195,24 @@ function initializeUsersPanel() {
             const username = document.getElementById("newCommitteeUsername").value.trim();
             const password = document.getElementById("newCommitteePassword").value;
             const active = document.getElementById("newCommitteeActive").checked;
+            const selectedLeaderId = document.getElementById("newCommitteeLeader").value;
+            const selectedLeader = typeof getEmployeeById === "function"
+                ? getEmployeeById(selectedLeaderId)
+                : null;
+            const leaderId = selectedLeader && selectedLeader.isActive
+                ? selectedLeaderId
+                : "";
+            const memberIds = [...new Set([...document.querySelectorAll(
+                "#newCommitteeMembers .user-team-member-checkbox:checked"
+            )].map(input => input.value).filter(id => {
+
+                const employee = typeof getEmployeeById === "function"
+                    ? getEmployeeById(id)
+                    : null;
+
+                return id !== leaderId && employee && employee.isActive;
+
+            }))];
 
             if (!committeeName) {
 
@@ -2152,11 +2256,15 @@ function initializeUsersPanel() {
                     active,
                     committeeName,
                     id: `committee-${username}`,
-                    leaderId: "",
-                    memberIds: [],
+                    leaderId,
+                    memberIds,
                     team: {
-                        leader: "",
-                        members: []
+                        leader: typeof getEmployeeName === "function"
+                            ? getEmployeeName(leaderId)
+                            : "",
+                        members: typeof getEmployeeName === "function"
+                            ? memberIds.map(getEmployeeName).filter(Boolean)
+                            : []
                     }
                 }
             };
@@ -2167,6 +2275,7 @@ function initializeUsersPanel() {
 
                     addCommitteeForm.reset();
                     document.getElementById("newCommitteeActive").checked = true;
+                    renderNewCommitteeEmployeePicker();
                     addCommitteeForm.classList.add("d-none");
                     showUsersSaveMessage("تمت إضافة اللجنة وحفظها.", "text-success");
 
