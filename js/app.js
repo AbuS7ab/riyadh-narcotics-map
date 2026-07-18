@@ -29,7 +29,7 @@ async function initializeApp() {
     seedCloudKey("appSettings", loadAppSettings());
     seedCloudKey("customFacilities", loadCustomFacilities());
     seedCloudKey("facilityOverrides", loadFacilityOverrides());
-    initializeExternalVisitsState();
+    await initializeExternalVisitsState();
 
     await flushCloudWrites();
 

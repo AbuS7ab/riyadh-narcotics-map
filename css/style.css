@@ -606,8 +606,68 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 }
 
 body.role-committee .filter-toolbar {
-    grid-template-columns: minmax(260px, 1fr) minmax(170px, 240px);
+    grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(150px, 220px));
 }
+
+.visit-statistics {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    margin: -8px 2px 18px;
+}
+
+.visit-statistics div {
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+
+.visit-statistics span { color: var(--muted); font-size: 12px; }
+.visit-statistics strong { color: var(--primary-dark); font-size: 20px; }
+.external-visits-workspace { margin-bottom: 18px; }
+
+.external-visits-list {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(285px, 1fr));
+    gap: 12px;
+}
+
+.external-visit-card {
+    padding: 15px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: #fff;
+}
+
+.external-visit-card.is-cancelled {
+    opacity: .62;
+    background: #F4F6F5;
+}
+
+.external-visit-card-heading,
+.external-visit-card-meta { display: flex; gap: 8px; }
+.external-visit-card-heading { align-items: flex-start; justify-content: space-between; }
+.external-visit-card-heading small { display: block; margin-top: 3px; color: var(--muted); }
+.external-visit-card-meta { flex-direction: column; margin: 12px 0; color: var(--muted); font-size: 12px; }
+
+.external-mission-details-section {
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+}
+
+.external-mission-details-section h6 {
+    margin-bottom: 10px;
+    color: var(--primary);
+    font-weight: 800;
+}
+
+.external-mission-details-section p { margin-bottom: 7px; }
 
 body.role-committee .main-grid {
     grid-template-columns: minmax(420px, 1fr) minmax(300px, 360px);
@@ -911,6 +971,10 @@ body.role-committee .main-grid {
 }
 
 @media (max-width: 991.98px) {
+
+    .visit-statistics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     html,
     body {
         overflow-x: hidden;
@@ -1087,6 +1151,10 @@ body.role-committee .main-grid {
 }
 
 @media (max-width: 575.98px) {
+
+    .visit-statistics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
     .login-screen {
         padding: 12px;
         align-items: start;

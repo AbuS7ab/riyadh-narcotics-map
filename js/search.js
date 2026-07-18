@@ -107,7 +107,7 @@ if (query.length > 0) {
 
         resultsBox.innerHTML = `
 <div class="list-group-item active">
-تم العثور على ${results.length} نتيجة
+منشآت الخطة (${results.length})
 </div>
 `;
 
@@ -166,7 +166,7 @@ if (query.length > 0) {
 
             resultsBox.innerHTML += `
                 <div class="list-group-item active">
-                    زيارات خارج الخطة
+                    المهام خارج الخطة
                 </div>
             `;
 
@@ -181,21 +181,21 @@ if (query.length > 0) {
 
             item.innerHTML = `
                 <div class="d-flex align-items-center justify-content-between gap-2">
-                    <div class="fw-bold">${escapeHtml(snapshot.name || "")}</div>
-                    <span class="badge text-bg-info">خارج الخطة</span>
+                    <div class="fw-bold">${escapeHtml(visit.facilityName || snapshot.name || "")}</div>
+                    <span class="badge text-bg-info">${escapeHtml(visit.missionNumber || "خارج الخطة")}</span>
                 </div>
                 <div class="text-muted small">📍 المدينة: ${escapeHtml(snapshot.city || "")}</div>
                 ${snapshot.license
                     ? `<div class="text-muted small">📄 رقم الترخيص: ${escapeHtml(snapshot.license)}</div>`
                     : ""}
-                ${visit.transactionNumber
-                    ? `<div class="text-muted small">رقم المهمة: ${escapeHtml(visit.transactionNumber)}</div>`
+                ${visit.taskNumber || visit.transactionNumber
+                    ? `<div class="text-muted small">رقم المرجع: ${escapeHtml(visit.taskNumber || visit.transactionNumber)}</div>`
                     : ""}
             `;
 
             item.addEventListener("click", () => {
 
-                showExternalVisitDetails(visit.externalVisitId);
+                showExternalVisitDetails(getExternalMissionId(visit));
 
                 searchBox.value = "";
 

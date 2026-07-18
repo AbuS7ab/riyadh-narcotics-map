@@ -112,21 +112,21 @@ function updateDashboard(facilities) {
     const plannedViolationTotal = states.filter(state => state.violation === true).length;
     const externalStats = typeof getExternalVisitStats === "function"
         ? getExternalVisitStats()
-        : { total: 0, violations: 0, periodic: 0, reactive: 0 };
+        : { total: 0, violations: 0, completed: 0, inProgress: 0, cancelled: 0 };
 
     const visited =
         states.filter(state => state.visitStatus === "visited").length;
 
-    document.getElementById("visitedCount").textContent =
-        plannedVisitTotal + externalStats.total;
-    document.getElementById("visitPlanBreakdown").textContent =
-        `زيارات الخطة ${plannedVisitTotal} · خارج الخطة ${externalStats.total}` +
-        ` · دوري ${externalStats.periodic} / تفاعلي ${externalStats.reactive}`;
+    document.getElementById("visitedCount").textContent = plannedVisitTotal;
+    document.getElementById("visitPlanBreakdown").textContent = "زيارات الخطة";
 
-    document.getElementById("violationCount").textContent =
-        plannedViolationTotal + externalStats.violations;
-    document.getElementById("violationPlanBreakdown").textContent =
-        `الخطة ${plannedViolationTotal} · خارج الخطة ${externalStats.violations}`;
+    document.getElementById("violationCount").textContent = plannedViolationTotal;
+    document.getElementById("violationPlanBreakdown").textContent = "مخالفات الخطة";
+    document.getElementById("externalMissionsTotal").textContent = externalStats.total;
+    document.getElementById("externalMissionsCompleted").textContent = externalStats.completed;
+    document.getElementById("externalMissionsInProgress").textContent = externalStats.inProgress;
+    document.getElementById("externalMissionsCancelled").textContent = externalStats.cancelled;
+    document.getElementById("externalMissionsViolating").textContent = externalStats.violations;
 
     document.getElementById("pendingCount").textContent =
         states.filter(state => state.visitStatus === "pending").length;

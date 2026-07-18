@@ -155,6 +155,14 @@
                 </div>
             </section>
 
+            <section class="visit-statistics admin-only" aria-label="إحصاءات المهام خارج الخطة">
+                <div><span>إجمالي المهام خارج الخطة</span><strong id="externalMissionsTotal">0</strong></div>
+                <div><span>المهام المكتملة</span><strong id="externalMissionsCompleted">0</strong></div>
+                <div><span>المهام قيد التنفيذ</span><strong id="externalMissionsInProgress">0</strong></div>
+                <div><span>المهام الملغاة</span><strong id="externalMissionsCancelled">0</strong></div>
+                <div><span>المهام المخالفة</span><strong id="externalMissionsViolating">0</strong></div>
+            </section>
+
             <section class="committee-overview admin-only" aria-label="نظرة عامة على اللجان">
                 <div class="section-heading">
                     <span><i class="fa-solid fa-people-group"></i> اللجان</span>
@@ -176,7 +184,13 @@
                         type="button"
                         class="btn btn-outline-primary external-visit-action">
                     <i class="fa-solid fa-clipboard-list"></i>
-                    زيارة خارج الخطة
+                    إضافة مهمة خارج الخطة
+                </button>
+
+                <button id="showExternalVisitsWorkspace" type="button"
+                        class="btn btn-primary external-visit-action">
+                    <i class="fa-solid fa-building-circle-exclamation"></i>
+                    المهام خارج الخطة (<span id="externalVisitsCount">0</span>)
                 </button>
 
                 <select id="visitStatusFilter" class="form-select admin-only">
@@ -200,10 +214,18 @@
                 </select>
             </section>
 
+            <section id="externalVisitsWorkspace" class="workspace-card external-visits-workspace d-none">
+                <div class="panel-header">
+                    <span><i class="fa-solid fa-building-circle-exclamation"></i> المهام خارج الخطة</span>
+                    <small>مساحة مستقلة عن تخطيط المنشآت</small>
+                </div>
+                <div id="externalVisitsList" class="external-visits-list"></div>
+            </section>
+
             <section id="externalVisitPanel" class="workspace-card d-none">
                 <div class="panel-header">
-                    <span><i class="fa-solid fa-clipboard-list"></i> زيارة خارج الخطة</span>
-                    <small>External Visit</small>
+                    <span><i class="fa-solid fa-clipboard-list"></i> إضافة مهمة خارج الخطة</span>
+                    <small>تفاصيل المهمة</small>
                 </div>
 
                 <div class="users-panel-body">
@@ -237,14 +259,32 @@
                         </div>
 
                         <div class="col-md-4">
-                            <label for="externalVisitType" class="form-label small mb-1">نوع الزيارة</label>
-                            <select id="externalVisitType" class="form-select form-select-sm">
-                                <option value="periodic">دوري</option>
-                                <option value="reactive">تفاعلي</option>
+                            <label for="externalMissionType" class="form-label small mb-1">نوع المهمة</label>
+                            <select id="externalMissionType" class="form-select form-select-sm" required>
+                                <option value="مشاركة مع جهة حكومية">مشاركة مع جهة حكومية</option>
+                                <option value="تكليف إداري">تكليف إداري</option>
+                                <option value="بلاغ">بلاغ</option>
+                                <option value="متابعة">متابعة</option>
+                                <option value="حملة مشتركة">حملة مشتركة</option>
+                                <option value="توجيه عاجل">توجيه عاجل</option>
+                                <option value="أخرى">أخرى</option>
+                            </select>
+                        </div>
+                        <div id="externalMissionTypeOtherField" class="col-md-4 d-none">
+                            <label for="externalMissionTypeOther" class="form-label small mb-1">وصف نوع المهمة</label>
+                            <input id="externalMissionTypeOther" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="externalMissionStatus" class="form-label small mb-1">حالة المهمة</label>
+                            <select id="externalMissionStatus" class="form-select form-select-sm" required>
+                                <option value="جديدة">جديدة</option>
+                                <option value="قيد التنفيذ">قيد التنفيذ</option>
+                                <option value="مكتملة" selected>مكتملة</option>
+                                <option value="ملغاة">ملغاة</option>
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label for="externalVisitReason" class="form-label small mb-1">سبب الزيارة</label>
+                            <label for="externalVisitReason" class="form-label small mb-1">سبب المهمة</label>
                             <select id="externalVisitReason" class="form-select form-select-sm">
                                 <option value="الخطة الدورية">الخطة الدورية</option>
                                 <option value="شكوى">شكوى</option>
@@ -282,8 +322,28 @@
                             <input id="externalFacilityMapUrl" class="form-control form-control-sm">
                         </div>
                         <div class="col-md-6">
-                            <label for="externalTransactionNumber" class="form-label small mb-1">رقم المعاملة أو المهمة</label>
+                            <label for="externalTransactionNumber" class="form-label small mb-1">رقم التكليف/المرجع</label>
                             <input id="externalTransactionNumber" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="externalDirectingEntity" class="form-label small mb-1">الجهة الموجهة</label>
+                            <input id="externalDirectingEntity" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="externalParticipatingEntity" class="form-label small mb-1">الجهة المشاركة</label>
+                            <input id="externalParticipatingEntity" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="externalParticipants" class="form-label small mb-1">المشاركون (افصل بينهم بـ ،)</label>
+                            <input id="externalParticipants" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="externalViolationDetails" class="form-label small mb-1">تفاصيل المخالفة</label>
+                            <textarea id="externalViolationDetails" class="form-control form-control-sm" rows="2"></textarea>
                         </div>
 
                         <div class="col-12">
@@ -293,7 +353,7 @@
 
                         <div class="col-12 d-flex align-items-center gap-2 flex-wrap">
                             <button id="saveExternalVisit" type="submit" class="btn btn-primary btn-sm">
-                                حفظ الزيارة
+                                حفظ المهمة
                             </button>
                             <button id="cancelExternalVisit" type="button" class="btn btn-outline-secondary btn-sm">
                                 إلغاء
