@@ -382,32 +382,18 @@ function searchEmployees(query) {
 function getEmployeeVisitRecords(employeeId) {
 
     const records = [];
-    const employee = getEmployeeById(employeeId);
-    const normalizedEmployeeName = normalizeEmployeeName(employee && employee.fullName);
 
     Object.entries(facilityStatus || {}).forEach(([license, status]) => {
 
         (Array.isArray(status.visits) ? status.visits : []).forEach(visit => {
 
-            const snapshot = visit.employeeSnapshot || {};
-            const ids = Array.isArray(snapshot.employeeIds)
-                ? snapshot.employeeIds
-                : [snapshot.leaderId, ...(snapshot.memberIds || [])].filter(Boolean);
-            const legacyTeam = visit.teamSnapshot || {};
-            const legacyNames = [
-                legacyTeam.leader,
-                ...(Array.isArray(legacyTeam.members) ? legacyTeam.members : [])
-            ].filter(Boolean);
-            const hasEmployeeCredit = ids.map(String).includes(String(employeeId)) ||
-                (ids.length === 0 && normalizedEmployeeName && legacyNames.some(name => {
+            const ids = getPerformanceEventEmployeeIds(
+                visit,
+                visit.teamSnapshot || {}
+            );
+            const hasEmployeeCredit = ids.includes(String(employeeId));
 
-                    return normalizeEmployeeName(name) === normalizedEmployeeName;
-
-                }));
-
-            if (visit.assignmentId &&
-                hasEmployeeCredit &&
-                visit.visitStatus === "visited") {
+            if (hasEmployeeCredit && visit.visitStatus === "visited") {
 
                 records.push({ ...visit, facilityLicense: visit.facilityLicense || license });
 
@@ -834,24 +820,42 @@ function getPerformanceFacilityCategory(type) {
 function getPerformanceEventEmployeeIds(record, teamSnapshot = {}) {
 
     const snapshot = record.employeeSnapshot || {};
-    const explicitIds = Array.isArray(snapshot.employeeIds)
-        ? snapshot.employeeIds
-        : [snapshot.leaderId, ...(snapshot.memberIds || [])].filter(Boolean);
+    const explicitIds = [
+        snapshot.leaderId,
+        ...(Array.isArray(snapshot.memberIds) ? snapshot.memberIds : []),
+        ...(Array.isArray(snapshot.employeeIds) ? snapshot.employeeIds : [])
+    ].map(String).filter(Boolean);
+    const validExplicitIds = [...new Set(explicitIds)].filter(employeeId => {
 
-    if (explicitIds.length > 0) return [...new Set(explicitIds.map(String))];
+        return Boolean(getEmployeeById(employeeId));
+
+    });
+
+    if (validExplicitIds.length > 0) return validExplicitIds;
+
+    const teamIds = [
+        teamSnapshot.leaderId,
+        ...(Array.isArray(teamSnapshot.memberIds) ? teamSnapshot.memberIds : [])
+    ].map(String).filter(Boolean);
+    const validTeamIds = [...new Set(teamIds)].filter(employeeId => {
+
+        return Boolean(getEmployeeById(employeeId));
+
+    });
 
     const names = [
         teamSnapshot.leader,
         ...(Array.isArray(teamSnapshot.members) ? teamSnapshot.members : [])
     ].filter(Boolean);
-
-    return [...new Set(names.map(name => {
+    const matchedNameIds = names.map(name => {
 
         const employee = findEmployeeByNormalizedName(name);
 
-        return employee ? employee.id : "";
+        return employee ? String(employee.id) : "";
 
-    }).filter(Boolean))];
+    }).filter(Boolean);
+
+    return [...new Set([...validTeamIds, ...matchedNameIds])];
 
 }
 
@@ -876,7 +880,7 @@ function buildEmployeePerformanceCache() {
 
         (Array.isArray(status.visits) ? status.visits : []).forEach(visit => {
 
-            if (!visit.assignmentId || visit.visitStatus !== "visited") return;
+            if (visit.visitStatus !== "visited") return;
 
             const facility = facilityByLicense.get(String(visit.facilityLicense || license)) || {};
             const event = {

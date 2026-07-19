@@ -71,6 +71,18 @@ function createVisitRecord(visit) {
     const employeeSnapshot = visit.employeeSnapshot && typeof visit.employeeSnapshot === "object"
         ? visit.employeeSnapshot
         : null;
+    const snapshotLeaderId = String(employeeSnapshot && employeeSnapshot.leaderId || "");
+    const snapshotMemberIds = employeeSnapshot && Array.isArray(employeeSnapshot.memberIds)
+        ? employeeSnapshot.memberIds.map(String).filter(Boolean)
+        : [];
+    const snapshotEmployeeIds = employeeSnapshot && Array.isArray(employeeSnapshot.employeeIds)
+        ? employeeSnapshot.employeeIds.map(String).filter(Boolean)
+        : [];
+    const normalizedEmployeeIds = [...new Set([
+        snapshotLeaderId,
+        ...snapshotMemberIds,
+        ...snapshotEmployeeIds
+    ].filter(Boolean))];
 
     return {
 
@@ -91,13 +103,9 @@ function createVisitRecord(visit) {
                 : []
         },
         employeeSnapshot: employeeSnapshot ? {
-            leaderId: employeeSnapshot.leaderId || "",
-            memberIds: Array.isArray(employeeSnapshot.memberIds)
-                ? [...employeeSnapshot.memberIds]
-                : [],
-            employeeIds: Array.isArray(employeeSnapshot.employeeIds)
-                ? [...employeeSnapshot.employeeIds]
-                : []
+            leaderId: snapshotLeaderId,
+            memberIds: [...new Set(snapshotMemberIds.filter(id => id !== snapshotLeaderId))],
+            employeeIds: normalizedEmployeeIds
         } : null,
         visitType: visit.visitType || "periodic",
         visitReason: visit.visitReason || "الخطة الدورية",
@@ -271,7 +279,17 @@ function addVisit(license, visit) {
 
     }
 
-    saveFacilityStatus(facilityStatus);
+    const saveOperation = saveFacilityStatus(facilityStatus);
+
+    if (typeof isAdminUser === "function" &&
+        isAdminUser() &&
+        typeof refreshEmployeePerformanceDashboard === "function") {
+
+        refreshEmployeePerformanceDashboard();
+
+    }
+
+    return saveOperation;
 
 }
 

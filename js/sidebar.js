@@ -955,22 +955,19 @@ function showFacilityDetails(facility) {
             : null;
         const assignmentSnapshot = getAssignmentSnapshot(currentAssignment);
         const visitStatus = result === "incomplete" ? "partial" : "visited";
+        const visitCommitteeUsername = currentAssignment
+            ? currentAssignment.committeeUsername
+            : currentUser.username;
         const employeeSnapshot = result === "incomplete" ||
             typeof getActiveCommitteeEmployeeSnapshot !== "function"
             ? null
-            : getActiveCommitteeEmployeeSnapshot(
-                currentAssignment
-                    ? currentAssignment.committeeUsername
-                    : currentUser.username
-            );
+            : getActiveCommitteeEmployeeSnapshot(visitCommitteeUsername);
 
         addVisit(facility.license, {
             assignmentId: currentAssignment ? currentAssignment.id || null : null,
             facilityLicense: facility.license,
             date: visitDate.value,
-            committeeUsername: currentAssignment
-                ? currentAssignment.committeeUsername
-                : currentUser.username,
+            committeeUsername: visitCommitteeUsername,
             committeeName: assignmentSnapshot.committeeName,
             teamSnapshot: {
                 leader: assignmentSnapshot.leader,
