@@ -38,11 +38,11 @@ function getDefaultFacilityStatus() {
 }
 
 
-function initializeFacilityStatusState() {
+async function initializeFacilityStatusState() {
 
     facilityStatus = loadFacilityStatus();
 
-    seedCloudKey("facilityStatus", facilityStatus);
+    await seedCloudKey("facilityStatus", facilityStatus);
 
 }
 
@@ -262,25 +262,10 @@ function getFacilityStatus(license) {
 
 async function addVisit(license, visit) {
 
-    const facility = getFacilityStatus(license);
-
-    if (!facility) return;
-
     const normalizedLicense = String(license);
-    const previousFacility = JSON.parse(JSON.stringify(facility));
-    const statusBefore = facility.visitStatus;
-
-    if (!Array.isArray(facility.visits)) {
-
-        facility.visits = [];
-
-    }
-
     const visitRecord = createVisitRecord(visit);
-
-    facility.visits.push(visitRecord);
-
-    syncLatestVisitState(facility);
+    const currentFacility = getFacilityStatus(normalizedLicense);
+    const statusBefore = currentFacility ? currentFacility.visitStatus : "pending";
 
     console.info("[VisitSync] saving facility status", {
         facilityId: normalizedLicense,
@@ -288,7 +273,7 @@ async function addVisit(license, visit) {
         committeeId: visitRecord.committeeUsername,
         visitId: visitRecord.id,
         statusBefore,
-        statusAfter: facility.visitStatus
+        statusAfter: visitRecord.visitStatus
     });
 
     if (typeof invalidateEmployeePerformanceCache === "function") {
@@ -299,14 +284,30 @@ async function addVisit(license, visit) {
 
     try {
 
-        await saveFacilityStatus(facilityStatus, {
-            throwOnError: true,
-            requireCloud: true
+        facilityStatus = await mutateCloudObject("facilityStatus", nextStatus => {
+
+            const facility = nextStatus[normalizedLicense] || getDefaultFacilityStatus();
+
+            normalizeFacilityStatus(facility);
+
+            if (!facility.visits.some(existingVisit => {
+
+                return String(existingVisit.id) === String(visitRecord.id);
+
+            })) {
+
+                facility.visits.push(visitRecord);
+
+            }
+
+            syncLatestVisitState(facility);
+            nextStatus[normalizedLicense] = facility;
+
+            return nextStatus;
+
         });
 
     } catch (error) {
-
-        facilityStatus[normalizedLicense] = previousFacility;
 
         if (typeof invalidateEmployeePerformanceCache === "function") {
 
@@ -320,7 +321,7 @@ async function addVisit(license, visit) {
             committeeId: visitRecord.committeeUsername,
             visitId: visitRecord.id,
             statusBefore,
-            statusAfter: previousFacility.visitStatus,
+            statusAfter: statusBefore,
             error
         });
 
@@ -334,7 +335,7 @@ async function addVisit(license, visit) {
         committeeId: visitRecord.committeeUsername,
         visitId: visitRecord.id,
         statusBefore,
-        statusAfter: facility.visitStatus
+        statusAfter: getFacilityStatus(normalizedLicense).visitStatus
     });
 
     if (typeof isAdminUser === "function" &&
@@ -353,24 +354,26 @@ async function addVisit(license, visit) {
 async function rollbackVisitAfterAssignmentFailure(license, visitId) {
 
     const normalizedLicense = String(license);
-    const facility = getFacilityStatus(normalizedLicense);
+    let removed = false;
 
-    if (!facility || !Array.isArray(facility.visits)) return;
+    facilityStatus = await mutateCloudObject("facilityStatus", nextStatus => {
 
-    const visitIndex = facility.visits.findIndex(visit => {
+        const facility = nextStatus[normalizedLicense];
 
-        return String(visit.id) === String(visitId);
+        if (!facility || !Array.isArray(facility.visits)) return nextStatus;
 
-    });
+        const visits = facility.visits.filter(visit => {
 
-    if (visitIndex === -1) return;
+            return String(visit.id) !== String(visitId);
 
-    facility.visits.splice(visitIndex, 1);
-    syncLatestVisitState(facility);
+        });
 
-    await saveFacilityStatus(facilityStatus, {
-        throwOnError: true,
-        requireCloud: true
+        removed = visits.length !== facility.visits.length;
+        facility.visits = visits;
+        syncLatestVisitState(facility);
+
+        return nextStatus;
+
     });
 
     if (typeof invalidateEmployeePerformanceCache === "function") {
@@ -382,7 +385,8 @@ async function rollbackVisitAfterAssignmentFailure(license, visitId) {
     console.warn("[VisitSync] rolled back visit after assignment failure", {
         facilityId: normalizedLicense,
         visitId,
-        statusAfter: facility.visitStatus
+        removed,
+        statusAfter: getFacilityStatus(normalizedLicense).visitStatus
     });
 
 }

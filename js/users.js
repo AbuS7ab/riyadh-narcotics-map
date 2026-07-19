@@ -69,7 +69,7 @@ function getCurrentUsername() {
 }
 
 
-function initializeUsers() {
+async function initializeUsers() {
 
     const storedUsers = loadUsers();
     const defaultUsersByUsername = getDefaultUsersByUsername();
@@ -77,15 +77,7 @@ function initializeUsers() {
 
     if (!storedUsers || Object.keys(storedUsers).length === 0) {
 
-        try {
-
-            saveUsers(defaultUsersByUsername);
-
-        } catch (error) {
-
-            // Continue with in-memory defaults when localStorage is unavailable.
-
-        }
+        await saveUsers(defaultUsersByUsername);
 
         return defaultUsersByUsername;
 
@@ -148,15 +140,7 @@ function initializeUsers() {
 
     if (changed) {
 
-        try {
-
-            saveUsers(storedUsers);
-
-        } catch (error) {
-
-            // Continue without persistence when localStorage is unavailable.
-
-        }
+        await saveUsers(storedUsers);
 
     }
 
@@ -165,7 +149,7 @@ function initializeUsers() {
 }
 
 
-function normalizeAssignments(storedAssignments) {
+function normalizeAssignments(storedAssignments, options = {}) {
 
     if (!storedAssignments ||
         typeof storedAssignments !== "object" ||
@@ -211,7 +195,7 @@ function normalizeAssignments(storedAssignments) {
 
     });
 
-    if (changed) {
+    if (changed && options.persist !== false) {
 
         saveAssignments(storedAssignments);
 
@@ -222,13 +206,15 @@ function normalizeAssignments(storedAssignments) {
 }
 
 
-function initializeUserState() {
+async function initializeUserState() {
 
-    users = initializeUsers();
+    users = await initializeUsers();
     currentUser = currentUsername ? users[currentUsername] || null : null;
-    facilityAssignments = normalizeAssignments(loadAssignments());
+    facilityAssignments = normalizeAssignments(loadAssignments(), {
+        persist: false
+    });
 
-    seedCloudKey(assignmentsStorageKey, facilityAssignments);
+    await seedCloudKey(assignmentsStorageKey, facilityAssignments);
 
 }
 
@@ -623,7 +609,7 @@ function normalizeAssignmentMetadata(options = {}) {
 }
 
 
-function assignFacilityToCommittee(
+async function assignFacilityToCommittee(
     facilityLicense,
     committeeUsername,
     status = "assigned",
@@ -634,17 +620,29 @@ function assignFacilityToCommittee(
 
     if (!committee || committee.role !== "committee") return;
 
-    const existingAssignment = getFacilityAssignment(facilityLicense);
+    const normalizedLicense = String(facilityLicense);
+    const existingAssignment = getFacilityAssignment(normalizedLicense);
 
     if (status === "cancelled") {
 
         if (!existingAssignment) return false;
 
-        existingAssignment.status = "cancelled";
+        facilityAssignments = await mutateCloudObject(
+            "facilityAssignments",
+            nextAssignments => {
 
-        console.log(`Cancelled facility license: ${facilityLicense}`);
+                const nextAssignment = nextAssignments[normalizedLicense];
 
-        saveAssignments(facilityAssignments);
+                if (!nextAssignment) return nextAssignments;
+
+                nextAssignment.status = "cancelled";
+
+                return nextAssignments;
+
+            }
+        );
+
+        console.log(`Cancelled facility license: ${normalizedLicense}`);
         refreshAssignmentViews(existingAssignment.committeeUsername);
 
         return true;
@@ -663,18 +661,36 @@ function assignFacilityToCommittee(
         : new Date().toISOString();
     const metadata = normalizeAssignmentMetadata(options);
 
-    facilityAssignments[String(facilityLicense)] = {
-        id: createAssignmentId(facilityLicense),
-        facilityLicense: String(facilityLicense),
-        committeeUsername,
-        assignedAt,
-        status: assignmentStatuses.includes(status) ? status : "assigned",
-        teamSnapshot: createTeamSnapshot(committee),
-        visitType: metadata.visitType,
-        visitReason: metadata.visitReason
-    };
+    facilityAssignments = await mutateCloudObject(
+        "facilityAssignments",
+        nextAssignments => {
 
-    saveAssignments(facilityAssignments);
+            const remoteAssignment = nextAssignments[normalizedLicense];
+
+            if (isActiveAssignment(remoteAssignment) &&
+                remoteAssignment.committeeUsername !== committeeUsername) {
+
+                throw new Error("المنشأة أُسندت إلى لجنة أخرى أثناء العملية.");
+
+            }
+
+            nextAssignments[normalizedLicense] = {
+                id: createAssignmentId(normalizedLicense),
+                facilityLicense: normalizedLicense,
+                committeeUsername,
+                assignedAt: isActiveAssignment(remoteAssignment)
+                    ? remoteAssignment.assignedAt
+                    : assignedAt,
+                status: assignmentStatuses.includes(status) ? status : "assigned",
+                teamSnapshot: createTeamSnapshot(committee),
+                visitType: metadata.visitType,
+                visitReason: metadata.visitReason
+            };
+
+            return nextAssignments;
+
+        }
+    );
 
     refreshAssignmentViews(committeeUsername);
 
@@ -683,7 +699,7 @@ function assignFacilityToCommittee(
 }
 
 
-function cancelAssignmentsForCommittee(committeeUsername, facilityLicenses) {
+async function cancelAssignmentsForCommittee(committeeUsername, facilityLicenses) {
 
     if (!isAdminUser()) return 0;
 
@@ -692,25 +708,31 @@ function cancelAssignmentsForCommittee(committeeUsername, facilityLicenses) {
     );
     let cancelledCount = 0;
 
-    selectedLicenses.forEach(license => {
+    facilityAssignments = await mutateCloudObject(
+        "facilityAssignments",
+        nextAssignments => {
 
-        const assignment = getFacilityAssignment(license);
+            cancelledCount = 0;
 
-        if (!isActiveAssignment(assignment) ||
-            assignment.committeeUsername !== committeeUsername) {
+            selectedLicenses.forEach(license => {
 
-            return;
+                const assignment = nextAssignments[license];
+
+                if (!isActiveAssignment(assignment) ||
+                    assignment.committeeUsername !== committeeUsername) return;
+
+                assignment.status = "cancelled";
+                cancelledCount += 1;
+
+            });
+
+            return nextAssignments;
 
         }
-
-        assignment.status = "cancelled";
-        cancelledCount += 1;
-
-    });
+    );
 
     if (cancelledCount === 0) return 0;
 
-    saveAssignments(facilityAssignments);
     refreshAssignmentViews(committeeUsername);
 
     return cancelledCount;
@@ -718,11 +740,17 @@ function cancelAssignmentsForCommittee(committeeUsername, facilityLicenses) {
 }
 
 
-async function updateAssignmentFromVisit(facilityLicense, result, visitId = "") {
+async function updateAssignmentFromVisit(
+    facilityLicense,
+    result,
+    visitId = "",
+    expectedAssignmentId = ""
+) {
 
     if (!isCommitteeUser()) return;
 
-    const assignment = getFacilityAssignment(facilityLicense);
+    const normalizedLicense = String(facilityLicense);
+    const assignment = getFacilityAssignment(normalizedLicense);
 
     if (!assignment ||
         assignment.committeeUsername !== currentUser.username ||
@@ -738,10 +766,8 @@ async function updateAssignmentFromVisit(facilityLicense, result, visitId = "") 
 
     const statusBefore = assignment.status;
 
-    assignment.status = status;
-
     console.info("[VisitSync] saving assignment status", {
-        facilityId: String(facilityLicense),
+        facilityId: normalizedLicense,
         assignmentId: assignment.id || "",
         committeeId: assignment.committeeUsername,
         visitId,
@@ -751,21 +777,38 @@ async function updateAssignmentFromVisit(facilityLicense, result, visitId = "") 
 
     try {
 
-        await saveAssignments(facilityAssignments, {
-            throwOnError: true,
-            requireCloud: true
-        });
+        facilityAssignments = await mutateCloudObject(
+            "facilityAssignments",
+            nextAssignments => {
+
+                const nextAssignment = nextAssignments[normalizedLicense];
+
+                if (!nextAssignment ||
+                    nextAssignment.committeeUsername !== currentUser.username ||
+                    (expectedAssignmentId &&
+                        String(nextAssignment.id) !== String(expectedAssignmentId)) ||
+                    nextAssignment.status === "cancelled") {
+
+                    throw new Error("The active assignment changed before the visit was saved.");
+
+                }
+
+                nextAssignment.status = status;
+
+                return nextAssignments;
+
+            }
+        );
 
     } catch (error) {
 
-        assignment.status = statusBefore;
         console.error("[VisitSync] assignment upsert failed", {
-            facilityId: String(facilityLicense),
+            facilityId: normalizedLicense,
             assignmentId: assignment.id || "",
             committeeId: assignment.committeeUsername,
             visitId,
             statusBefore,
-            statusAfter: assignment.status,
+            statusAfter: statusBefore,
             error
         });
 
@@ -774,20 +817,20 @@ async function updateAssignmentFromVisit(facilityLicense, result, visitId = "") 
     }
 
     console.info("[VisitSync] assignment status saved", {
-        facilityId: String(facilityLicense),
-        assignmentId: assignment.id || "",
-        committeeId: assignment.committeeUsername,
+        facilityId: normalizedLicense,
+        assignmentId: facilityAssignments[normalizedLicense].id || "",
+        committeeId: facilityAssignments[normalizedLicense].committeeUsername,
         visitId,
         statusBefore,
-        statusAfter: assignment.status
+        statusAfter: facilityAssignments[normalizedLicense].status
     });
 
-    return assignment;
+    return facilityAssignments[normalizedLicense];
 
 }
 
 
-function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, options = {}) {
+async function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, options = {}) {
 
     if (!isAdminUser()) return false;
 
@@ -800,41 +843,47 @@ function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, option
     const uniqueLicenses = [...new Set(facilityLicenses.map(license => String(license)))];
     let assignedCount = 0;
 
-    uniqueLicenses.forEach(license => {
+    facilityAssignments = await mutateCloudObject(
+        "facilityAssignments",
+        nextAssignments => {
 
-        const existingAssignment = getFacilityAssignment(license);
+            assignedCount = 0;
 
-        if (isActiveAssignment(existingAssignment) &&
-            existingAssignment.committeeUsername !== committeeUsername) {
+            uniqueLicenses.forEach(license => {
 
-            return;
+                const existingAssignment = nextAssignments[license];
+
+                if (isActiveAssignment(existingAssignment) &&
+                    existingAssignment.committeeUsername !== committeeUsername) return;
+
+                nextAssignments[license] = {
+                    id: createAssignmentId(license),
+                    facilityLicense: license,
+                    committeeUsername,
+                    assignedAt,
+                    status: "assigned",
+                    teamSnapshot: createTeamSnapshot(committee),
+                    visitType: metadata.visitType,
+                    visitReason: metadata.visitReason,
+                    assignmentSource: options.assignmentSource || "manual",
+                    smartBatchId: options.smartBatchId || null,
+                    smartSequence: typeof options.smartSequenceStart === "number"
+                        ? options.smartSequenceStart + assignedCount
+                        : null
+                };
+
+                assignedCount += 1;
+
+            });
+
+            return nextAssignments;
 
         }
+    );
 
-        facilityAssignments[String(license)] = {
-            id: createAssignmentId(license),
-            facilityLicense: String(license),
-            committeeUsername,
-            assignedAt,
-            status: "assigned",
-            teamSnapshot: createTeamSnapshot(committee),
-            visitType: metadata.visitType,
-            visitReason: metadata.visitReason,
-            assignmentSource: options.assignmentSource || "manual",
-            smartBatchId: options.smartBatchId || null,
-            smartSequence: typeof options.smartSequenceStart === "number"
-                ? options.smartSequenceStart + assignedCount
-                : null
-        };
-
-        assignedCount += 1;
-
-    });
-
-    saveAssignments(facilityAssignments);
     refreshAssignmentViews(committeeUsername);
 
-    return true;
+    return assignedCount;
 
 }
 
@@ -1123,7 +1172,7 @@ function getSmartAssignmentCandidates(facilities, excludedLicense = "") {
 }
 
 
-function smartAssignFacilities(
+async function smartAssignFacilities(
     facilities,
     committeeUsername,
     count,
@@ -1220,7 +1269,7 @@ function smartAssignFacilities(
 
     const smartBatchId = `smart-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    assignFacilitiesToCommittee(
+    await assignFacilitiesToCommittee(
         nearestFacilities.map(facility => facility.license),
         committeeUsername,
         {
@@ -1650,7 +1699,7 @@ function initializeAssignmentBoard() {
 
     };
 
-    assignButton.addEventListener("click", () => {
+    assignButton.addEventListener("click", async () => {
 
         const selectedFacilities = [...document.querySelectorAll(
             ".assignment-facility-checkbox:checked"
@@ -1677,20 +1726,37 @@ function initializeAssignmentBoard() {
 
         }
 
-        assignFacilitiesToCommittee(
-            selectedFacilities,
-            committeeSelect.value,
-            assignmentMetadata
-        );
-        smartAssignmentStartMode = "auto";
-        renderAssignmentBoard(allFacilities);
+        assignButton.disabled = true;
+        message.textContent = "جاري حفظ الإسناد ومزامنته...";
+        message.className = "small text-muted";
 
-        message.textContent = "تم إسناد المنشآت بنجاح.";
-        message.className = "small text-success";
+        try {
+
+            await assignFacilitiesToCommittee(
+                selectedFacilities,
+                committeeSelect.value,
+                assignmentMetadata
+            );
+            smartAssignmentStartMode = "auto";
+            renderAssignmentBoard(allFacilities);
+
+            message.textContent = "تم إسناد المنشآت ومزامنتها.";
+            message.className = "small text-success";
+
+        } catch (error) {
+
+            message.textContent = "تعذر حفظ الإسناد بسبب مشكلة مزامنة. لم تُعرض العملية كناجحة.";
+            message.className = "small text-danger";
+
+        } finally {
+
+            assignButton.disabled = false;
+
+        }
 
     });
 
-    smartAssignButton.addEventListener("click", () => {
+    smartAssignButton.addEventListener("click", async () => {
 
         const committee = users[committeeSelect.value];
         const count = Math.floor(Number(smartAssignmentCount.value));
@@ -1704,12 +1770,31 @@ function initializeAssignmentBoard() {
 
         }
 
-        const assignedFacilities = smartAssignFacilities(
-            allFacilities,
-            committee.username,
-            count,
-            startFacilitySelect.value
-        );
+        smartAssignButton.disabled = true;
+        message.textContent = "جاري تنفيذ الإسناد الذكي ومزامنته...";
+        message.className = "small text-muted";
+        let assignedFacilities;
+
+        try {
+
+            assignedFacilities = await smartAssignFacilities(
+                allFacilities,
+                committee.username,
+                count,
+                startFacilitySelect.value
+            );
+
+        } catch (error) {
+
+            message.textContent = "تعذر حفظ الإسناد الذكي بسبب مشكلة مزامنة.";
+            message.className = "small text-danger";
+            smartAssignButton.disabled = false;
+
+            return;
+
+        }
+
+        smartAssignButton.disabled = false;
 
         if (!Array.isArray(assignedFacilities)) {
 

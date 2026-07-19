@@ -467,7 +467,7 @@ function showCommitteeFacilityList(committee, facilities) {
 
     });
 
-    cancelSelected.addEventListener("click", () => {
+    cancelSelected.addEventListener("click", async () => {
 
         const selectedLicenses = [...list.querySelectorAll(
             ".committee-facility-checkbox:checked"
@@ -481,7 +481,21 @@ function showCommitteeFacilityList(committee, facilities) {
 
         if (!confirmed) return;
 
-        cancelAssignmentsForCommittee(committee.username, selectedLicenses);
+        cancelSelected.disabled = true;
+
+        try {
+
+            await cancelAssignmentsForCommittee(
+                committee.username,
+                selectedLicenses
+            );
+
+        } catch (error) {
+
+            window.alert("تعذر إلغاء الإسناد بسبب مشكلة مزامنة. لم تُعرض العملية كناجحة.");
+            cancelSelected.disabled = false;
+
+        }
 
     });
 
@@ -898,20 +912,31 @@ function showFacilityDetails(facility) {
 
     if (saveAssignment) {
 
-        saveAssignment.addEventListener("click", function () {
+        saveAssignment.addEventListener("click", async function () {
 
             const committeeSelect = document.getElementById("facilityCommittee");
             const assignmentStatus = document.getElementById("assignmentStatus");
 
             if (!committeeSelect.value) return;
 
-            assignFacilityToCommittee(
-                facility.license,
-                committeeSelect.value,
-                assignmentStatus.value
-            );
+            saveAssignment.disabled = true;
 
-            showFacilityDetails(facility);
+            try {
+
+                await assignFacilityToCommittee(
+                    facility.license,
+                    committeeSelect.value,
+                    assignmentStatus.value
+                );
+
+                showFacilityDetails(facility);
+
+            } catch (error) {
+
+                window.alert("تعذر حفظ الإسناد بسبب مشكلة مزامنة.");
+                saveAssignment.disabled = false;
+
+            }
 
         });
     }
@@ -1005,7 +1030,8 @@ function showFacilityDetails(facility) {
                 await updateAssignmentFromVisit(
                     facility.license,
                     result,
-                    savedVisit ? savedVisit.id : ""
+                    savedVisit ? savedVisit.id : "",
+                    currentAssignment ? currentAssignment.id || "" : ""
                 );
 
             } catch (assignmentError) {
