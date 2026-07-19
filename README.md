@@ -7,9 +7,10 @@ controlled-drug facilities in the Riyadh region. It combines operational
 dashboards, committee work queues, visit records, facility assignments, search,
 and an interactive map in one Bootstrap RTL interface.
 
-The beta is a fully local, frontend-only application. Users, sessions, facility
-status, visit history, and assignments are persisted in the browser with
-`localStorage`; there is no backend or external authentication service.
+The application is a static frontend backed by Supabase. Operational datasets
+are stored in the `app_data` table and cached in `localStorage` as a local
+backup. Authentication is still implemented in the frontend user dataset; it
+has not yet been migrated to Supabase Auth or protected by role-based RLS.
 
 ## Main features
 
@@ -56,8 +57,8 @@ the OpenStreetMap tile layer.
 
 ## Default users
 
-Fixed users are created automatically on first load. Existing locally saved
-users are preserved.
+Fixed users are created automatically when the users dataset is empty. Existing
+cloud users are preserved.
 
 | Username | Default password | Role |
 | --- | --- | --- |
@@ -68,8 +69,8 @@ users are preserved.
 | `committee4` | `committee4` | Committee |
 
 The administrator can update committee names, passwords, and activation status
-from the user-management panel. These credentials are stored locally and are
-intended only for this frontend beta—not for production security.
+from the user-management panel. These credentials are stored in the frontend
+users dataset and cached locally. They are not a production security boundary.
 
 ## Role summary
 
@@ -108,23 +109,48 @@ The project uses plain JavaScript modules loaded in dependency order from
 
 ### Runtime flow
 
-1. Fixed users and persisted state are restored from `localStorage`.
-2. A valid session determines the administrator or committee interface.
-3. Facility data is loaded once from `data/facilities.json`.
-4. Filters update `filteredFacilities`.
-5. `refreshView()` updates dashboard state and map markers without recreating
+1. Cloud datasets are loaded from Supabase before application state is built.
+2. A valid local session determines the administrator or committee interface.
+3. Facility reference data is loaded once from `data/facilities.json`.
+4. Cloud revisions are checked every 30 seconds and when the tab becomes
+   visible or the browser reconnects.
+5. Filters update `filteredFacilities`.
+6. `refreshView()` updates dashboard state and map markers without recreating
    the map or reloading the facility dataset.
 
-## Local persistence
+## Persistence and synchronization
 
-The beta uses these browser storage keys:
+The current Supabase design stores each logical dataset as one JSON object in a
+row of `app_data`. Writes use the row's `updated_at` value as an optimistic lock.
+Visit and assignment commands retry conflicts against a fresh remote copy so
+independent committee changes are preserved. Failed required cloud writes are
+reported to the UI and are not presented as successful local-only changes.
+
+`localStorage` remains a backup/cache for these keys:
 
 - `narcoUsers`
 - `currentUser`
 - `facilityStatus`
 - `facilityAssignments`
 
-Clearing site data removes locally saved sessions and operational records.
+Clearing site data removes the local session and cache, but does not remove
+records stored in Supabase.
+
+This JSON-row model is an interim architecture. Supabase Auth, RLS policies,
+and normalized visit/assignment tables are required before treating frontend
+roles as a production security boundary.
+
+## Synchronization tests
+
+Run the Node.js regression suite without installing dependencies:
+
+```bash
+node --test tests/sync-foundation.test.js
+```
+
+The suite covers optimistic locking, stale-write rejection, same-key write
+serialization, immutable cache reads, conflict retries, concurrent semantic
+mutations, remote refresh, and atomic refresh rollback.
 
 ## Deployment
 
