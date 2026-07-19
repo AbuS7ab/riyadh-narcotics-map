@@ -39,7 +39,7 @@ async function initializeApp() {
     initializeCustomFacilitiesPanel();
     initializeExternalVisitControls();
 
-    if (!isAdminUser() && !isCommitteeUser()) return;
+    if (!isAuthenticatedUser()) return;
 
     await initializeMapWhenVisible();
 
@@ -248,7 +248,7 @@ function syncFacilityCollections() {
     mergedFacilities.forEach(facility => {
 
         createFacilityStatus(facility.license, {
-            persist: !facility.isCustom
+            persist: !facility.isCustom && !isViewerUser()
         });
 
     });
@@ -453,6 +453,8 @@ function resetCustomFacilityForm() {
 
 async function persistCustomFacilities(nextCustomFacilities) {
 
+    if (!isAdminUser()) return;
+
     customFacilities = nextCustomFacilities;
 
     await saveCustomFacilities(customFacilities);
@@ -464,6 +466,8 @@ async function persistCustomFacilities(nextCustomFacilities) {
 
 async function persistFacilityOverrides(nextFacilityOverrides) {
 
+    if (!isAdminUser()) return;
+
     facilityOverrides = nextFacilityOverrides;
 
     await saveFacilityOverrides(facilityOverrides);
@@ -474,6 +478,8 @@ async function persistFacilityOverrides(nextFacilityOverrides) {
 
 
 async function saveCustomFacilityFromForm() {
+
+    if (!isAdminUser()) return;
 
     const data = collectCustomFacilityFormData();
     const validationMessage = validateCustomFacility(data);

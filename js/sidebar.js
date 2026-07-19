@@ -802,11 +802,12 @@ function showFacilityDetails(facility) {
 
         <hr>
 
-        <button id="newVisit" class="btn btn-outline-success w-100 mb-3">
+        ${isCommitteeUser() ? `
+        <button id="newVisit" class="btn btn-outline-success w-100 mb-3 committee-only">
             + زيارة جديدة
         </button>
 
-        <div id="visitForm" class="d-none">
+        <div id="visitForm" class="d-none committee-only">
             <h6 class="mb-3">نتيجة الزيارة</h6>
 
             <label for="visitDate" class="form-label">تاريخ الزيارة</label>
@@ -839,6 +840,7 @@ function showFacilityDetails(facility) {
                 حفظ
             </button>
         </div>
+        ` : ""}
 
         <hr>
 
@@ -863,9 +865,11 @@ function showFacilityDetails(facility) {
     const backToAssignedFacilities =
         document.getElementById("backToAssignedFacilities");
 
-    visitDate.value = new Date().toISOString().slice(0, 10);
+    if (visitDate) visitDate.value = new Date().toISOString().slice(0, 10);
 
     const toggleIncompleteReason = () => {
+
+        if (!incompleteReasonGroup || !visitResult) return;
 
         incompleteReasonGroup.classList.toggle(
             "d-none",
@@ -874,10 +878,14 @@ function showFacilityDetails(facility) {
 
     };
 
-    visitResult.addEventListener("change", toggleIncompleteReason);
-    toggleIncompleteReason();
+    if (visitResult) {
 
-    newVisit.addEventListener("click", function () {
+        visitResult.addEventListener("change", toggleIncompleteReason);
+        toggleIncompleteReason();
+
+    }
+
+    if (newVisit && visitForm) newVisit.addEventListener("click", function () {
 
         visitForm.classList.toggle("d-none");
 
@@ -936,7 +944,9 @@ function showFacilityDetails(facility) {
 
     }
 
-    saveVisit.addEventListener("click", function () {
+    if (saveVisit) saveVisit.addEventListener("click", function () {
+
+        if (!isCommitteeUser()) return;
 
         const result = visitResult.value;
 

@@ -259,6 +259,8 @@ function getFacilityStatus(license) {
 
 function addVisit(license, visit) {
 
+    if (typeof isCommitteeUser === "function" && !isCommitteeUser()) return;
+
     const facility = getFacilityStatus(license);
 
     if (!facility) return;
@@ -363,6 +365,8 @@ function resetAllVisits() {
 // تحديث حالة الزيارة
 function setVisitStatus(license, status) {
 
+    if (typeof isViewerUser === "function" && isViewerUser()) return;
+
     const facility = getFacilityStatus(license);
 
     if (!facility) return;
@@ -390,6 +394,8 @@ function setVisitStatus(license, status) {
 // تحديث المخالفة
 function setViolation(license, value) {
 
+    if (typeof isViewerUser === "function" && isViewerUser()) return;
+
     const facility = getFacilityStatus(license);
 
     if (!facility) return;
@@ -415,6 +421,8 @@ function setViolation(license, value) {
 // إسناد لجنة
 function assignCommittee(license, committeeName) {
 
+    if (typeof isViewerUser === "function" && isViewerUser()) return;
+
     const facility = getFacilityStatus(license);
 
     if (!facility) return;
@@ -430,6 +438,8 @@ function assignCommittee(license, committeeName) {
 
 // إضافة ملاحظات
 function setNotes(license, notes) {
+
+    if (typeof isViewerUser === "function" && isViewerUser()) return;
 
     const facility = getFacilityStatus(license);
 

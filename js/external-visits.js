@@ -404,6 +404,8 @@ function showExternalVisitMessage(text, className) {
 
 async function persistExternalVisits(nextExternalVisits) {
 
+    if (!isCommitteeUser() && !isAdminUser()) return;
+
     externalVisits = nextExternalVisits;
 
     if (typeof invalidateEmployeePerformanceCache === "function") {
@@ -507,6 +509,8 @@ function showExternalVisitForm(externalVisitId = "") {
 
 
 async function saveExternalVisitFromForm() {
+
+    if (!isCommitteeUser() && !isAdminUser()) return;
 
     const data = collectExternalVisitFormData();
 
