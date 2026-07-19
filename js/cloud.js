@@ -272,6 +272,12 @@ async function writeCloudObject(key, value, options = {}) {
 
     if (!cloudUseSupabase || !cloudSupabaseClient) {
 
+        if (options.requireCloud) {
+
+            throw new Error(`Supabase is unavailable for ${dataSet.cloudKey}`);
+
+        }
+
         writeLocalObject(dataSet.localKey, value);
 
         return;
@@ -283,19 +289,22 @@ async function writeCloudObject(key, value, options = {}) {
         try {
 
             await saveCloudObject(dataSet, value);
+            console.info("[CloudSync] upsert succeeded", {
+                key: dataSet.cloudKey
+            });
 
         } catch (error) {
 
             logSupabaseError(error);
             console.warn(`Supabase save failed for ${dataSet.cloudKey}; using localStorage fallback.`, error);
-            useLocalStorageFallback();
-            writeLocalObject(dataSet.localKey, value);
-
             if (options.throwOnError) {
 
                 throw error;
 
             }
+
+            useLocalStorageFallback();
+            writeLocalObject(dataSet.localKey, value);
 
         }
 
@@ -392,9 +401,9 @@ function loadAssignments() {
 }
 
 
-function saveAssignments(assignments) {
+function saveAssignments(assignments, options) {
 
-    return writeCloudObject(cloudStorageKeys.assignments, assignments);
+    return writeCloudObject(cloudStorageKeys.assignments, assignments, options);
 
 }
 
@@ -408,9 +417,9 @@ function loadFacilityStatus() {
 }
 
 
-function saveFacilityStatus(facilityStatus) {
+function saveFacilityStatus(facilityStatus, options) {
 
-    return writeCloudObject(cloudStorageKeys.facilityStatus, facilityStatus);
+    return writeCloudObject(cloudStorageKeys.facilityStatus, facilityStatus, options);
 
 }
 
