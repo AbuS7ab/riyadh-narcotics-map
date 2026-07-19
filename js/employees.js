@@ -389,7 +389,7 @@ function getEmployeeVisitRecords(employeeId) {
 
             const ids = getPerformanceEventEmployeeIds(
                 visit,
-                visit.teamSnapshot || {}
+                visit.facilityLicense || license
             );
             const hasEmployeeCredit = ids.includes(String(employeeId));
 
@@ -817,45 +817,101 @@ function getPerformanceFacilityCategory(type) {
 }
 
 
-function getPerformanceEventEmployeeIds(record, teamSnapshot = {}) {
+function getExistingEmployeeIds(employeeIds) {
 
-    const snapshot = record.employeeSnapshot || {};
-    const explicitIds = [
-        snapshot.leaderId,
-        ...(Array.isArray(snapshot.memberIds) ? snapshot.memberIds : []),
-        ...(Array.isArray(snapshot.employeeIds) ? snapshot.employeeIds : [])
-    ].map(String).filter(Boolean);
-    const validExplicitIds = [...new Set(explicitIds)].filter(employeeId => {
+    return [...new Set(employeeIds.map(String).filter(employeeId => {
 
-        return Boolean(getEmployeeById(employeeId));
+        return employeeId && Boolean(getEmployeeById(employeeId));
 
-    });
+    }))];
 
-    if (validExplicitIds.length > 0) return validExplicitIds;
+}
 
-    const teamIds = [
+
+function getTeamSnapshotEmployeeIds(teamSnapshot = {}) {
+
+    const snapshotIds = getExistingEmployeeIds([
         teamSnapshot.leaderId,
         ...(Array.isArray(teamSnapshot.memberIds) ? teamSnapshot.memberIds : [])
-    ].map(String).filter(Boolean);
-    const validTeamIds = [...new Set(teamIds)].filter(employeeId => {
-
-        return Boolean(getEmployeeById(employeeId));
-
-    });
-
-    const names = [
+    ]);
+    const matchedNameIds = [
         teamSnapshot.leader,
         ...(Array.isArray(teamSnapshot.members) ? teamSnapshot.members : [])
-    ].filter(Boolean);
-    const matchedNameIds = names.map(name => {
+    ].map(name => {
 
         const employee = findEmployeeByNormalizedName(name);
 
         return employee ? String(employee.id) : "";
 
-    }).filter(Boolean);
+    });
 
-    return [...new Set([...validTeamIds, ...matchedNameIds])];
+    return getExistingEmployeeIds([...snapshotIds, ...matchedNameIds]);
+
+}
+
+
+function getHistoricalVisitAssignment(visit, facilityLicense) {
+
+    const license = String(visit.facilityLicense || facilityLicense || "");
+
+    if (!license || typeof getFacilityAssignment !== "function") return null;
+
+    const assignment = getFacilityAssignment(license);
+
+    if (!assignment) return null;
+
+    if (assignment.facilityLicense &&
+        String(assignment.facilityLicense) !== license) return null;
+
+    if (visit.committeeUsername &&
+        assignment.committeeUsername !== visit.committeeUsername) return null;
+
+    return assignment;
+
+}
+
+
+function getPerformanceEventEmployeeIds(visit, facilityLicense = "") {
+
+    if (visit.committeeUsername === "committee1") return [];
+
+    const snapshot = visit.employeeSnapshot || {};
+    const explicitIds = [
+        snapshot.leaderId,
+        ...(Array.isArray(snapshot.memberIds) ? snapshot.memberIds : []),
+        ...(Array.isArray(snapshot.employeeIds) ? snapshot.employeeIds : [])
+    ];
+    const validExplicitIds = getExistingEmployeeIds(explicitIds);
+
+    if (validExplicitIds.length > 0) return validExplicitIds;
+
+    const visitTeamIds = getTeamSnapshotEmployeeIds(visit.teamSnapshot || {});
+
+    if (visitTeamIds.length > 0) return visitTeamIds;
+
+    const assignment = getHistoricalVisitAssignment(visit, facilityLicense);
+
+    if (!assignment || assignment.committeeUsername === "committee1") return [];
+
+    const assignmentTeamIds = getTeamSnapshotEmployeeIds(
+        assignment.teamSnapshot || {}
+    );
+
+    if (assignmentTeamIds.length > 0) return assignmentTeamIds;
+
+    if (!visit.committeeUsername ||
+        assignment.committeeUsername !== visit.committeeUsername) return [];
+
+    const committee = typeof users !== "undefined"
+        ? users[visit.committeeUsername]
+        : null;
+
+    if (!committee || committee.role !== "committee") return [];
+
+    return getExistingEmployeeIds([
+        committee.leaderId,
+        ...(Array.isArray(committee.memberIds) ? committee.memberIds : [])
+    ]);
 
 }
 
@@ -892,7 +948,10 @@ function buildEmployeePerformanceCache() {
                 violation: Boolean(visit.violation || visit.result === "violation")
             };
 
-            getPerformanceEventEmployeeIds(visit, visit.teamSnapshot || {}).forEach(employeeId => {
+            getPerformanceEventEmployeeIds(
+                visit,
+                visit.facilityLicense || license
+            ).forEach(employeeId => {
 
                 addEmployeeEvent(plannedByEmployee, employeeId, event);
 
