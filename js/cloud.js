@@ -63,9 +63,94 @@ const cloudTableName = "app_data";
 let cloudSupabaseClient = null;
 let cloudUseSupabase = false;
 let cloudInitialized = false;
+let cloudRemoteConfigured = false;
 const cloudCache = {};
 const cloudMissingKeys = {};
-const cloudPendingWrites = [];
+const cloudUpdatedAt = {};
+const cloudPendingWrites = new Set();
+const cloudWriteQueues = new Map();
+let cloudLastTimestamp = 0;
+let cloudRefreshTimer = null;
+let cloudRefreshPromise = null;
+
+
+class CloudConflictError extends Error {
+
+    constructor(key) {
+
+        super(`Cloud data changed before ${key} could be saved.`);
+        this.name = "CloudConflictError";
+        this.code = "CLOUD_CONFLICT";
+        this.cloudKey = key;
+
+    }
+
+}
+
+
+function cloneCloudValue(value) {
+
+    if (typeof structuredClone === "function") {
+
+        return structuredClone(value);
+
+    }
+
+    return JSON.parse(JSON.stringify(value));
+
+}
+
+
+function createCloudTimestamp() {
+
+    const timestamp = Math.max(Date.now(), cloudLastTimestamp + 1);
+
+    cloudLastTimestamp = timestamp;
+
+    return new Date(timestamp).toISOString();
+
+}
+
+
+function getCloudWriteOptions(options = {}) {
+
+    if (!cloudRemoteConfigured) return options;
+
+    return {
+        ...options,
+        requireCloud: true,
+        throwOnError: true
+    };
+
+}
+
+
+function enqueueCloudWrite(key, operation) {
+
+    const previousWrite = cloudWriteQueues.get(key) || Promise.resolve();
+    const write = previousWrite
+        .catch(() => undefined)
+        .then(operation);
+    let trackedWrite;
+
+    trackedWrite = write.finally(() => {
+
+        cloudPendingWrites.delete(trackedWrite);
+
+        if (cloudWriteQueues.get(key) === write) {
+
+            cloudWriteQueues.delete(key);
+
+        }
+
+    });
+
+    cloudWriteQueues.set(key, write);
+    cloudPendingWrites.add(trackedWrite);
+
+    return trackedWrite;
+
+}
 
 
 function getSupabaseConfig() {
@@ -96,6 +181,21 @@ function logSupabaseError(error) {
         : JSON.stringify(error);
 
     console.error(`Supabase error: ${message}`);
+
+}
+
+
+function updateCloudSyncStatus(state, message) {
+
+    if (typeof document === "undefined") return;
+
+    const indicator = document.getElementById("cloudSyncStatus");
+
+    if (!indicator) return;
+
+    indicator.dataset.state = state;
+    indicator.textContent = message;
+    indicator.setAttribute("title", message);
 
 }
 
@@ -174,28 +274,79 @@ function writeLocalObject(key, value) {
 function useLocalStorageFallback() {
 
     cloudUseSupabase = false;
+    updateCloudSyncStatus("offline", "غير متصل — القراءة المحلية فقط");
 
     console.warn("Cloud Mode: localStorage fallback");
 
 }
 
 
-async function saveCloudObject(dataSet, value, migrated = false) {
+async function saveCloudObject(dataSet, value, migrated = false, options = {}) {
 
-    const { error } = await cloudSupabaseClient
-        .from(cloudTableName)
-        .upsert(
-            {
-                key: dataSet.cloudKey,
-                value,
-                updated_at: new Date().toISOString()
-            },
-            { onConflict: "key" }
-        );
+    const key = dataSet.cloudKey;
+    const hasExpectedUpdatedAt = Object.prototype.hasOwnProperty.call(
+        options,
+        "expectedUpdatedAt"
+    );
+    const expectedUpdatedAt = hasExpectedUpdatedAt
+        ? options.expectedUpdatedAt
+        : cloudUpdatedAt[key] || null;
+    const expectedMissing = Object.prototype.hasOwnProperty.call(
+        options,
+        "expectedMissing"
+    )
+        ? options.expectedMissing
+        : cloudMissingKeys[key] === true;
+    const nextUpdatedAt = createCloudTimestamp();
+    const record = {
+        key,
+        value: cloneCloudValue(value),
+        updated_at: nextUpdatedAt
+    };
+    let response;
 
-    if (error) throw error;
+    if (expectedMissing === true) {
 
-    cloudMissingKeys[dataSet.cloudKey] = false;
+        response = await cloudSupabaseClient
+            .from(cloudTableName)
+            .insert(record)
+            .select("updated_at")
+            .maybeSingle();
+
+    } else if (expectedUpdatedAt) {
+
+        response = await cloudSupabaseClient
+            .from(cloudTableName)
+            .update({
+                value: record.value,
+                updated_at: nextUpdatedAt
+            })
+            .eq("key", key)
+            .eq("updated_at", expectedUpdatedAt)
+            .select("updated_at")
+            .maybeSingle();
+
+    } else {
+
+        throw new CloudConflictError(key);
+
+    }
+
+    if (response.error) {
+
+        if (expectedMissing && response.error.code === "23505") {
+
+            throw new CloudConflictError(key);
+
+        }
+
+        throw response.error;
+
+    }
+    if (!response.data) throw new CloudConflictError(key);
+
+    cloudMissingKeys[key] = false;
+    cloudUpdatedAt[key] = response.data.updated_at || nextUpdatedAt;
 
     console.log(migrated
         ? `Migrated key to Supabase: ${dataSet.cloudKey}`
@@ -218,7 +369,7 @@ async function readCloudObject(key, fallback = {}) {
 
         const { data, error } = await cloudSupabaseClient
             .from(cloudTableName)
-            .select("value")
+            .select("value, updated_at")
             .eq("key", dataSet.cloudKey)
             .maybeSingle();
 
@@ -227,6 +378,7 @@ async function readCloudObject(key, fallback = {}) {
         if (data && isPortableDataObject(data.value)) {
 
             cloudMissingKeys[dataSet.cloudKey] = false;
+            cloudUpdatedAt[dataSet.cloudKey] = data.updated_at || null;
 
             console.log(`Loaded ${dataSet.label}`);
 
@@ -246,6 +398,7 @@ async function readCloudObject(key, fallback = {}) {
         }
 
         cloudMissingKeys[dataSet.cloudKey] = true;
+        cloudUpdatedAt[dataSet.cloudKey] = null;
         console.log(`Loaded ${dataSet.label}`);
 
         return fallback;
@@ -264,40 +417,263 @@ async function readCloudObject(key, fallback = {}) {
 }
 
 
-async function writeCloudObject(key, value, options = {}) {
+async function readCloudObjectStrict(key) {
 
     const dataSet = getDataSetByCloudKey(key);
 
-    cloudCache[dataSet.cloudKey] = value;
+    if (!cloudUseSupabase || !cloudSupabaseClient) {
+
+        throw new Error(`Supabase is unavailable for ${dataSet.cloudKey}`);
+
+    }
+
+    const { data, error } = await cloudSupabaseClient
+        .from(cloudTableName)
+        .select("value, updated_at")
+        .eq("key", dataSet.cloudKey)
+        .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+
+        cloudMissingKeys[dataSet.cloudKey] = true;
+        cloudUpdatedAt[dataSet.cloudKey] = null;
+
+        return {};
+
+    }
+
+    if (!isPortableDataObject(data.value)) {
+
+        throw new Error(`Invalid cloud data for ${dataSet.cloudKey}`);
+
+    }
+
+    cloudMissingKeys[dataSet.cloudKey] = false;
+    cloudUpdatedAt[dataSet.cloudKey] = data.updated_at || null;
+    cloudCache[dataSet.cloudKey] = cloneCloudValue(data.value);
+
+    return cloneCloudValue(data.value);
+
+}
+
+
+async function mutateCloudObject(key, mutation, options = {}) {
+
+    const maxAttempts = Math.max(1, Number(options.maxAttempts) || 3);
+    let lastError;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+
+        const currentValue = await readCloudObjectStrict(key);
+        const expectedUpdatedAt = cloudUpdatedAt[key] || null;
+        const expectedMissing = cloudMissingKeys[key] === true;
+        const nextValue = await mutation(cloneCloudValue(currentValue), attempt);
+
+        if (!isPortableDataObject(nextValue)) {
+
+            throw new Error(`Mutation for ${key} must return an object.`);
+
+        }
+
+        try {
+
+            await writeCloudObject(key, nextValue, {
+                requireCloud: true,
+                throwOnError: true,
+                expectedUpdatedAt,
+                expectedMissing
+            });
+
+            return cloneCloudValue(nextValue);
+
+        } catch (error) {
+
+            lastError = error;
+
+            if (!(error instanceof CloudConflictError) || attempt === maxAttempts) {
+
+                throw error;
+
+            }
+
+            console.warn("[CloudSync] retrying after concurrent update", {
+                key,
+                attempt,
+                maxAttempts
+            });
+
+        }
+
+    }
+
+    throw lastError;
+
+}
+
+
+function dispatchCloudRefresh(changedKeys) {
+
+    if (typeof document === "undefined" ||
+        typeof CustomEvent === "undefined" ||
+        changedKeys.length === 0) return;
+
+    document.dispatchEvent(new CustomEvent("cloud:data-refreshed", {
+        detail: { changedKeys }
+    }));
+
+}
+
+
+async function refreshCloudData() {
+
+    if (!cloudUseSupabase || !cloudSupabaseClient || cloudPendingWrites.size > 0) {
+
+        return [];
+
+    }
+
+    if (cloudRefreshPromise) return cloudRefreshPromise;
+
+    cloudRefreshPromise = (async () => {
+
+        const changedKeys = [];
+        const previousCache = cloneCloudValue(cloudCache);
+        const previousVersions = { ...cloudUpdatedAt };
+        const previousMissingKeys = { ...cloudMissingKeys };
+
+        try {
+
+            for (const dataSet of Object.values(cloudDataSets)) {
+
+                const previousVersion = cloudUpdatedAt[dataSet.cloudKey] || null;
+
+                await readCloudObjectStrict(dataSet.cloudKey);
+
+                if (cloudUpdatedAt[dataSet.cloudKey] !== previousVersion) {
+
+                    changedKeys.push(dataSet.cloudKey);
+
+                }
+
+            }
+
+        } catch (error) {
+
+            Object.keys(cloudCache).forEach(key => delete cloudCache[key]);
+            Object.assign(cloudCache, previousCache);
+            Object.keys(cloudUpdatedAt).forEach(key => delete cloudUpdatedAt[key]);
+            Object.assign(cloudUpdatedAt, previousVersions);
+            Object.keys(cloudMissingKeys).forEach(key => delete cloudMissingKeys[key]);
+            Object.assign(cloudMissingKeys, previousMissingKeys);
+
+            throw error;
+
+        }
+
+        dispatchCloudRefresh(changedKeys);
+        updateCloudSyncStatus("synced", "متصل ومتزامن");
+
+        return changedKeys;
+
+    })().catch(error => {
+
+        logSupabaseError(error);
+        updateCloudSyncStatus("error", "تعذر تحديث البيانات");
+
+        throw error;
+
+    }).finally(() => {
+
+        cloudRefreshPromise = null;
+
+    });
+
+    return cloudRefreshPromise;
+
+}
+
+
+function startCloudRefresh(intervalMs = 30000) {
+
+    if (cloudRefreshTimer || typeof window === "undefined") return;
+
+    cloudRefreshTimer = window.setInterval(() => {
+
+        refreshCloudData().catch(() => undefined);
+
+    }, intervalMs);
+
+    if (typeof document !== "undefined") {
+
+        document.addEventListener("visibilitychange", () => {
+
+            if (document.visibilityState === "visible") {
+
+                refreshCloudData().catch(() => undefined);
+
+            }
+
+        });
+
+        window.addEventListener("online", () => {
+
+            refreshCloudData().catch(() => undefined);
+
+        });
+
+    }
+
+}
+
+
+async function writeCloudObject(key, value, options = {}) {
+
+    const dataSet = getDataSetByCloudKey(key);
+    const effectiveOptions = getCloudWriteOptions(options);
+    const nextValue = cloneCloudValue(value);
 
     if (!cloudUseSupabase || !cloudSupabaseClient) {
 
-        if (options.requireCloud) {
+        if (effectiveOptions.requireCloud) {
 
             throw new Error(`Supabase is unavailable for ${dataSet.cloudKey}`);
 
         }
 
-        writeLocalObject(dataSet.localKey, value);
+        cloudCache[dataSet.cloudKey] = nextValue;
+        writeLocalObject(dataSet.localKey, nextValue);
 
         return;
 
     }
 
-    const pendingWrite = (async () => {
+    updateCloudSyncStatus("saving", "جاري المزامنة...");
+
+    return enqueueCloudWrite(dataSet.cloudKey, async () => {
 
         try {
 
-            await saveCloudObject(dataSet, value);
+            await saveCloudObject(dataSet, nextValue, false, effectiveOptions);
+            cloudCache[dataSet.cloudKey] = cloneCloudValue(nextValue);
+            writeLocalObject(dataSet.localKey, nextValue);
             console.info("[CloudSync] upsert succeeded", {
                 key: dataSet.cloudKey
             });
+            updateCloudSyncStatus("synced", "تمت المزامنة");
 
         } catch (error) {
 
             logSupabaseError(error);
-            console.warn(`Supabase save failed for ${dataSet.cloudKey}; using localStorage fallback.`, error);
-            if (options.throwOnError) {
+            console.warn(`Supabase save failed for ${dataSet.cloudKey}.`, error);
+            updateCloudSyncStatus(
+                error instanceof CloudConflictError ? "conflict" : "error",
+                error instanceof CloudConflictError
+                    ? "تعارض مزامنة — جاري حماية البيانات"
+                    : "فشلت المزامنة"
+            );
+            if (effectiveOptions.throwOnError || effectiveOptions.requireCloud) {
 
                 throw error;
 
@@ -308,11 +684,7 @@ async function writeCloudObject(key, value, options = {}) {
 
         }
 
-    })();
-
-    cloudPendingWrites.push(pendingWrite);
-
-    await pendingWrite;
+    });
 
 }
 
@@ -321,9 +693,12 @@ async function initializeCloudData() {
 
     if (cloudInitialized) return;
 
+    updateCloudSyncStatus("saving", "جاري الاتصال...");
+
     const { url, anonKey } = getSupabaseConfig();
     const supabaseClientFactory = getSupabaseClientFactory();
 
+    cloudRemoteConfigured = Boolean(url && anonKey);
     cloudUseSupabase = Boolean(
         url &&
         anonKey &&
@@ -339,6 +714,7 @@ async function initializeCloudData() {
     } else {
 
         console.warn("Cloud Mode: localStorage fallback");
+        updateCloudSyncStatus("offline", "وضع محلي — المزامنة غير متاحة");
 
     }
 
@@ -349,6 +725,12 @@ async function initializeCloudData() {
     }
 
     cloudInitialized = true;
+
+    if (cloudUseSupabase) {
+
+        updateCloudSyncStatus("synced", "متصل ومتزامن");
+
+    }
 
 }
 
@@ -371,7 +753,7 @@ function seedCloudKey(key, value) {
 
 async function flushCloudWrites() {
 
-    await Promise.all(cloudPendingWrites);
+    await Promise.all([...cloudPendingWrites]);
 
 }
 
@@ -379,7 +761,7 @@ async function flushCloudWrites() {
 function loadUsers() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.users])
-        ? cloudCache[cloudStorageKeys.users]
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.users])
         : null;
 
 }
@@ -395,7 +777,7 @@ function saveUsers(users, options) {
 function loadAssignments() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.assignments])
-        ? cloudCache[cloudStorageKeys.assignments]
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.assignments])
         : {};
 
 }
@@ -411,7 +793,7 @@ function saveAssignments(assignments, options) {
 function loadFacilityStatus() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.facilityStatus])
-        ? cloudCache[cloudStorageKeys.facilityStatus]
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.facilityStatus])
         : {};
 
 }
@@ -427,7 +809,7 @@ function saveFacilityStatus(facilityStatus, options) {
 function loadAppSettings() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.appSettings])
-        ? cloudCache[cloudStorageKeys.appSettings]
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.appSettings])
         : {};
 
 }
@@ -443,7 +825,7 @@ function saveAppSettings(appSettings) {
 function loadCustomFacilities() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.customFacilities])
-        ? cloudCache[cloudStorageKeys.customFacilities]
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.customFacilities])
         : {};
 
 }
@@ -459,7 +841,7 @@ function saveCustomFacilities(customFacilities) {
 function loadFacilityOverrides() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.facilityOverrides])
-        ? cloudCache[cloudStorageKeys.facilityOverrides]
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.facilityOverrides])
         : {};
 
 }
@@ -475,7 +857,7 @@ function saveFacilityOverrides(facilityOverrides) {
 function loadExternalVisits() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.externalVisits])
-        ? cloudCache[cloudStorageKeys.externalVisits]
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.externalVisits])
         : {};
 
 }
@@ -491,7 +873,7 @@ function saveExternalVisits(externalVisits) {
 function loadEmployees() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.employees])
-        ? cloudCache[cloudStorageKeys.employees]
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.employees])
         : {};
 
 }
@@ -541,6 +923,24 @@ window.cloudDebug = {
         return cloudUseSupabase;
 
     },
+    get pendingWrites() {
+
+        return cloudPendingWrites.size;
+
+    },
+    get versions() {
+
+        return { ...cloudUpdatedAt };
+
+    },
+    initialize: initializeCloudData,
+    flush: flushCloudWrites,
+    readObject: readCloudObject,
+    readObjectStrict: readCloudObjectStrict,
+    writeObject: writeCloudObject,
+    mutateObject: mutateCloudObject,
+    refresh: refreshCloudData,
+    startRefresh: startCloudRefresh,
     testWrite: testCloudWrite,
     loadUsers,
     saveUsers,

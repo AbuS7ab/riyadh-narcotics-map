@@ -227,6 +227,48 @@ body.authenticated .login-screen {
     direction: rtl;
 }
 
+.cloud-sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: #eef2f7;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.cloud-sync-status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.cloud-sync-status[data-state="synced"] {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.cloud-sync-status[data-state="saving"] {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.cloud-sync-status[data-state="conflict"],
+.cloud-sync-status[data-state="error"] {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.cloud-sync-status[data-state="offline"] {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 body.role-committee .admin-only {
     display: none !important;
 }

@@ -22,9 +22,9 @@ async function initializeApp() {
 
     await initializeCloudData();
 
-    initializeFacilityStatusState();
+    await initializeFacilityStatusState();
 
-    initializeUserState();
+    await initializeUserState();
     await initializeEmployeesState();
 
     seedCloudKey("appSettings", loadAppSettings());
@@ -38,6 +38,7 @@ async function initializeApp() {
     initializeEmployeesInterface();
     initializeCustomFacilitiesPanel();
     initializeExternalVisitControls();
+    startCloudRefresh();
 
     if (!isAdminUser() && !isCommitteeUser()) return;
 
@@ -248,7 +249,7 @@ function syncFacilityCollections() {
     mergedFacilities.forEach(facility => {
 
         createFacilityStatus(facility.license, {
-            persist: !facility.isCustom
+            persist: false
         });
 
     });
@@ -275,6 +276,63 @@ function syncFacilityCollections() {
     }
 
 }
+
+
+function applyRemoteCloudData(event) {
+
+    const changedKeys = event && event.detail && Array.isArray(event.detail.changedKeys)
+        ? event.detail.changedKeys
+        : [];
+
+    if (changedKeys.length === 0) return;
+
+    if (changedKeys.includes("users")) {
+
+        users = loadUsers() || {};
+        currentUser = currentUsername ? users[currentUsername] || null : null;
+        applyRoleView();
+
+    }
+
+    if (changedKeys.includes("facilityAssignments")) {
+
+        facilityAssignments = normalizeAssignments(loadAssignments(), {
+            persist: false
+        });
+
+    }
+
+    if (changedKeys.includes("facilityStatus")) {
+
+        facilityStatus = loadFacilityStatus();
+        Object.values(facilityStatus).forEach(normalizeFacilityStatus);
+
+        if (typeof invalidateEmployeePerformanceCache === "function") {
+
+            invalidateEmployeePerformanceCache();
+
+        }
+
+    }
+
+    if (changedKeys.includes("employees")) employees = loadEmployees();
+    if (changedKeys.includes("externalVisits")) externalVisits = loadExternalVisits();
+    if (changedKeys.includes("customFacilities")) customFacilities = loadCustomFacilities();
+    if (changedKeys.includes("facilityOverrides")) facilityOverrides = loadFacilityOverrides();
+
+    if (Array.isArray(allFacilities) && allFacilities.length > 0) {
+
+        syncFacilityCollections();
+
+    }
+
+    if (typeof updateEmployeeDashboard === "function") updateEmployeeDashboard();
+    if (typeof renderExternalVisitsWorkspace === "function") renderExternalVisitsWorkspace();
+
+}
+
+
+document.addEventListener("cloud:data-refreshed", applyRemoteCloudData);
 
 
 function trimCustomFacilityInput(value) {

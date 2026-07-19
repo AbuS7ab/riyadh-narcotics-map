@@ -136,7 +136,7 @@ async function initializeEmployeesState() {
     users = migrated.users;
 
     if (migrated.employeesChanged) await saveEmployees(employees);
-    else seedCloudKey("employees", employees);
+    else await seedCloudKey("employees", employees);
 
     if (migrated.usersChanged) await saveUsers(users);
 

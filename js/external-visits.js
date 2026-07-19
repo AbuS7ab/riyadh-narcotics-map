@@ -26,7 +26,7 @@ async function initializeExternalVisitsState() {
 
     }
 
-    seedCloudKey("externalVisits", externalVisits);
+    await seedCloudKey("externalVisits", externalVisits);
 
 }
 
