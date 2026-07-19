@@ -718,7 +718,7 @@ function cancelAssignmentsForCommittee(committeeUsername, facilityLicenses) {
 }
 
 
-function updateAssignmentFromVisit(facilityLicense, result) {
+async function updateAssignmentFromVisit(facilityLicense, result, visitId = "") {
 
     if (!isCommitteeUser()) return;
 
@@ -734,11 +734,55 @@ function updateAssignmentFromVisit(facilityLicense, result) {
             ? "in_progress"
             : null;
 
-    if (!status || assignment.status === status) return;
+    if (!status || assignment.status === status) return assignment;
+
+    const statusBefore = assignment.status;
 
     assignment.status = status;
 
-    saveAssignments(facilityAssignments);
+    console.info("[VisitSync] saving assignment status", {
+        facilityId: String(facilityLicense),
+        assignmentId: assignment.id || "",
+        committeeId: assignment.committeeUsername,
+        visitId,
+        statusBefore,
+        statusAfter: status
+    });
+
+    try {
+
+        await saveAssignments(facilityAssignments, {
+            throwOnError: true,
+            requireCloud: true
+        });
+
+    } catch (error) {
+
+        assignment.status = statusBefore;
+        console.error("[VisitSync] assignment upsert failed", {
+            facilityId: String(facilityLicense),
+            assignmentId: assignment.id || "",
+            committeeId: assignment.committeeUsername,
+            visitId,
+            statusBefore,
+            statusAfter: assignment.status,
+            error
+        });
+
+        throw error;
+
+    }
+
+    console.info("[VisitSync] assignment status saved", {
+        facilityId: String(facilityLicense),
+        assignmentId: assignment.id || "",
+        committeeId: assignment.committeeUsername,
+        visitId,
+        statusBefore,
+        statusAfter: assignment.status
+    });
+
+    return assignment;
 
 }
 

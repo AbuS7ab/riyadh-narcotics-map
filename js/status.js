@@ -88,7 +88,10 @@ function createVisitRecord(visit) {
 
         id: visit.id || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         assignmentId: visit.assignmentId || null,
-        facilityLicense: visit.facilityLicense || null,
+        facilityLicense: visit.facilityLicense === null ||
+            typeof visit.facilityLicense === "undefined"
+            ? null
+            : String(visit.facilityLicense),
         date: visit.date || new Date().toISOString().slice(0, 10),
         committeeUsername: visit.committeeUsername || "",
         committeeName: visit.committeeName || "",
@@ -257,11 +260,15 @@ function getFacilityStatus(license) {
 }
 
 
-function addVisit(license, visit) {
+async function addVisit(license, visit) {
 
     const facility = getFacilityStatus(license);
 
     if (!facility) return;
+
+    const normalizedLicense = String(license);
+    const previousFacility = JSON.parse(JSON.stringify(facility));
+    const statusBefore = facility.visitStatus;
 
     if (!Array.isArray(facility.visits)) {
 
@@ -269,9 +276,20 @@ function addVisit(license, visit) {
 
     }
 
-    facility.visits.push(createVisitRecord(visit));
+    const visitRecord = createVisitRecord(visit);
+
+    facility.visits.push(visitRecord);
 
     syncLatestVisitState(facility);
+
+    console.info("[VisitSync] saving facility status", {
+        facilityId: normalizedLicense,
+        assignmentId: visitRecord.assignmentId,
+        committeeId: visitRecord.committeeUsername,
+        visitId: visitRecord.id,
+        statusBefore,
+        statusAfter: facility.visitStatus
+    });
 
     if (typeof invalidateEmployeePerformanceCache === "function") {
 
@@ -279,7 +297,45 @@ function addVisit(license, visit) {
 
     }
 
-    const saveOperation = saveFacilityStatus(facilityStatus);
+    try {
+
+        await saveFacilityStatus(facilityStatus, {
+            throwOnError: true,
+            requireCloud: true
+        });
+
+    } catch (error) {
+
+        facilityStatus[normalizedLicense] = previousFacility;
+
+        if (typeof invalidateEmployeePerformanceCache === "function") {
+
+            invalidateEmployeePerformanceCache();
+
+        }
+
+        console.error("[VisitSync] facility status upsert failed", {
+            facilityId: normalizedLicense,
+            assignmentId: visitRecord.assignmentId,
+            committeeId: visitRecord.committeeUsername,
+            visitId: visitRecord.id,
+            statusBefore,
+            statusAfter: previousFacility.visitStatus,
+            error
+        });
+
+        throw error;
+
+    }
+
+    console.info("[VisitSync] facility status saved", {
+        facilityId: normalizedLicense,
+        assignmentId: visitRecord.assignmentId,
+        committeeId: visitRecord.committeeUsername,
+        visitId: visitRecord.id,
+        statusBefore,
+        statusAfter: facility.visitStatus
+    });
 
     if (typeof isAdminUser === "function" &&
         isAdminUser() &&
@@ -289,7 +345,45 @@ function addVisit(license, visit) {
 
     }
 
-    return saveOperation;
+    return visitRecord;
+
+}
+
+
+async function rollbackVisitAfterAssignmentFailure(license, visitId) {
+
+    const normalizedLicense = String(license);
+    const facility = getFacilityStatus(normalizedLicense);
+
+    if (!facility || !Array.isArray(facility.visits)) return;
+
+    const visitIndex = facility.visits.findIndex(visit => {
+
+        return String(visit.id) === String(visitId);
+
+    });
+
+    if (visitIndex === -1) return;
+
+    facility.visits.splice(visitIndex, 1);
+    syncLatestVisitState(facility);
+
+    await saveFacilityStatus(facilityStatus, {
+        throwOnError: true,
+        requireCloud: true
+    });
+
+    if (typeof invalidateEmployeePerformanceCache === "function") {
+
+        invalidateEmployeePerformanceCache();
+
+    }
+
+    console.warn("[VisitSync] rolled back visit after assignment failure", {
+        facilityId: normalizedLicense,
+        visitId,
+        statusAfter: facility.visitStatus
+    });
 
 }
 

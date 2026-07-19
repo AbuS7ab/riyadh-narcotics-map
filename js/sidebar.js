@@ -936,7 +936,9 @@ function showFacilityDetails(facility) {
 
     }
 
-    saveVisit.addEventListener("click", function () {
+    saveVisit.addEventListener("click", async function () {
+
+        if (saveVisit.disabled) return;
 
         const result = visitResult.value;
 
@@ -963,34 +965,78 @@ function showFacilityDetails(facility) {
             ? null
             : getActiveCommitteeEmployeeSnapshot(visitCommitteeUsername);
 
-        addVisit(facility.license, {
-            assignmentId: currentAssignment ? currentAssignment.id || null : null,
-            facilityLicense: facility.license,
-            date: visitDate.value,
-            committeeUsername: visitCommitteeUsername,
-            committeeName: assignmentSnapshot.committeeName,
-            teamSnapshot: {
-                leader: assignmentSnapshot.leader,
-                members: assignmentSnapshot.members,
-                leaderId: assignmentSnapshot.leaderId,
-                memberIds: assignmentSnapshot.memberIds
-            },
-            employeeSnapshot,
-            visitType: currentAssignment
-                ? currentAssignment.visitType || "periodic"
-                : "periodic",
-            visitReason: currentAssignment
-                ? currentAssignment.visitReason || "الخطة الدورية"
-                : "الخطة الدورية",
-            result,
-            incompleteReason: result === "incomplete" ? incompleteReason.value : "",
-            visitStatus,
-            violation: result === "violation",
-            notes: visitNotes.value,
-            createdBy: currentUser.username
-        });
+        saveVisit.disabled = true;
+        visitSaveMessage.textContent = "جاري حفظ الزيارة ومزامنتها...";
+        visitSaveMessage.className = "small text-muted mb-2";
 
-        updateAssignmentFromVisit(facility.license, result);
+        let savedVisit;
+
+        try {
+
+            savedVisit = await addVisit(facility.license, {
+                assignmentId: currentAssignment ? currentAssignment.id || null : null,
+                facilityLicense: facility.license,
+                date: visitDate.value,
+                committeeUsername: visitCommitteeUsername,
+                committeeName: assignmentSnapshot.committeeName,
+                teamSnapshot: {
+                    leader: assignmentSnapshot.leader,
+                    members: assignmentSnapshot.members,
+                    leaderId: assignmentSnapshot.leaderId,
+                    memberIds: assignmentSnapshot.memberIds
+                },
+                employeeSnapshot,
+                visitType: currentAssignment
+                    ? currentAssignment.visitType || "periodic"
+                    : "periodic",
+                visitReason: currentAssignment
+                    ? currentAssignment.visitReason || "الخطة الدورية"
+                    : "الخطة الدورية",
+                result,
+                incompleteReason: result === "incomplete" ? incompleteReason.value : "",
+                visitStatus,
+                violation: result === "violation",
+                notes: visitNotes.value,
+                createdBy: currentUser.username
+            });
+
+            try {
+
+                await updateAssignmentFromVisit(
+                    facility.license,
+                    result,
+                    savedVisit ? savedVisit.id : ""
+                );
+
+            } catch (assignmentError) {
+
+                if (savedVisit &&
+                    typeof rollbackVisitAfterAssignmentFailure === "function") {
+
+                    await rollbackVisitAfterAssignmentFailure(
+                        facility.license,
+                        savedVisit.id
+                    );
+
+                }
+
+                throw assignmentError;
+
+            }
+
+        } catch (error) {
+
+            visitSaveMessage.textContent =
+                "تعذر مزامنة الزيارة مع الخادم. لم يُعرض الحفظ كعملية ناجحة؛ أعد المحاولة بعد التحقق من الاتصال.";
+            visitSaveMessage.className = "small text-danger mb-2";
+            saveVisit.disabled = false;
+
+            return;
+
+        }
+
+        visitSaveMessage.textContent = "تم حفظ الزيارة ومزامنة الإسناد.";
+        visitSaveMessage.className = "small text-success mb-2";
 
         applyFilters();
 
