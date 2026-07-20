@@ -157,6 +157,25 @@ This JSON-row model is an interim architecture. Supabase Auth, RLS policies,
 and normalized visit/assignment tables are required before treating frontend
 roles as a production security boundary.
 
+## Security foundation
+
+The repository includes an additive, staging-first Supabase Auth and RLS
+foundation. It creates normalized tables and database-enforced roles for
+Admin, Committee, and Viewer without changing the current `app_data` table or
+frontend login. Do not apply it directly to production before completing the
+documented preflight, backup, Auth UUID mapping, and staging authorization
+tests.
+
+- [Security architecture](docs/security-architecture.md)
+- [Cutover runbook](docs/security-cutover-runbook.md)
+- [Read-only security inventory](supabase/preflight/security_inventory.sql)
+- [Foundation migration](supabase/migrations/202607210001_auth_rls_foundation.sql)
+- [Foundation rollback](supabase/rollback/202607210001_auth_rls_foundation.down.sql)
+
+The committee visit RPC derives committee and employee identity from the
+database and records the visit plus assignment transition in one transaction.
+Viewer has no write policy. `anon` has no grant on any new normalized table.
+
 ## Synchronization tests
 
 Run the full local CI command without installing dependencies:
