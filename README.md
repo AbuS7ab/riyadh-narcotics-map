@@ -126,6 +126,14 @@ Visit and assignment commands retry conflicts against a fresh remote copy so
 independent committee changes are preserved. Failed required cloud writes are
 reported to the UI and are not presented as successful local-only changes.
 
+Administrator edits use record-level collection patches. An unrelated record
+added remotely is preserved, while a concurrent edit to the same record is
+rejected for the administrator to reload and review. Multi-dataset operations,
+such as data import or deleting a custom facility and its override, use
+compensating rollback: if a later write fails, only records already changed by
+that operation are restored. This is not a database transaction, so normalized
+tables and a server-side transaction/RPC remain the long-term architecture.
+
 `localStorage` remains a backup/cache for these keys:
 
 - `narcoUsers`
@@ -148,12 +156,14 @@ Run the full local CI command without installing dependencies:
 npm run ci
 ```
 
-The test suite is split into cloud synchronization, visit workflow, and
-assignment workflow tests. It covers optimistic locking, stale-write
-rejection, serialization, immutable cache reads, insert/update conflicts,
-atomic refresh, visit idempotency, failed writes, selective rollback,
+The test suite is split into cloud synchronization, visit workflow, assignment
+workflow, and administrator write-safety tests. It covers optimistic locking,
+stale-write rejection, serialization, immutable cache reads, insert/update
+conflicts, atomic refresh, visit idempotency, failed writes, selective rollback,
 incomplete visits, assignment replacement protection, and concurrent bulk
-assignment operations.
+assignment operations. Administrator tests also verify same-record conflict
+rejection, preservation of unrelated remote records, in-memory commit only
+after cloud success, and compensating rollback for a partially failed import.
 
 GitHub Actions runs the same command for every pull request targeting `main`
 and for every push to `main`.

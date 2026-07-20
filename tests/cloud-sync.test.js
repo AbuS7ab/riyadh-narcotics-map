@@ -154,6 +154,130 @@ test("concurrent semantic mutations preserve both local operations", async () =>
 });
 
 
+test("collection mutation changes one record and preserves unrelated remote records", async () => {
+
+    const rows = createInitialRows({
+        employees: {
+            value: { employee1: { id: "employee1", fullName: "قبل" } }
+        }
+    });
+    const { debug, supabase } = await createCloudRuntime(rows);
+    const previous = debug.loadEmployees();
+
+    supabase.replaceRow("employees", {
+        key: "employees",
+        value: {
+            ...previous,
+            employee2: { id: "employee2", fullName: "موظف آخر" }
+        },
+        updated_at: "2026-07-20T02:15:00.000Z"
+    });
+
+    const saved = await debug.mutateCollection("employees", previous, {
+        employee1: { id: "employee1", fullName: "بعد" }
+    });
+
+    assert.equal(saved.employee1.fullName, "بعد");
+    assert.equal(saved.employee2.fullName, "موظف آخر");
+    assert.deepEqual(
+        Object.keys(supabase.rows.get("employees").value).sort(),
+        ["employee1", "employee2"]
+    );
+
+});
+
+
+test("collection mutation rejects a concurrent edit to the same record", async () => {
+
+    const rows = createInitialRows({
+        users: {
+            value: { committee4: { username: "committee4", displayName: "قبل" } }
+        }
+    });
+    const { debug, supabase } = await createCloudRuntime(rows);
+    const previous = debug.loadUsers();
+
+    supabase.replaceRow("users", {
+        key: "users",
+        value: {
+            committee4: { username: "committee4", displayName: "تعديل متزامن" }
+        },
+        updated_at: "2026-07-20T02:20:00.000Z"
+    });
+
+    await assert.rejects(
+        debug.mutateCollection("users", previous, {
+            committee4: { username: "committee4", displayName: "تعديل المدير" }
+        }),
+        error => error &&
+            error.code === "CLOUD_RECORD_CONFLICT" &&
+            error.recordKey === "committee4"
+    );
+    assert.equal(
+        supabase.rows.get("users").value.committee4.displayName,
+        "تعديل متزامن"
+    );
+
+});
+
+
+test("multi-collection failure rolls back only touched records", async () => {
+
+    const rows = createInitialRows({
+        users: {
+            value: { admin: { username: "admin", displayName: "قبل" } }
+        },
+        employees: {
+            value: { employee1: { id: "employee1", fullName: "موظف" } }
+        }
+    });
+    const { debug, supabase } = await createCloudRuntime(rows);
+    const previousUsers = debug.loadUsers();
+    const previousEmployees = debug.loadEmployees();
+
+    supabase.replaceRow("users", {
+        key: "users",
+        value: {
+            ...previousUsers,
+            committee9: { username: "committee9", displayName: "لجنة متزامنة" }
+        },
+        updated_at: "2026-07-20T02:25:00.000Z"
+    });
+    supabase.failNextWrite("employees");
+
+    await assert.rejects(
+        debug.mutateCollectionsWithRollback([
+            {
+                key: "users",
+                previousValue: previousUsers,
+                nextValue: {
+                    admin: { username: "admin", displayName: "بعد" }
+                }
+            },
+            {
+                key: "employees",
+                previousValue: previousEmployees,
+                nextValue: {
+                    employee1: { id: "employee1", fullName: "تعديل" }
+                }
+            }
+        ]),
+        /simulated cloud failure/
+    );
+
+    const savedUsers = supabase.rows.get("users").value;
+
+    assert.equal(savedUsers.admin.displayName, "قبل");
+    assert.equal(savedUsers.committee9.displayName, "لجنة متزامنة");
+    assert.equal(
+        supabase.rows.get("employees").value.employee1.fullName,
+        "موظف"
+    );
+    assert.equal(supabase.writeCount("users"), 2);
+
+});
+
+
 test("an insert race retries against the row created by another client", async () => {
 
     const rows = createInitialRows();
