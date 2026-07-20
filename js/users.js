@@ -1345,6 +1345,12 @@ function refreshAssignmentViews(username = "") {
 
     renderCommitteeAssignmentCards();
 
+    if (typeof refreshSyncAuditFromLocalData === "function") {
+
+        refreshSyncAuditFromLocalData();
+
+    }
+
     if (typeof allFacilities === "undefined" ||
         !Array.isArray(allFacilities) ||
         allFacilities.length === 0) return;

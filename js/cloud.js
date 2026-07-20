@@ -531,6 +531,36 @@ async function readCloudObjectStrict(key) {
 }
 
 
+async function peekCloudObjectStrict(key) {
+
+    const dataSet = getDataSetByCloudKey(key);
+
+    if (!cloudUseSupabase || !cloudSupabaseClient) {
+
+        throw new Error(`Supabase is unavailable for ${dataSet.cloudKey}`);
+
+    }
+
+    const { data, error } = await cloudSupabaseClient
+        .from(cloudTableName)
+        .select("value, updated_at")
+        .eq("key", dataSet.cloudKey)
+        .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return {};
+
+    if (!isPortableDataObject(data.value)) {
+
+        throw new Error(`Invalid cloud data for ${dataSet.cloudKey}`);
+
+    }
+
+    return cloneCloudValue(data.value);
+
+}
+
+
 async function mutateCloudObject(key, mutation, options = {}) {
 
     const maxAttempts = Math.max(1, Number(options.maxAttempts) || 3);
@@ -1180,6 +1210,7 @@ window.cloudDebug = {
     flush: flushCloudWrites,
     readObject: readCloudObject,
     readObjectStrict: readCloudObjectStrict,
+    peekObjectStrict: peekCloudObjectStrict,
     writeObject: writeCloudObject,
     mutateObject: mutateCloudObject,
     mutateCollection: mutateCloudCollection,

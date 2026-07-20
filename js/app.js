@@ -38,6 +38,7 @@ async function initializeApp() {
     initializeEmployeesInterface();
     initializeCustomFacilitiesPanel();
     initializeExternalVisitControls();
+    initializeSyncAuditPanel();
     startCloudRefresh();
 
     if (!isAdminUser() && !isCommitteeUser()) return;
@@ -324,6 +325,16 @@ function applyRemoteCloudData(event) {
 
     if (typeof updateEmployeeDashboard === "function") updateEmployeeDashboard();
     if (typeof renderExternalVisitsWorkspace === "function") renderExternalVisitsWorkspace();
+
+    if (["users", "employees", "facilityAssignments", "facilityStatus"].some(key => {
+
+        return changedKeys.includes(key);
+
+    }) && typeof refreshSyncAuditFromLocalData === "function") {
+
+        refreshSyncAuditFromLocalData();
+
+    }
 
 }
 
