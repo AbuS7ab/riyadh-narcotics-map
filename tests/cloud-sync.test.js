@@ -330,6 +330,31 @@ test("refresh detects a remote revision and updates the local cache", async () =
 });
 
 
+test("audit peek reads fresh cloud data without advancing the application cache", async () => {
+
+    const { debug, supabase } = await createCloudRuntime();
+    const previousVersion = debug.versions.facilityStatus;
+
+    supabase.replaceRow("facilityStatus", {
+        key: "facilityStatus",
+        value: { 100: { visitStatus: "visited" } },
+        updated_at: "2026-07-20T03:30:00.000Z"
+    });
+
+    const snapshot = await debug.peekObjectStrict("facilityStatus");
+
+    assert.equal(snapshot[100].visitStatus, "visited");
+    assert.equal(debug.versions.facilityStatus, previousVersion);
+    assert.equal(Object.keys(debug.loadFacilityStatus()).length, 0);
+
+    const changedKeys = await debug.refresh();
+
+    assert.equal(Array.from(changedKeys).includes("facilityStatus"), true);
+    assert.equal(debug.loadFacilityStatus()[100].visitStatus, "visited");
+
+});
+
+
 test("a failed refresh restores the previous cache atomically", async () => {
 
     const { debug, supabase } = await createCloudRuntime();

@@ -134,6 +134,15 @@ compensating rollback: if a later write fails, only records already changed by
 that operation are restored. This is not a database transaction, so normalized
 tables and a server-side transaction/RPC remain the long-term architecture.
 
+The administrator synchronization-audit panel reads the latest users,
+employees, assignments, and facility status without modifying them. It reports
+broken references, duplicate or missing identifiers, participant gaps, and
+assignment/visit state mismatches. Automatic recovery is intentionally limited
+to a completed visit that still has an open assignment when the visit and
+assignment have the same identifiers, facility, and committee. Every recovery
+is revalidated against fresh cloud data and requires an administrator preview
+and confirmation.
+
 `localStorage` remains a backup/cache for these keys:
 
 - `narcoUsers`
@@ -157,10 +166,11 @@ npm run ci
 ```
 
 The test suite is split into cloud synchronization, visit workflow, assignment
-workflow, and administrator write-safety tests. It covers optimistic locking,
-stale-write rejection, serialization, immutable cache reads, insert/update
-conflicts, atomic refresh, visit idempotency, failed writes, selective rollback,
-incomplete visits, assignment replacement protection, and concurrent bulk
+workflow, administrator write-safety, and synchronization-audit tests. It
+covers optimistic locking, stale-write rejection, serialization, immutable
+cache reads, insert/update conflicts, atomic refresh, visit idempotency, failed
+writes, selective rollback, incomplete visits, assignment replacement
+protection, and concurrent bulk
 assignment operations. Administrator tests also verify same-record conflict
 rejection, preservation of unrelated remote records, in-memory commit only
 after cloud success, and compensating rollback for a partially failed import.
