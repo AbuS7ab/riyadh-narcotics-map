@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "test:staging-auth": "node scripts/run-staging-authorization.mjs",
+    "test:staging-auth": "node --env-file=.env.staging.local scripts/run-staging-authorization.mjs",
     "check:syntax": "node scripts/check-js.js",
     "check": "npm run check:syntax && git diff --check",
     "ci": "npm run check && npm test"
