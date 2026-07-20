@@ -11,5 +11,6 @@ __pycache__/
 # Temporary files
 *.tmp
 *.log
+.env*.local
 # Excel Files
 *.xlsx
