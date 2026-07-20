@@ -953,9 +953,25 @@ function showFacilityDetails(facility) {
 
     if (deleteCustomFacilityButton) {
 
-        deleteCustomFacilityButton.addEventListener("click", () => {
+        deleteCustomFacilityButton.addEventListener("click", async () => {
 
-            deleteCustomFacility(facility.license);
+            if (deleteCustomFacilityButton.disabled) return;
+
+            deleteCustomFacilityButton.disabled = true;
+
+            try {
+
+                await deleteCustomFacility(facility.license);
+
+            } catch (error) {
+
+                window.alert("تعذر حذف المنشأة بسبب مشكلة مزامنة.");
+
+            } finally {
+
+                deleteCustomFacilityButton.disabled = false;
+
+            }
 
         });
 

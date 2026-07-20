@@ -88,6 +88,36 @@ class CloudConflictError extends Error {
 }
 
 
+class CloudRecordConflictError extends Error {
+
+    constructor(key, recordKey) {
+
+        super(`Cloud record ${recordKey} changed before ${key} could be saved.`);
+        this.name = "CloudRecordConflictError";
+        this.code = "CLOUD_RECORD_CONFLICT";
+        this.cloudKey = key;
+        this.recordKey = recordKey;
+
+    }
+
+}
+
+
+class CloudRollbackError extends Error {
+
+    constructor(originalError, rollbackErrors) {
+
+        super("Cloud write failed and one or more compensating writes also failed.");
+        this.name = "CloudRollbackError";
+        this.code = "CLOUD_ROLLBACK_FAILED";
+        this.originalError = originalError;
+        this.rollbackErrors = rollbackErrors;
+
+    }
+
+}
+
+
 function cloneCloudValue(value) {
 
     if (typeof structuredClone === "function") {
@@ -97,6 +127,48 @@ function cloneCloudValue(value) {
     }
 
     return JSON.parse(JSON.stringify(value));
+
+}
+
+
+function cloudValuesEqual(first, second) {
+
+    return JSON.stringify(first) === JSON.stringify(second);
+
+}
+
+
+function hasCloudRecord(collection, recordKey) {
+
+    return Object.prototype.hasOwnProperty.call(collection, recordKey);
+
+}
+
+
+function createCloudCollectionPatch(previousValue, nextValue) {
+
+    if (!isPortableDataObject(previousValue) || !isPortableDataObject(nextValue)) {
+
+        throw new Error("Cloud collection changes require two objects.");
+
+    }
+
+    const removals = Object.keys(previousValue).filter(recordKey => {
+
+        return !hasCloudRecord(nextValue, recordKey);
+
+    });
+    const upserts = Object.keys(nextValue).filter(recordKey => {
+
+        return !hasCloudRecord(previousValue, recordKey) ||
+            !cloudValuesEqual(previousValue[recordKey], nextValue[recordKey]);
+
+    }).map(recordKey => ({
+        recordKey,
+        value: cloneCloudValue(nextValue[recordKey])
+    }));
+
+    return { removals, upserts };
 
 }
 
@@ -509,6 +581,177 @@ async function mutateCloudObject(key, mutation, options = {}) {
     }
 
     throw lastError;
+
+}
+
+
+async function mutateCloudCollection(key, previousValue, nextValue, options = {}) {
+
+    const previous = cloneCloudValue(previousValue);
+    const patch = createCloudCollectionPatch(previous, nextValue);
+
+    if (patch.removals.length === 0 && patch.upserts.length === 0) {
+
+        return previous;
+
+    }
+
+    return mutateCloudObject(key, currentValue => {
+
+        patch.removals.forEach(recordKey => {
+
+            if (hasCloudRecord(currentValue, recordKey) &&
+                !cloudValuesEqual(currentValue[recordKey], previous[recordKey])) {
+
+                throw new CloudRecordConflictError(key, recordKey);
+
+            }
+
+            delete currentValue[recordKey];
+
+        });
+
+        patch.upserts.forEach(({ recordKey, value }) => {
+
+            const existedPreviously = hasCloudRecord(previous, recordKey);
+            const existsRemotely = hasCloudRecord(currentValue, recordKey);
+            const remoteMatchesPrevious = existedPreviously &&
+                existsRemotely &&
+                cloudValuesEqual(currentValue[recordKey], previous[recordKey]);
+            const remoteMatchesNext = existsRemotely &&
+                cloudValuesEqual(currentValue[recordKey], value);
+
+            if ((existedPreviously && !remoteMatchesPrevious && !remoteMatchesNext) ||
+                (!existedPreviously && existsRemotely && !remoteMatchesNext)) {
+
+                throw new CloudRecordConflictError(key, recordKey);
+
+            }
+
+            currentValue[recordKey] = cloneCloudValue(value);
+
+        });
+
+        return currentValue;
+
+    }, options);
+
+}
+
+
+function createCollectionRollbackValue(savedValue, previousValue, patch) {
+
+    const rollbackValue = cloneCloudValue(savedValue);
+    const touchedKeys = new Set([
+        ...patch.removals,
+        ...patch.upserts.map(upsert => upsert.recordKey)
+    ]);
+
+    touchedKeys.forEach(recordKey => {
+
+        if (hasCloudRecord(previousValue, recordKey)) {
+
+            rollbackValue[recordKey] = cloneCloudValue(previousValue[recordKey]);
+
+        } else {
+
+            delete rollbackValue[recordKey];
+
+        }
+
+    });
+
+    return rollbackValue;
+
+}
+
+
+async function mutateCloudCollectionsWithRollback(changes) {
+
+    if (!Array.isArray(changes) || changes.length === 0) return {};
+
+    const duplicateKeys = changes.map(change => change.key).filter((key, index, keys) => {
+
+        return keys.indexOf(key) !== index;
+
+    });
+
+    if (duplicateKeys.length > 0) {
+
+        throw new Error(`Duplicate cloud collection change: ${duplicateKeys[0]}`);
+
+    }
+
+    const completedChanges = [];
+    const results = {};
+
+    try {
+
+        for (const change of changes) {
+
+            const previousValue = cloneCloudValue(change.previousValue);
+            const nextValue = cloneCloudValue(change.nextValue);
+            const patch = createCloudCollectionPatch(previousValue, nextValue);
+            const savedValue = await mutateCloudCollection(
+                change.key,
+                previousValue,
+                nextValue
+            );
+
+            results[change.key] = savedValue;
+
+            if (patch.removals.length > 0 || patch.upserts.length > 0) {
+
+                completedChanges.push({
+                    key: change.key,
+                    savedValue,
+                    rollbackValue: createCollectionRollbackValue(
+                        savedValue,
+                        previousValue,
+                        patch
+                    )
+                });
+
+            }
+
+        }
+
+        return results;
+
+    } catch (originalError) {
+
+        const rollbackErrors = [];
+
+        for (const completedChange of [...completedChanges].reverse()) {
+
+            try {
+
+                await mutateCloudCollection(
+                    completedChange.key,
+                    completedChange.savedValue,
+                    completedChange.rollbackValue
+                );
+
+            } catch (rollbackError) {
+
+                rollbackErrors.push({
+                    key: completedChange.key,
+                    error: rollbackError
+                });
+
+            }
+
+        }
+
+        if (rollbackErrors.length > 0) {
+
+            throw new CloudRollbackError(originalError, rollbackErrors);
+
+        }
+
+        throw originalError;
+
+    }
 
 }
 
@@ -939,6 +1182,8 @@ window.cloudDebug = {
     readObjectStrict: readCloudObjectStrict,
     writeObject: writeCloudObject,
     mutateObject: mutateCloudObject,
+    mutateCollection: mutateCloudCollection,
+    mutateCollectionsWithRollback: mutateCloudCollectionsWithRollback,
     refresh: refreshCloudData,
     startRefresh: startCloudRefresh,
     testWrite: testCloudWrite,

@@ -227,27 +227,19 @@ function normalizeFacilityStatus(status) {
 
 
 // إنشاء حالة افتراضية لكل منشأة
-function createFacilityStatus(license, options = {}) {
+function createFacilityStatus(license) {
 
     const existingStatus = facilityStatus[String(license)];
 
     if (existingStatus) {
 
-        if (normalizeFacilityStatus(existingStatus) && options.persist !== false) {
-            saveFacilityStatus(facilityStatus);
-        }
+        normalizeFacilityStatus(existingStatus);
 
         return;
 
     }
 
     facilityStatus[String(license)] = getDefaultFacilityStatus();
-
-    if (options.persist !== false) {
-
-        saveFacilityStatus(facilityStatus);
-
-    }
 
 }
 
@@ -424,128 +416,156 @@ function getAnnualVisitCount(license, year = new Date().getFullYear()) {
 }
 
 
-function clearFacilityVisits(license) {
+async function mutateFacilityRecord(license, mutation) {
 
-    if (typeof isAdminUser === "function" && !isAdminUser()) return;
+    const normalizedLicense = String(license);
 
-    const facility = getFacilityStatus(license);
+    facilityStatus = await mutateCloudObject("facilityStatus", nextStatus => {
 
-    if (!facility) return;
+        const facility = nextStatus[normalizedLicense];
 
-    facility.visits = [];
+        if (!facility) return nextStatus;
 
-    syncLatestVisitState(facility);
+        normalizeFacilityStatus(facility);
+        mutation(facility);
 
-    saveFacilityStatus(facilityStatus);
+        return nextStatus;
+
+    });
+
+    if (typeof invalidateEmployeePerformanceCache === "function") {
+
+        invalidateEmployeePerformanceCache();
+
+    }
+
+    return facilityStatus[normalizedLicense] || null;
 
 }
 
 
-function resetAllVisits() {
+async function clearFacilityVisits(license) {
 
     if (typeof isAdminUser === "function" && !isAdminUser()) return;
 
-    Object.values(facilityStatus).forEach(status => {
+    return mutateFacilityRecord(license, facility => {
 
-        status.visits = [];
-
-        syncLatestVisitState(status);
+        facility.visits = [];
+        syncLatestVisitState(facility);
 
     });
 
-    saveFacilityStatus(facilityStatus);
+}
+
+
+async function resetAllVisits() {
+
+    if (typeof isAdminUser === "function" && !isAdminUser()) return;
+
+    facilityStatus = await mutateCloudObject("facilityStatus", nextStatus => {
+
+        Object.values(nextStatus).forEach(status => {
+
+            normalizeFacilityStatus(status);
+            status.visits = [];
+            syncLatestVisitState(status);
+
+        });
+
+        return nextStatus;
+
+    });
+
+    if (typeof invalidateEmployeePerformanceCache === "function") {
+
+        invalidateEmployeePerformanceCache();
+
+    }
+
+    return facilityStatus;
 
 }
 
 
 // تحديث حالة الزيارة
-function setVisitStatus(license, status) {
-
-    const facility = getFacilityStatus(license);
-
-    if (!facility) return;
+async function setVisitStatus(license, status) {
 
     if (!["pending", "visited", "partial"].includes(status)) return;
 
-    const latestVisit = getLatestVisit(facility);
+    return mutateFacilityRecord(license, facility => {
 
-    if (latestVisit) {
+        const latestVisit = getLatestVisit(facility);
 
-        latestVisit.visitStatus = status;
-        syncLatestVisitState(facility);
+        if (latestVisit) {
 
-    } else {
+            latestVisit.visitStatus = status;
+            syncLatestVisitState(facility);
 
-        facility.visitStatus = status;
+        } else {
 
-    }
+            facility.visitStatus = status;
 
-    saveFacilityStatus(facilityStatus);
+        }
+
+    });
 
 }
 
 
 // تحديث المخالفة
-function setViolation(license, value) {
+async function setViolation(license, value) {
 
-    const facility = getFacilityStatus(license);
+    return mutateFacilityRecord(license, facility => {
 
-    if (!facility) return;
+        const latestVisit = getLatestVisit(facility);
 
-    const latestVisit = getLatestVisit(facility);
+        if (latestVisit) {
 
-    if (latestVisit) {
+            latestVisit.violation = value;
+            syncLatestVisitState(facility);
 
-        latestVisit.violation = value;
-        syncLatestVisitState(facility);
+        } else {
 
-    } else {
+            facility.violation = value;
 
-        facility.violation = value;
+        }
 
-    }
-
-    saveFacilityStatus(facilityStatus);
+    });
 
 }
 
 
 // إسناد لجنة
-function assignCommittee(license, committeeName) {
+async function assignCommittee(license, committeeName) {
 
-    const facility = getFacilityStatus(license);
+    return mutateFacilityRecord(license, facility => {
 
-    if (!facility) return;
+        facility.assigned = true;
+        facility.committee = committeeName;
 
-    facility.assigned = true;
-
-    facility.committee = committeeName;
-
-    saveFacilityStatus(facilityStatus);
+    });
 
 }
 
 
 // إضافة ملاحظات
-function setNotes(license, notes) {
+async function setNotes(license, notes) {
 
-    const facility = getFacilityStatus(license);
+    return mutateFacilityRecord(license, facility => {
 
-    if (!facility) return;
+        const latestVisit = getLatestVisit(facility);
 
-    const latestVisit = getLatestVisit(facility);
+        if (latestVisit) {
 
-    if (latestVisit) {
+            latestVisit.notes = notes;
+            syncLatestVisitState(facility);
 
-        latestVisit.notes = notes;
-        syncLatestVisitState(facility);
+        } else {
 
-    } else {
+            facility.notes = notes;
 
-        facility.notes = notes;
+        }
 
-    }
-
-    saveFacilityStatus(facilityStatus);
+    });
 
 }

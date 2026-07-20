@@ -13,19 +13,22 @@ const externalMissionStatuses = ["جديدة", "قيد التنفيذ", "مكت�
 
 async function initializeExternalVisitsState() {
 
-    externalVisits = loadExternalVisits();
-    const migrated = migrateExternalMissionRecords(externalVisits);
-
-    externalVisits = migrated.records;
+    const previousExternalVisits = loadExternalVisits();
+    const migrated = migrateExternalMissionRecords(previousExternalVisits);
 
     if (migrated.changed) {
 
-        await saveExternalVisits(externalVisits);
+        externalVisits = await mutateCloudCollection(
+            "externalVisits",
+            previousExternalVisits,
+            migrated.records
+        );
 
         return;
 
     }
 
+    externalVisits = migrated.records;
     await seedCloudKey("externalVisits", externalVisits);
 
 }
@@ -404,15 +407,19 @@ function showExternalVisitMessage(text, className) {
 
 async function persistExternalVisits(nextExternalVisits) {
 
-    externalVisits = nextExternalVisits;
+    const savedExternalVisits = await mutateCloudCollection(
+        "externalVisits",
+        externalVisits,
+        nextExternalVisits
+    );
+
+    externalVisits = savedExternalVisits;
 
     if (typeof invalidateEmployeePerformanceCache === "function") {
 
         invalidateEmployeePerformanceCache();
 
     }
-
-    await saveExternalVisits(externalVisits);
 
     if (typeof updateDashboard === "function") {
 
@@ -684,9 +691,25 @@ function showExternalVisitDetails(externalVisitId) {
 
     if (deleteButton) {
 
-        deleteButton.addEventListener("click", () => {
+        deleteButton.addEventListener("click", async () => {
 
-            deleteExternalVisit(getExternalMissionId(visit));
+            if (deleteButton.disabled) return;
+
+            deleteButton.disabled = true;
+
+            try {
+
+                await deleteExternalVisit(getExternalMissionId(visit));
+
+            } catch (error) {
+
+                showExternalVisitMessage("تعذر حذف المهمة خارج الخطة.", "text-danger");
+
+            } finally {
+
+                deleteButton.disabled = false;
+
+            }
 
         });
 
@@ -901,15 +924,28 @@ function initializeExternalVisitControls() {
 
     if (form) {
 
-        form.addEventListener("submit", event => {
+        form.addEventListener("submit", async event => {
 
             event.preventDefault();
 
-            saveExternalVisitFromForm().catch(() => {
+            const submitButton = document.getElementById("saveExternalVisit");
+
+            if (submitButton && submitButton.disabled) return;
+            if (submitButton) submitButton.disabled = true;
+
+            try {
+
+                await saveExternalVisitFromForm();
+
+            } catch (error) {
 
                 showExternalVisitMessage("تعذر حفظ المهمة خارج الخطة.", "text-danger");
 
-            });
+            } finally {
+
+                if (submitButton) submitButton.disabled = false;
+
+            }
 
         });
 

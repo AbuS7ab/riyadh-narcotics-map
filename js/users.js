@@ -77,12 +77,17 @@ async function initializeUsers() {
 
     if (!storedUsers || Object.keys(storedUsers).length === 0) {
 
-        await saveUsers(defaultUsersByUsername);
+        const savedUsers = await mutateCloudCollection(
+            "users",
+            storedUsers || {},
+            defaultUsersByUsername
+        );
 
-        return defaultUsersByUsername;
+        return savedUsers;
 
     }
 
+    const previousUsers = JSON.parse(JSON.stringify(storedUsers));
     let changed = false;
 
     if (!storedUsers.admin) {
@@ -140,7 +145,7 @@ async function initializeUsers() {
 
     if (changed) {
 
-        await saveUsers(storedUsers);
+        return mutateCloudCollection("users", previousUsers, storedUsers);
 
     }
 
@@ -149,7 +154,7 @@ async function initializeUsers() {
 }
 
 
-function normalizeAssignments(storedAssignments, options = {}) {
+function normalizeAssignments(storedAssignments) {
 
     if (!storedAssignments ||
         typeof storedAssignments !== "object" ||
@@ -159,28 +164,23 @@ function normalizeAssignments(storedAssignments, options = {}) {
 
     }
 
-    let changed = false;
-
     Object.values(storedAssignments).forEach(assignment => {
 
         if (!assignmentStatuses.includes(assignment.status)) {
 
             assignment.status = "assigned";
-            changed = true;
 
         }
 
         if (!assignment.id) {
 
             assignment.id = createAssignmentId(assignment.facilityLicense);
-            changed = true;
 
         }
 
         if (!assignment.visitType) {
 
             assignment.visitType = "periodic";
-            changed = true;
 
         }
 
@@ -189,17 +189,10 @@ function normalizeAssignments(storedAssignments, options = {}) {
             assignment.visitReason = assignment.visitType === "reactive"
                 ? ""
                 : "الخطة الدورية";
-            changed = true;
 
         }
 
     });
-
-    if (changed && options.persist !== false) {
-
-        saveAssignments(storedAssignments);
-
-    }
 
     return storedAssignments;
 
@@ -210,9 +203,7 @@ async function initializeUserState() {
 
     users = await initializeUsers();
     currentUser = currentUsername ? users[currentUsername] || null : null;
-    facilityAssignments = normalizeAssignments(loadAssignments(), {
-        persist: false
-    });
+    facilityAssignments = normalizeAssignments(loadAssignments());
 
     await seedCloudKey(assignmentsStorageKey, facilityAssignments);
 
@@ -357,47 +348,55 @@ function updateUser(username, updates, options = {}) {
 
     if (!user) return;
 
+    const nextUsers = {
+        ...users,
+        [username]: { ...user }
+    };
+    const nextUser = nextUsers[username];
+
     if (typeof updates.displayName === "string") {
 
-        user.displayName = updates.displayName;
+        nextUser.displayName = updates.displayName;
 
     }
 
     if (typeof updates.committeeName === "string") {
 
-        user.committeeName = updates.committeeName;
+        nextUser.committeeName = updates.committeeName;
 
     }
 
     if (typeof updates.password === "string" && updates.password.trim() !== "") {
 
-        user.password = updates.password;
+        nextUser.password = updates.password;
 
     }
 
     if (updates.team && typeof updates.team === "object") {
 
-        user.team = normalizeTeam(updates.team);
+        nextUser.team = normalizeTeam(updates.team);
 
     }
 
-    if (user.role === "committee" && typeof updates.active === "boolean") {
+    if (nextUser.role === "committee" && typeof updates.active === "boolean") {
 
-        user.active = updates.active;
+        nextUser.active = updates.active;
 
     }
 
-    if (user.role === "admin") {
+    if (nextUser.role === "admin") {
 
-        user.active = true;
+        nextUser.active = true;
 
     }
 
     if (options.persist !== false) {
 
-        return saveUsers(users);
+        return persistUsers(nextUsers);
 
     }
+
+    users = nextUsers;
 
     return Promise.resolve();
 
@@ -2138,9 +2137,9 @@ async function persistUsers(nextUsers) {
 
     }
 
-    users = nextUsers;
+    const savedUsers = await mutateCloudCollection("users", users, nextUsers);
 
-    await saveUsers(users, { throwOnError: true });
+    users = savedUsers;
 
     renderUsersPanel();
     renderCommitteeAssignmentCards();
@@ -2235,20 +2234,45 @@ async function importAppData(file) {
 
         }
 
-        await Promise.all([
-            saveUsers(importedData.users),
-            saveAssignments(importedData.facilityAssignments),
-            saveFacilityStatus(importedData.facilityStatus),
-            isPortableDataObject(importedData.employees)
-                ? saveEmployees(importedData.employees)
-                : Promise.resolve()
-        ]);
+        const changes = [
+            {
+                key: "users",
+                previousValue: users,
+                nextValue: importedData.users
+            },
+            {
+                key: "facilityAssignments",
+                previousValue: loadAssignments(),
+                nextValue: importedData.facilityAssignments
+            },
+            {
+                key: "facilityStatus",
+                previousValue: facilityStatus,
+                nextValue: importedData.facilityStatus
+            }
+        ];
+
+        if (isPortableDataObject(importedData.employees)) {
+
+            changes.push({
+                key: "employees",
+                previousValue: typeof employees === "undefined" ? {} : employees,
+                nextValue: importedData.employees
+            });
+
+        }
 
         if (isPortableDataObject(importedData.appSettings)) {
 
-            await saveAppSettings(importedData.appSettings);
+            changes.push({
+                key: "appSettings",
+                previousValue: loadAppSettings(),
+                nextValue: importedData.appSettings
+            });
 
         }
+
+        await mutateCloudCollectionsWithRollback(changes);
 
         showDataPortabilityMessage("تم استيراد البيانات. سيتم تحديث التطبيق...", "text-success");
 
@@ -2256,7 +2280,17 @@ async function importAppData(file) {
 
     } catch (error) {
 
-        showDataPortabilityMessage("تعذر قراءة ملف البيانات.", "text-danger");
+        console.error("[DataImport] import failed", {
+            code: error && error.code || "IMPORT_FAILED",
+            error
+        });
+
+        showDataPortabilityMessage(
+            error && error.code === "CLOUD_ROLLBACK_FAILED"
+                ? "فشل الاستيراد وتعذر التراجع الكامل. أوقف التعديلات وراجع سجل المزامنة."
+                : "تعذر استيراد البيانات أو مزامنتها، ولم يُعرض الاستيراد كعملية ناجحة.",
+            "text-danger"
+        );
 
     }
 
@@ -2272,10 +2306,22 @@ function initializeDataPortability() {
 
     exportButton.addEventListener("click", exportAppData);
 
-    importInput.addEventListener("change", event => {
+    importInput.addEventListener("change", async event => {
 
-        importAppData(event.target.files[0]);
-        event.target.value = "";
+        if (importInput.disabled) return;
+
+        importInput.disabled = true;
+
+        try {
+
+            await importAppData(event.target.files[0]);
+
+        } finally {
+
+            event.target.value = "";
+            importInput.disabled = false;
+
+        }
 
     });
 
@@ -2333,6 +2379,10 @@ function initializeUsersPanel() {
         addCommitteeForm.addEventListener("submit", async event => {
 
             event.preventDefault();
+
+            const submitButton = addCommitteeForm.querySelector('[type="submit"]');
+
+            if (submitButton && submitButton.disabled) return;
 
             const committeeName = document.getElementById("newCommitteeName").value.trim();
             const username = document.getElementById("newCommitteeUsername").value.trim();
@@ -2412,6 +2462,8 @@ function initializeUsersPanel() {
                 }
             };
 
+            if (submitButton) submitButton.disabled = true;
+
             try {
 
                 if (await persistUsers(nextUsers)) {
@@ -2427,6 +2479,10 @@ function initializeUsersPanel() {
             } catch (error) {
 
                 showUsersSaveMessage("تعذر حفظ اللجنة الجديدة.", "text-danger");
+
+            } finally {
+
+                if (submitButton) submitButton.disabled = false;
 
             }
 

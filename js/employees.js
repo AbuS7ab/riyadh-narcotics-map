@@ -130,17 +130,62 @@ function migrateCommitteeEmployees(currentUsers, currentEmployees) {
 
 async function initializeEmployeesState() {
 
-    const migrated = migrateCommitteeEmployees(users, loadEmployees());
+    const previousEmployees = loadEmployees();
+    const previousUsers = users;
+    const migrated = migrateCommitteeEmployees(previousUsers, previousEmployees);
+    const changes = [];
 
-    employees = migrated.employees;
-    users = migrated.users;
+    if (migrated.employeesChanged) {
 
-    if (migrated.employeesChanged) await saveEmployees(employees);
-    else await seedCloudKey("employees", employees);
+        changes.push({
+            key: "employees",
+            previousValue: previousEmployees,
+            nextValue: migrated.employees
+        });
 
-    if (migrated.usersChanged) await saveUsers(users);
+    }
+
+    if (migrated.usersChanged) {
+
+        changes.push({
+            key: "users",
+            previousValue: previousUsers,
+            nextValue: migrated.users
+        });
+
+    }
+
+    const savedCollections = changes.length > 0
+        ? await mutateCloudCollectionsWithRollback(changes)
+        : {};
+
+    employees = savedCollections.employees || migrated.employees;
+    users = savedCollections.users || migrated.users;
+
+    if (!migrated.employeesChanged) await seedCloudKey("employees", employees);
 
     currentUser = currentUsername ? users[currentUsername] || null : null;
+
+}
+
+
+async function persistEmployees(nextEmployees) {
+
+    const savedEmployees = await mutateCloudCollection(
+        "employees",
+        employees,
+        nextEmployees
+    );
+
+    employees = savedEmployees;
+
+    if (typeof invalidateEmployeePerformanceCache === "function") {
+
+        invalidateEmployeePerformanceCache();
+
+    }
+
+    return employees;
 
 }
 
@@ -294,7 +339,7 @@ async function saveEmployeeFromForm() {
     const employeeId = existing ? existing.id : createEmployeeId();
     const now = new Date().toISOString();
 
-    employees = {
+    const nextEmployees = {
         ...employees,
         [employeeId]: {
             ...(existing || {}),
@@ -308,7 +353,7 @@ async function saveEmployeeFromForm() {
         }
     };
 
-    await saveEmployees(employees);
+    await persistEmployees(nextEmployees);
     resetEmployeeForm();
     renderEmployeesPanel();
     renderUsersPanel();
@@ -699,8 +744,7 @@ async function deleteEmployee(employeeId) {
     const nextEmployees = { ...employees };
 
     delete nextEmployees[String(employeeId)];
-    employees = nextEmployees;
-    await saveEmployees(employees);
+    await persistEmployees(nextEmployees);
     renderEmployeesPanel();
     renderUsersPanel();
     updateEmployeeDashboard();
@@ -745,13 +789,25 @@ function renderEmployeesPanel() {
     });
     body.querySelectorAll(".employee-delete").forEach(button => {
 
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
 
-            deleteEmployee(button.dataset.id).catch(() => {
+            if (button.disabled) return;
+
+            button.disabled = true;
+
+            try {
+
+                await deleteEmployee(button.dataset.id);
+
+            } catch (error) {
 
                 showEmployeeMessage("تعذر حذف الموظف.", "text-danger");
 
-            });
+            } finally {
+
+                button.disabled = false;
+
+            }
 
         });
 
@@ -783,10 +839,28 @@ function initializeEmployeesInterface() {
     const cancel = document.getElementById("cancelEmployeeEdit");
 
     renderEmployeesPanel();
-    if (form) form.addEventListener("submit", event => {
+    if (form) form.addEventListener("submit", async event => {
 
         event.preventDefault();
-        saveEmployeeFromForm().catch(() => showEmployeeMessage("تعذر حفظ الموظف.", "text-danger"));
+
+        const submitButton = form.querySelector('[type="submit"]');
+
+        if (submitButton && submitButton.disabled) return;
+        if (submitButton) submitButton.disabled = true;
+
+        try {
+
+            await saveEmployeeFromForm();
+
+        } catch (error) {
+
+            showEmployeeMessage("تعذر حفظ الموظف.", "text-danger");
+
+        } finally {
+
+            if (submitButton) submitButton.disabled = false;
+
+        }
 
     });
     if (search) search.addEventListener("input", renderEmployeesPanel);

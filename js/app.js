@@ -248,9 +248,7 @@ function syncFacilityCollections() {
 
     mergedFacilities.forEach(facility => {
 
-        createFacilityStatus(facility.license, {
-            persist: false
-        });
+        createFacilityStatus(facility.license);
 
     });
 
@@ -296,9 +294,7 @@ function applyRemoteCloudData(event) {
 
     if (changedKeys.includes("facilityAssignments")) {
 
-        facilityAssignments = normalizeAssignments(loadAssignments(), {
-            persist: false
-        });
+        facilityAssignments = normalizeAssignments(loadAssignments());
 
     }
 
@@ -511,9 +507,13 @@ function resetCustomFacilityForm() {
 
 async function persistCustomFacilities(nextCustomFacilities) {
 
-    customFacilities = nextCustomFacilities;
+    const savedCustomFacilities = await mutateCloudCollection(
+        "customFacilities",
+        customFacilities,
+        nextCustomFacilities
+    );
 
-    await saveCustomFacilities(customFacilities);
+    customFacilities = savedCustomFacilities;
 
     syncFacilityCollections();
 
@@ -522,9 +522,13 @@ async function persistCustomFacilities(nextCustomFacilities) {
 
 async function persistFacilityOverrides(nextFacilityOverrides) {
 
-    facilityOverrides = nextFacilityOverrides;
+    const savedFacilityOverrides = await mutateCloudCollection(
+        "facilityOverrides",
+        facilityOverrides,
+        nextFacilityOverrides
+    );
 
-    await saveFacilityOverrides(facilityOverrides);
+    facilityOverrides = savedFacilityOverrides;
 
     syncFacilityCollections();
 
@@ -649,9 +653,22 @@ async function deleteCustomFacility(license) {
     delete nextCustomFacilities[key];
     delete nextFacilityOverrides[key];
 
-    facilityOverrides = nextFacilityOverrides;
-    await saveFacilityOverrides(facilityOverrides);
-    await persistCustomFacilities(nextCustomFacilities);
+    const savedCollections = await mutateCloudCollectionsWithRollback([
+        {
+            key: "facilityOverrides",
+            previousValue: facilityOverrides,
+            nextValue: nextFacilityOverrides
+        },
+        {
+            key: "customFacilities",
+            previousValue: customFacilities,
+            nextValue: nextCustomFacilities
+        }
+    ]);
+
+    facilityOverrides = savedCollections.facilityOverrides;
+    customFacilities = savedCollections.customFacilities;
+    syncFacilityCollections();
     showDashboardNeutralState();
 
 }
@@ -680,15 +697,28 @@ function initializeCustomFacilitiesPanel() {
 
     });
 
-    form.addEventListener("submit", event => {
+    form.addEventListener("submit", async event => {
 
         event.preventDefault();
 
-        saveCustomFacilityFromForm().catch(() => {
+        const submitButton = document.getElementById("customFacilitySubmit");
+
+        if (submitButton && submitButton.disabled) return;
+        if (submitButton) submitButton.disabled = true;
+
+        try {
+
+            await saveCustomFacilityFromForm();
+
+        } catch (error) {
 
             showCustomFacilityMessage("تعذر حفظ المنشأة.", "text-danger");
 
-        });
+        } finally {
+
+            if (submitButton) submitButton.disabled = false;
+
+        }
 
     });
 
