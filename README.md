@@ -142,15 +142,21 @@ roles as a production security boundary.
 
 ## Synchronization tests
 
-Run the Node.js regression suite without installing dependencies:
+Run the full local CI command without installing dependencies:
 
 ```bash
-node --test tests/sync-foundation.test.js
+npm run ci
 ```
 
-The suite covers optimistic locking, stale-write rejection, same-key write
-serialization, immutable cache reads, conflict retries, concurrent semantic
-mutations, remote refresh, and atomic refresh rollback.
+The test suite is split into cloud synchronization, visit workflow, and
+assignment workflow tests. It covers optimistic locking, stale-write
+rejection, serialization, immutable cache reads, insert/update conflicts,
+atomic refresh, visit idempotency, failed writes, selective rollback,
+incomplete visits, assignment replacement protection, and concurrent bulk
+assignment operations.
+
+GitHub Actions runs the same command for every pull request targeting `main`
+and for every push to `main`.
 
 ## Deployment
 

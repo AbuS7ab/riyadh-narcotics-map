@@ -1,0 +1,14 @@
+{
+  "name": "narco-compliance",
+  "version": "0.9.31",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "check:syntax": "node scripts/check-js.js",
+    "check": "npm run check:syntax && git diff --check",
+    "ci": "npm run check && npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
