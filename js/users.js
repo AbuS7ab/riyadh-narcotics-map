@@ -231,6 +231,28 @@ function isCommitteeUser() {
 }
 
 
+function isViewerUser() {
+
+    return Boolean(
+        currentUser &&
+        currentUser.active &&
+        currentUser.role === "viewer"
+    );
+
+}
+
+
+function isAuthenticatedUser() {
+
+    return Boolean(
+        isAdminUser() ||
+        isCommitteeUser() ||
+        isViewerUser()
+    );
+
+}
+
+
 function getUsers() {
 
     return Object.values(users)
@@ -286,7 +308,7 @@ function validateUsersObject(nextUsers) {
 
         }
 
-        if (!["admin", "committee"].includes(user.role)) {
+        if (!["admin", "committee", "viewer"].includes(user.role)) {
 
             return "دور المستخدم غير صالح.";
 
@@ -308,6 +330,13 @@ function validateUsersObject(nextUsers) {
         if (user.role === "committee" && !user.team) {
 
             return "بيانات فريق اللجنة مطلوبة.";
+
+        }
+
+        if (user.role === "viewer" &&
+            (typeof user.displayName !== "string" || user.displayName.trim() === "")) {
+
+            return "الاسم المعروض مطلوب لكل حساب مطّلع إداري.";
 
         }
 
@@ -344,6 +373,8 @@ function canDeleteUser(username) {
 
 function updateUser(username, updates, options = {}) {
 
+    if (!isAdminUser()) return;
+
     const user = users[username];
 
     if (!user) return;
@@ -378,7 +409,8 @@ function updateUser(username, updates, options = {}) {
 
     }
 
-    if (nextUser.role === "committee" && typeof updates.active === "boolean") {
+    if (["committee", "viewer"].includes(nextUser.role) &&
+        typeof updates.active === "boolean") {
 
         nextUser.active = updates.active;
 
@@ -614,6 +646,8 @@ async function assignFacilityToCommittee(
     status = "assigned",
     options = {}
 ) {
+
+    if (!isAdminUser()) return false;
 
     const committee = users[committeeUsername];
 
@@ -1293,7 +1327,7 @@ async function smartAssignFacilities(
 
 function getAccessibleFacilities(facilities) {
 
-    if (isAdminUser()) return facilities;
+    if (isAdminUser() || isViewerUser()) return facilities;
 
     if (!isCommitteeUser()) return [];
 
@@ -1386,7 +1420,7 @@ function renderCommitteeAssignmentCards() {
 
     const container = document.getElementById("committeeCards");
 
-    if (!container || !isAdminUser()) return;
+    if (!container || (!isAdminUser() && !isViewerUser())) return;
 
     container.innerHTML = getCommitteeUsers().map(committee => {
 
@@ -1394,10 +1428,11 @@ function renderCommitteeAssignmentCards() {
         const progressClass = getCompletionRateClass(kpis.completionRate);
 
         return `
-            <article class="committee-card ${selectedCommitteeUsername === committee.username ? "active" : ""}"
+            <article class="committee-card ${isAdminUser() && selectedCommitteeUsername === committee.username ? "active" : ""}"
                      data-committee-username="${committee.username}"
-                     role="button" tabindex="0"
-                     aria-pressed="${selectedCommitteeUsername === committee.username}">
+                     ${isAdminUser()
+                        ? `role="button" tabindex="0" aria-pressed="${selectedCommitteeUsername === committee.username}"`
+                        : 'role="article"'}>
                 <div class="committee-card-header">
                     <div>
                         <h6>${escapeHtml(committee.committeeName)}</h6>
@@ -1422,6 +1457,8 @@ function renderCommitteeAssignmentCards() {
         `;
 
     }).join("");
+
+    if (!isAdminUser()) return;
 
     container.querySelectorAll(".committee-card").forEach(card => {
 
@@ -1839,11 +1876,10 @@ function applyRoleView() {
 
     }
 
-    document.body.classList.toggle("authenticated", Boolean(
-        isAdminUser() || isCommitteeUser()
-    ));
+    document.body.classList.toggle("authenticated", isAuthenticatedUser());
     document.body.classList.toggle("role-admin", isAdminUser());
     document.body.classList.toggle("role-committee", isCommitteeUser());
+    document.body.classList.toggle("role-viewer", isViewerUser());
 
     document.querySelectorAll(".sidebar-nav .admin-only").forEach(link => {
 
@@ -1973,13 +2009,19 @@ function renderUsersPanel() {
         const team = normalizeTeam(user.team);
         const leaderId = String(user.leaderId || "");
         const memberIds = Array.isArray(user.memberIds) ? user.memberIds.map(String) : [];
+        const roleLabel = user.role === "admin"
+            ? "Admin"
+            : user.role === "viewer"
+                ? "مطّلع إداري"
+                : "Committee";
+        const isCommittee = user.role === "committee";
 
         row.dataset.username = user.username;
 
         row.innerHTML = `
             <td>
                 <strong>${user.username}</strong>
-                <div class="text-muted small">${user.role === "admin" ? "Admin" : "Committee"}</div>
+                <div class="text-muted small">${roleLabel}</div>
             </td>
             <td>
                 <input class="form-control form-control-sm user-display-name"
@@ -1987,21 +2029,22 @@ function renderUsersPanel() {
             </td>
             <td>
                 <input class="form-control form-control-sm user-committee-name"
-                       value="${escapeHtml(user.committeeName)}">
+                       value="${escapeHtml(user.committeeName)}"
+                       ${isCommittee ? "" : "disabled"}>
             </td>
             <td>
                 <div class="committee-team-fields">
                     <label class="small text-muted">رئيس اللجنة</label>
                     <select class="form-select form-select-sm user-team-leader"
-                            ${user.role === "admin" ? "disabled" : ""}>
+                            ${isCommittee ? "" : "disabled"}>
                         <option value="">بدون رئيس</option>
-                        ${user.role === "admin" || typeof getActiveEmployeeOptions !== "function"
+                        ${!isCommittee || typeof getActiveEmployeeOptions !== "function"
                             ? ""
                             : getActiveEmployeeOptions(leaderId)}
                     </select>
                     <label class="small text-muted mt-1">الأعضاء</label>
                     <div class="user-team-members committee-member-options">
-                        ${user.role === "admin" || typeof getActiveEmployeeMemberCheckboxes !== "function"
+                        ${!isCommittee || typeof getActiveEmployeeMemberCheckboxes !== "function"
                             ? ""
                             : getActiveEmployeeMemberCheckboxes(memberIds, leaderId)}
                     </div>
@@ -2133,6 +2176,8 @@ function getUsersFromPanel(usersTableBody) {
 
 async function persistUsers(nextUsers) {
 
+    if (!isAdminUser()) return false;
+
     const validationMessage = validateUsersObject(nextUsers);
 
     if (validationMessage) {
@@ -2176,6 +2221,8 @@ function showDataPortabilityMessage(text, className) {
 
 function exportAppData() {
 
+    if (!isAdminUser()) return;
+
     const exportData = {
         version: "v1.0-beta",
         exportedAt: new Date().toISOString(),
@@ -2213,7 +2260,7 @@ function isPortableDataObject(value) {
 
 async function importAppData(file) {
 
-    if (!file) return;
+    if (!file || !isAdminUser()) return;
 
     try {
 
@@ -2341,6 +2388,7 @@ function initializeUsersPanel() {
     const usersSaveMessage = document.getElementById("usersSaveMessage");
     const showAddCommitteeFormButton = document.getElementById("showAddCommitteeForm");
     const addCommitteeForm = document.getElementById("addCommitteeForm");
+    const addViewerForm = document.getElementById("addViewerForm");
 
     if (!usersTableBody || !saveUsersButton || !isAdminUser()) return;
 
@@ -2485,6 +2533,99 @@ function initializeUsersPanel() {
             } catch (error) {
 
                 showUsersSaveMessage("تعذر حفظ اللجنة الجديدة.", "text-danger");
+
+            } finally {
+
+                if (submitButton) submitButton.disabled = false;
+
+            }
+
+        });
+
+    }
+
+    if (addViewerForm) {
+
+        addViewerForm.addEventListener("submit", async event => {
+
+            event.preventDefault();
+
+            if (!isAdminUser()) return;
+
+            const submitButton = addViewerForm.querySelector('[type="submit"]');
+
+            if (submitButton && submitButton.disabled) return;
+
+            const displayName = document.getElementById("newViewerDisplayName").value.trim();
+            const username = document.getElementById("newViewerUsername").value.trim();
+            const password = document.getElementById("newViewerPassword").value;
+            const active = document.getElementById("newViewerActive").checked;
+
+            if (!displayName) {
+
+                showUsersSaveMessage("الاسم المعروض للمطّلع مطلوب.", "text-danger");
+
+                return;
+
+            }
+
+            if (!username) {
+
+                showUsersSaveMessage("اسم المستخدم مطلوب.", "text-danger");
+
+                return;
+
+            }
+
+            if (users[username]) {
+
+                showUsersSaveMessage("اسم المستخدم موجود مسبقاً.", "text-danger");
+
+                return;
+
+            }
+
+            if (!password.trim()) {
+
+                showUsersSaveMessage("كلمة المرور مطلوبة.", "text-danger");
+
+                return;
+
+            }
+
+            const nextUsers = {
+                ...users,
+                [username]: {
+                    username,
+                    password,
+                    displayName,
+                    role: "viewer",
+                    active,
+                    committeeName: "",
+                    leaderId: "",
+                    memberIds: [],
+                    team: {
+                        leader: "",
+                        members: []
+                    }
+                }
+            };
+
+            if (submitButton) submitButton.disabled = true;
+
+            try {
+
+                if (await persistUsers(nextUsers)) {
+
+                    addViewerForm.reset();
+                    document.getElementById("newViewerActive").checked = true;
+                    showUsersSaveMessage("تمت إضافة حساب المطّلع الإداري.", "text-success");
+
+                }
+
+            } catch (error) {
+
+                showUsersSaveMessage("تعذر حفظ حساب المطّلع الإداري.", "text-danger");
 
             } finally {
 

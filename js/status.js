@@ -254,6 +254,8 @@ function getFacilityStatus(license) {
 
 async function addVisit(license, visit) {
 
+    if (typeof isCommitteeUser === "function" && !isCommitteeUser()) return;
+
     const normalizedLicense = String(license);
     const visitRecord = createVisitRecord(visit);
     const currentFacility = getFacilityStatus(normalizedLicense);
@@ -490,6 +492,8 @@ async function resetAllVisits() {
 // تحديث حالة الزيارة
 async function setVisitStatus(license, status) {
 
+    if (typeof isViewerUser === "function" && isViewerUser()) return;
+
     if (!["pending", "visited", "partial"].includes(status)) return;
 
     return mutateFacilityRecord(license, facility => {
@@ -515,6 +519,8 @@ async function setVisitStatus(license, status) {
 // تحديث المخالفة
 async function setViolation(license, value) {
 
+    if (typeof isViewerUser === "function" && isViewerUser()) return;
+
     return mutateFacilityRecord(license, facility => {
 
         const latestVisit = getLatestVisit(facility);
@@ -538,6 +544,8 @@ async function setViolation(license, value) {
 // إسناد لجنة
 async function assignCommittee(license, committeeName) {
 
+    if (typeof isViewerUser === "function" && isViewerUser()) return;
+
     return mutateFacilityRecord(license, facility => {
 
         facility.assigned = true;
@@ -550,6 +558,8 @@ async function assignCommittee(license, committeeName) {
 
 // إضافة ملاحظات
 async function setNotes(license, notes) {
+
+    if (typeof isViewerUser === "function" && isViewerUser()) return;
 
     return mutateFacilityRecord(license, facility => {
 

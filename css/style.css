@@ -269,12 +269,20 @@ body.authenticated .login-screen {
     color: #92400e;
 }
 
-body.role-committee .admin-only {
+body:not(.role-admin) .admin-only {
     display: none !important;
 }
 
 body:not(.role-committee) .committee-only {
     display: none !important;
+}
+
+body:not(.role-admin):not(.role-viewer) .management-read-only {
+    display: none !important;
+}
+
+body.role-viewer .committee-card {
+    cursor: default;
 }
 
 body:not(.role-admin):not(.role-committee) .external-visit-action {
