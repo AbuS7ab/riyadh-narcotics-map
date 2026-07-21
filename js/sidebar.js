@@ -284,7 +284,9 @@ function showFacilityList(facilities, options = {}) {
 
 function showCommitteeFacilityList(committee, facilities) {
 
-    if (!isAdminUser()) return;
+    if (!isAdminUser() && !isViewerUser()) return;
+
+    const canManageAssignments = isAdminUser();
 
     const assignedFacilities = facilities.filter(facility => {
 
@@ -310,13 +312,16 @@ function showCommitteeFacilityList(committee, facilities) {
     const completionRate = sortedFacilities.length === 0
         ? 0
         : Math.round((counts.completed / sortedFacilities.length) * 100);
-    const visibleFacilities = adminAssignedListFilter === "all"
-        ? sortedFacilities
-        : sortedFacilities.filter(facility => {
+    const visibleFacilities = sortedFacilities.filter(facility => {
 
-            return getCommitteeAssignedDisplayStatus(facility) === adminAssignedListFilter;
+        const status = getCommitteeAssignedDisplayStatus(facility);
 
-        });
+        if (adminAssignedListFilter === "all") return true;
+        if (adminAssignedListFilter === "remaining") return status !== "completed";
+
+        return status === adminAssignedListFilter;
+
+    });
 
     if (typeof fitFacilityBounds === "function") {
 
@@ -338,29 +343,31 @@ function showCommitteeFacilityList(committee, facilities) {
                     class="btn btn-sm ${adminAssignedListFilter === "all" ? "btn-primary" : "btn-outline-primary"}">
                 الكل (${sortedFacilities.length})
             </button>
-            <button type="button" data-admin-assigned-list-filter="pending"
-                    class="btn btn-sm ${adminAssignedListFilter === "pending" ? "btn-primary" : "btn-outline-primary"}">
-                قيد الانتظار (${counts.pending})
+            <button type="button" data-admin-assigned-list-filter="remaining"
+                    class="btn btn-sm ${adminAssignedListFilter === "remaining" ? "btn-primary" : "btn-outline-primary"}">
+                المتبقية (${remainingCount})
             </button>
             <button type="button" data-admin-assigned-list-filter="completed"
                     class="btn btn-sm ${adminAssignedListFilter === "completed" ? "btn-primary" : "btn-outline-primary"}">
                 تمت الزيارة (${counts.completed})
             </button>
         </div>
-        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <label class="form-check mb-0">
-                <input id="selectAllCommitteeFacilities"
-                       class="form-check-input"
-                       type="checkbox">
-                <span class="form-check-label">تحديد الكل</span>
-            </label>
-            <button id="cancelSelectedAssignments"
-                    class="btn btn-outline-danger btn-sm"
-                    type="button"
-                    disabled>
-                إلغاء إسناد المحدد (0)
-            </button>
-        </div>
+        ${canManageAssignments ? `
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <label class="form-check mb-0">
+                    <input id="selectAllCommitteeFacilities"
+                           class="form-check-input"
+                           type="checkbox">
+                    <span class="form-check-label">تحديد الكل</span>
+                </label>
+                <button id="cancelSelectedAssignments"
+                        class="btn btn-outline-danger btn-sm"
+                        type="button"
+                        disabled>
+                    إلغاء إسناد المحدد (0)
+                </button>
+            </div>
+        ` : ""}
         <div id="committeeFacilityList"
              class="list-group"
              data-committee-username="${escapeHtml(committee.username)}">
@@ -422,10 +429,12 @@ function showCommitteeFacilityList(committee, facilities) {
         item.className = `list-group-item assigned-facility-card status-${displayStatus}`;
         item.innerHTML = `
             <div class="d-flex align-items-start gap-2">
-                <input class="form-check-input committee-facility-checkbox mt-1"
-                       type="checkbox"
-                       value="${escapeHtml(facility.license)}"
-                       aria-label="تحديد ${escapeHtml(facility.name)}">
+                ${canManageAssignments ? `
+                    <input class="form-check-input committee-facility-checkbox mt-1"
+                           type="checkbox"
+                           value="${escapeHtml(facility.license)}"
+                           aria-label="تحديد ${escapeHtml(facility.name)}">
+                ` : ""}
                 <button class="btn btn-link text-start p-0 flex-grow-1 facility-drilldown-button"
                         type="button">
                     <div class="fw-bold">${escapeHtml(facility.name)}</div>
@@ -448,12 +457,18 @@ function showCommitteeFacilityList(committee, facilities) {
 
         });
 
-        item.querySelector(".committee-facility-checkbox")
-            .addEventListener("change", updateBulkCancelState);
+        if (canManageAssignments) {
+
+            item.querySelector(".committee-facility-checkbox")
+                .addEventListener("change", updateBulkCancelState);
+
+        }
 
         list.appendChild(item);
 
     });
+
+    if (!canManageAssignments) return;
 
     selectAll.addEventListener("change", () => {
 
