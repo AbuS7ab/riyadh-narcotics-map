@@ -140,7 +140,7 @@ function getExternalVisitList() {
 function canViewExternalVisit(visit) {
 
     if (!visit) return false;
-    if (isAdminUser()) return true;
+    if (isAdminUser() || isViewerUser()) return true;
     if (!isCommitteeUser() || !currentUser) return false;
 
     const currentIdentity = [
