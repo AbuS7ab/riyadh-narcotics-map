@@ -638,7 +638,7 @@ function getEmployeeAchievementExportData(employeeId) {
 
 function exportEmployeeAchievementRecord(employeeId) {
 
-    if (!isAdminUser() || !window.XLSX) return;
+    if ((!isAdminUser() && !isViewerUser()) || !window.XLSX) return;
 
     const report = getEmployeeAchievementExportData(employeeId);
 
@@ -667,7 +667,7 @@ function showEmployeeDetails(employeeId) {
     const detailsPanel = document.getElementById("employeeAchievementPanel");
     const details = document.getElementById("employeeAchievementContent");
 
-    if (!isAdminUser() || !profile || !detailsPanel || !details) return;
+    if ((!isAdminUser() && !isViewerUser()) || !profile || !detailsPanel || !details) return;
 
     const employee = profile.employee;
     const achievements = getEmployeeAchievementRecords(employeeId);
@@ -829,10 +829,12 @@ function updateEmployeeDashboard() {
 
 function initializeEmployeesInterface() {
 
-    if (!isAdminUser()) return;
+    if (!isAdminUser() && !isViewerUser()) return;
 
     updateEmployeeDashboard();
     initializeEmployeePerformanceDashboard();
+
+    if (!isAdminUser()) return;
 
     const form = document.getElementById("employeeForm");
     const search = document.getElementById("employeeSearch");
@@ -1283,7 +1285,7 @@ function renderEmployeePerformanceDashboard(resetPage = false) {
 
     const body = document.getElementById("employeePerformanceTableBody");
 
-    if (!isAdminUser() || !body) return;
+    if ((!isAdminUser() && !isViewerUser()) || !body) return;
     if (resetPage) employeePerformancePage = 1;
 
     employeePerformanceRows = sortEmployeePerformanceRows(
@@ -1366,7 +1368,7 @@ function getEmployeePerformanceExportRows(rows = employeePerformanceVisibleRows)
 
 function exportVisibleEmployeePerformanceRows() {
 
-    if (!isAdminUser()) return;
+    if (!isAdminUser() && !isViewerUser()) return;
 
     if (!window.XLSX) {
 
@@ -1389,7 +1391,7 @@ function initializeEmployeePerformanceDashboard() {
 
     const panel = document.getElementById("employeePerformancePanel");
 
-    if (!isAdminUser() || !panel) return;
+    if ((!isAdminUser() && !isViewerUser()) || !panel) return;
 
     const committeeSelect = document.getElementById("performanceCommittee");
 
@@ -1455,7 +1457,7 @@ function initializeEmployeePerformanceDashboard() {
 
 function refreshEmployeePerformanceDashboard() {
 
-    if (!isAdminUser()) return;
+    if (!isAdminUser() && !isViewerUser()) return;
 
     invalidateEmployeePerformanceCache();
     renderEmployeePerformanceDashboard();

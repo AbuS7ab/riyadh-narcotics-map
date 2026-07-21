@@ -1887,7 +1887,7 @@ function applyRoleView() {
 
     });
 
-    ["employeesPanel", "employeePerformancePanel"].forEach(panelId => {
+    ["employeesPanel"].forEach(panelId => {
 
         const panel = document.getElementById(panelId);
 
