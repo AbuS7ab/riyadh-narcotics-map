@@ -80,7 +80,6 @@
             <a class="admin-only" href="#usersPanel"><i class="fa-solid fa-user-gear"></i>الإعدادات</a>
             <a class="admin-only" href="#employeesPanel"><i class="fa-solid fa-id-card"></i>الموظفون</a>
             <a class="admin-only" href="#employeePerformancePanel"><i class="fa-solid fa-user-tie"></i>أداء الموظفين</a>
-            <a class="admin-only" href="#syncAuditPanel"><i class="fa-solid fa-shield-halved"></i>سلامة المزامنة</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -102,11 +101,6 @@
             <div class="header-meta">
                 <span>Operational Dashboard</span>
                 <strong>0.3 Preview</strong>
-                <span id="cloudSyncStatus"
-                      class="cloud-sync-status"
-                      data-state="initializing"
-                      role="status"
-                      aria-live="polite">جاري الاتصال...</span>
             </div>
         </header>
 
@@ -759,48 +753,6 @@
                 </div>
             </section>
 
-            <section id="syncAuditPanel" class="workspace-card sync-audit-panel admin-only">
-                <div class="panel-header sync-audit-header">
-                    <div>
-                        <span><i class="fa-solid fa-shield-halved"></i> سلامة المزامنة</span>
-                        <small class="d-block mt-1">فحص للقراءة فقط، ولا ينفذ أي إصلاح دون معاينة وتأكيد</small>
-                    </div>
-                    <button id="runSyncAudit" type="button" class="btn btn-outline-primary btn-sm">
-                        <i class="fa-solid fa-rotate"></i> فحص أحدث البيانات
-                    </button>
-                </div>
-
-                <div class="sync-audit-summary">
-                    <div><span>إجمالي الملاحظات</span><strong id="syncAuditTotal">0</strong></div>
-                    <div class="danger"><span>عالية الخطورة</span><strong id="syncAuditErrors">0</strong></div>
-                    <div class="warning"><span>تحتاج مراجعة</span><strong id="syncAuditWarnings">0</strong></div>
-                    <div class="success"><span>قابلة للإصلاح الآمن</span><strong id="syncAuditRepairable">0</strong></div>
-                </div>
-
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <small id="syncAuditUpdatedAt" class="text-muted">لم يُنفذ الفحص بعد</small>
-                    <small class="text-muted">المعلومات التاريخية لا تُعدّل تلقائيًا</small>
-                </div>
-
-                <div id="syncAuditEmptyState" class="alert alert-success d-none mb-3">
-                    لم يكتشف الفحص أي مشكلة في البيانات الحالية.
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table align-middle sync-audit-table">
-                        <thead>
-                            <tr>
-                                <th>الخطورة</th>
-                                <th>المشكلة</th>
-                                <th>المنشأة</th>
-                                <th>الدليل والتوصية</th>
-                                <th>الإجراء</th>
-                            </tr>
-                        </thead>
-                        <tbody id="syncAuditIssuesBody"></tbody>
-                    </table>
-                </div>
-            </section>
         </main>
     </div>
 
