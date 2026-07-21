@@ -78,8 +78,7 @@
             <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-file-lines"></i>التقارير</a>
             <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-people-group"></i>اللجان</a>
             <a class="admin-only" href="#usersPanel"><i class="fa-solid fa-user-gear"></i>الإعدادات</a>
-            <a class="admin-only" href="#employeesPanel"><i class="fa-solid fa-id-card"></i>الموظفون</a>
-            <a class="admin-only" href="#employeePerformancePanel"><i class="fa-solid fa-user-tie"></i>أداء الموظفين</a>
+            <a class="admin-only" href="#employeePerformancePanel"><i class="fa-solid fa-user-tie"></i>الموظفون والأداء</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -156,18 +155,9 @@
                     </div>
                 </div>
 
-                <div class="dashboard-card">
-                    <div class="kpi-icon"><i class="fa-solid fa-users"></i></div>
-                    <div><h6>عدد الموظفين</h6><h2 id="employeeCount">0</h2></div>
-                </div>
-
-                <div class="dashboard-card">
-                    <div class="kpi-icon"><i class="fa-solid fa-user-check"></i></div>
-                    <div><h6>عدد الموظفين النشطين</h6><h2 id="activeEmployeeCount">0</h2></div>
-                </div>
             </section>
 
-            <section class="visit-statistics admin-only" aria-label="إحصاءات المهام خارج الخطة">
+            <section id="externalMissionStatistics" class="visit-statistics admin-only d-none" aria-label="إحصاءات المهام خارج الخطة">
                 <div><span>إجمالي المهام خارج الخطة</span><strong id="externalMissionsTotal">0</strong></div>
                 <div><span>المهام المكتملة</span><strong id="externalMissionsCompleted">0</strong></div>
                 <div><span>المهام قيد التنفيذ</span><strong id="externalMissionsInProgress">0</strong></div>
@@ -550,10 +540,18 @@
 
             <section id="employeePerformancePanel" class="workspace-card employee-performance-panel admin-only">
                 <div class="panel-header">
-                    <span><i class="fa-solid fa-user-tie"></i> أداء الموظفين</span>
-                    <small>Employee Performance Dashboard</small>
+                    <span><i class="fa-solid fa-user-tie"></i> الموظفون والأداء</span>
+                    <small>مؤشرات الأداء وإدارة الموظفين</small>
                 </div>
                 <div class="users-panel-body">
+                    <div class="employee-performance-kpis">
+                        <div><span>عدد الموظفين</span><strong id="performanceEmployeeCount">0</strong></div>
+                        <div><span>الموظفون النشطون</span><strong id="performanceActiveCount">0</strong></div>
+                        <div><span>إجمالي المنشآت المنجزة</span><strong id="performanceCompletedCount">0</strong></div>
+                        <div><span>إجمالي المخالفات</span><strong id="performanceViolationCount">0</strong></div>
+                        <div><span>إجمالي المهام خارج الخطة</span><strong id="performanceMissionCount">0</strong></div>
+                    </div>
+
                     <div class="employee-performance-filters">
                         <div>
                             <label for="performancePeriod" class="form-label small mb-1">الفترة</label>
@@ -596,14 +594,6 @@
                         </button>
                     </div>
 
-                    <div class="employee-performance-kpis">
-                        <div><span>عدد الموظفين</span><strong id="performanceEmployeeCount">0</strong></div>
-                        <div><span>الموظفون النشطون</span><strong id="performanceActiveCount">0</strong></div>
-                        <div><span>إجمالي المنشآت المنجزة</span><strong id="performanceCompletedCount">0</strong></div>
-                        <div><span>إجمالي المخالفات</span><strong id="performanceViolationCount">0</strong></div>
-                        <div><span>إجمالي المهام خارج الخطة</span><strong id="performanceMissionCount">0</strong></div>
-                    </div>
-
                     <div class="table-responsive employee-performance-table-wrap">
                         <table class="table align-middle users-table employee-performance-table">
                             <thead><tr>
@@ -627,11 +617,10 @@
                         <div id="employeeAchievementContent"></div>
                     </div>
                 </div>
-            </section>
 
-            <section id="employeesPanel" class="workspace-card users-panel admin-only">
+                <div id="employeesPanel" class="employee-management-section admin-only">
                 <div class="panel-header">
-                    <span><i class="fa-solid fa-id-card"></i> الموظفون</span>
+                    <span><i class="fa-solid fa-id-card"></i> إدارة الموظفين</span>
                     <small>إدارة الموظفين وأعضاء اللجان</small>
                 </div>
                 <div class="users-panel-body">
@@ -671,6 +660,7 @@
                             <tbody id="employeesTableBody"></tbody>
                         </table>
                     </div>
+                </div>
                 </div>
             </section>
 

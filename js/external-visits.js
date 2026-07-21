@@ -883,6 +883,7 @@ function initializeExternalVisitControls() {
     const date = document.getElementById("externalVisitDate");
     const workspaceButton = document.getElementById("showExternalVisitsWorkspace");
     const workspace = document.getElementById("externalVisitsWorkspace");
+    const statistics = document.getElementById("externalMissionStatistics");
     const missionType = document.getElementById("externalMissionType");
 
     renderExternalVisitsWorkspace();
@@ -892,7 +893,9 @@ function initializeExternalVisitControls() {
         workspaceButton.addEventListener("click", () => {
 
             workspace.classList.toggle("d-none");
-            if (!workspace.classList.contains("d-none")) {
+            const workspaceIsVisible = !workspace.classList.contains("d-none");
+            if (statistics) statistics.classList.toggle("d-none", !workspaceIsVisible);
+            if (workspaceIsVisible) {
 
                 renderExternalVisitsWorkspace();
                 workspace.scrollIntoView({ behavior: "smooth", block: "start" });

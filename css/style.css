@@ -1138,6 +1138,11 @@ body.role-committee .main-grid {
 
 .employee-performance-panel { margin-bottom: 18px; }
 
+.employee-management-section {
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+}
+
 .employee-performance-filters {
     display: grid;
     grid-template-columns: repeat(5, minmax(135px, 1fr));
