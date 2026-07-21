@@ -238,7 +238,12 @@ async function run() {
             p_result: "no_violation"
         }
     });
-    expectDenied(crossCommitteeRpc, "Cross-committee RPC", [400, 403]);
+    expectDenied(crossCommitteeRpc, "Cross-committee RPC", [403]);
+    assert.equal(crossCommitteeRpc.data?.code, "42501");
+    assert.equal(
+        crossCommitteeRpc.data?.message,
+        "Assignment is not authorized or no longer active"
+    );
     process.stdout.write("PASS committee cannot complete another committee assignment\n");
 
     const rpcPayload = {
