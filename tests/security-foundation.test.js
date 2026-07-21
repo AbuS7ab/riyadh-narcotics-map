@@ -10,6 +10,12 @@ const migrationPath = path.join(
     "migrations",
     "202607210001_auth_rls_foundation.sql"
 );
+const rpcAuthorizationMigrationPath = path.join(
+    projectRoot,
+    "supabase",
+    "migrations",
+    "202607210002_committee_rpc_authorization_error.sql"
+);
 const rollbackPath = path.join(
     projectRoot,
     "supabase",
@@ -23,6 +29,7 @@ const preflightPath = path.join(
     "security_inventory.sql"
 );
 const migration = fs.readFileSync(migrationPath, "utf8");
+const rpcAuthorizationMigration = fs.readFileSync(rpcAuthorizationMigrationPath, "utf8");
 const rollback = fs.readFileSync(rollbackPath, "utf8");
 const preflight = fs.readFileSync(preflightPath, "utf8");
 
@@ -188,6 +195,24 @@ test("committee visit RPC validates ownership and performs the visit and assignm
     assert.doesNotMatch(rpc, /p_team_snapshot/i);
     assert.doesNotMatch(rpc, /p_employee_snapshot/i);
     assert.doesNotMatch(rpc, /p_committee_user_id/i);
+
+});
+
+
+test("committee visit RPC returns the safe authorization contract for inaccessible assignments", () => {
+
+    assert.match(
+        rpcAuthorizationMigration,
+        /assignment\.committee_user_id = actor_id/i
+    );
+    assert.match(
+        rpcAuthorizationMigration,
+        /raise exception using\s+errcode = '42501',\s+message = 'Assignment is not authorized or no longer active';/i
+    );
+    assert.doesNotMatch(
+        rpcAuthorizationMigration,
+        /The active assignment is missing or changed|errcode = 'P0002'/i
+    );
 
 });
 
