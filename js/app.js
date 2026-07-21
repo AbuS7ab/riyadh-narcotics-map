@@ -41,7 +41,7 @@ async function initializeApp() {
     initializeSyncAuditPanel();
     startCloudRefresh();
 
-    if (!isAdminUser() && !isCommitteeUser()) return;
+    if (!isAuthenticatedUser()) return;
 
     await initializeMapWhenVisible();
 
@@ -518,6 +518,8 @@ function resetCustomFacilityForm() {
 
 async function persistCustomFacilities(nextCustomFacilities) {
 
+    if (!isAdminUser()) return;
+
     const savedCustomFacilities = await mutateCloudCollection(
         "customFacilities",
         customFacilities,
@@ -533,6 +535,8 @@ async function persistCustomFacilities(nextCustomFacilities) {
 
 async function persistFacilityOverrides(nextFacilityOverrides) {
 
+    if (!isAdminUser()) return;
+
     const savedFacilityOverrides = await mutateCloudCollection(
         "facilityOverrides",
         facilityOverrides,
@@ -547,6 +551,8 @@ async function persistFacilityOverrides(nextFacilityOverrides) {
 
 
 async function saveCustomFacilityFromForm() {
+
+    if (!isAdminUser()) return;
 
     const data = collectCustomFacilityFormData();
     const validationMessage = validateCustomFacility(data);

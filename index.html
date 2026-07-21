@@ -70,13 +70,13 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="التنقل الرئيسي">
-            <a class="active admin-only" href="#dashboardSection"><i class="fa-solid fa-chart-line"></i>لوحة المتابعة</a>
+            <a class="active management-read-only" href="#dashboardSection"><i class="fa-solid fa-chart-line"></i>لوحة المتابعة</a>
             <a href="#mapSection"><i class="fa-solid fa-map-location-dot"></i>الخريطة</a>
-            <a class="admin-only" href="#facilityTypes"><i class="fa-solid fa-hospital"></i>المنشآت</a>
+            <a class="management-read-only" href="#facilityTypes"><i class="fa-solid fa-hospital"></i>المنشآت</a>
             <a href="#visitStatusFilter"><i class="fa-solid fa-clipboard-check"></i>الزيارات</a>
-            <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-triangle-exclamation"></i>المخالفات</a>
-            <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-file-lines"></i>التقارير</a>
-            <a class="admin-only" href="#dashboardSection"><i class="fa-solid fa-people-group"></i>اللجان</a>
+            <a class="management-read-only" href="#dashboardSection"><i class="fa-solid fa-triangle-exclamation"></i>المخالفات</a>
+            <a class="management-read-only" href="#dashboardSection"><i class="fa-solid fa-file-lines"></i>التقارير</a>
+            <a class="management-read-only" href="#dashboardSection"><i class="fa-solid fa-people-group"></i>اللجان</a>
             <a class="admin-only" href="#usersPanel"><i class="fa-solid fa-user-gear"></i>الإعدادات</a>
             <a class="admin-only" href="#employeePerformancePanel"><i class="fa-solid fa-user-tie"></i>الموظفون والأداء</a>
         </nav>
@@ -104,7 +104,7 @@
         </header>
 
         <main class="workspace">
-            <section id="dashboardSection" class="kpi-row admin-only" aria-label="مؤشرات الأداء">
+            <section id="dashboardSection" class="kpi-row management-read-only" aria-label="مؤشرات الأداء">
                 <div class="dashboard-card kpi-total">
                     <div class="kpi-icon"><i class="fa-solid fa-hospital"></i></div>
                     <div><h6>إجمالي المنشآت</h6><h2 id="totalCount">0</h2></div>
@@ -165,7 +165,7 @@
                 <div><span>المهام المخالفة</span><strong id="externalMissionsViolating">0</strong></div>
             </section>
 
-            <section class="committee-overview admin-only" aria-label="نظرة عامة على اللجان">
+            <section class="committee-overview management-read-only" aria-label="نظرة عامة على اللجان">
                 <div class="section-heading">
                     <span><i class="fa-solid fa-people-group"></i> اللجان</span>
                     <small>حالة الإسناد والإنجاز</small>
@@ -195,7 +195,7 @@
                     المهام خارج الخطة (<span id="externalVisitsCount">0</span>)
                 </button>
 
-                <select id="visitStatusFilter" class="form-select admin-only">
+                <select id="visitStatusFilter" class="form-select management-read-only">
                     <option value="all">جميع حالات الزيارة</option>
                     <option value="pending">لم تتم زيارتها</option>
                     <option value="visited">تمت زيارتها</option>
@@ -207,11 +207,11 @@
                     <option value="assigned">المنشآت المسندة لي</option>
                 </select>
 
-                <select class="form-select admin-only" aria-label="نوع المنشأة">
+                <select class="form-select management-read-only" aria-label="نوع المنشأة">
                     <option>نوع المنشأة</option>
                 </select>
 
-                <select class="form-select admin-only" aria-label="الحي">
+                <select class="form-select management-read-only" aria-label="الحي">
                     <option>الحي</option>
                 </select>
             </section>
@@ -367,7 +367,7 @@
             </section>
 
             <section class="main-grid">
-                <aside id="facilityTypes" class="workspace-card type-panel admin-only">
+                <aside id="facilityTypes" class="workspace-card type-panel management-read-only">
                     <div class="panel-header">
                         <span><i class="fa-solid fa-chart-simple"></i> أنواع المنشآت</span>
                         <small>التوزيع الحالي</small>
@@ -712,6 +712,31 @@
                                 <span class="form-check-label small">نشط</span>
                             </label>
                             <button type="submit" class="btn btn-primary btn-sm">إضافة</button>
+                        </div>
+                    </form>
+
+                    <form id="addViewerForm" class="row g-2 align-items-end mb-3 p-3 border rounded">
+                        <div class="col-12">
+                            <strong>إضافة حساب مطّلع إداري</strong>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="newViewerDisplayName" class="form-label small mb-1">الاسم المعروض</label>
+                            <input id="newViewerDisplayName" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="newViewerUsername" class="form-label small mb-1">اسم المستخدم</label>
+                            <input id="newViewerUsername" class="form-control form-control-sm" autocomplete="off" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="newViewerPassword" class="form-label small mb-1">كلمة المرور</label>
+                            <input id="newViewerPassword" class="form-control form-control-sm" type="password" required>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-center gap-2">
+                            <label class="form-check mb-0">
+                                <input id="newViewerActive" class="form-check-input" type="checkbox" checked>
+                                <span class="form-check-label small">نشط</span>
+                            </label>
+                            <button type="submit" class="btn btn-primary btn-sm">إضافة المطّلع</button>
                         </div>
                     </form>
 
