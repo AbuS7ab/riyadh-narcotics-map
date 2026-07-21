@@ -8,6 +8,7 @@ const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const employees = fs.readFileSync(path.join(root, "js/employees.js"), "utf8");
 const externalVisits = fs.readFileSync(path.join(root, "js/external-visits.js"), "utf8");
 const users = fs.readFileSync(path.join(root, "js/users.js"), "utf8");
+const sidebar = fs.readFileSync(path.join(root, "js/sidebar.js"), "utf8");
 
 test("Viewer can see committee cards and the employee performance panel", () => {
     assert.match(
@@ -25,6 +26,25 @@ test("Viewer can see committee cards and the employee performance panel", () => 
     assert.match(
         employees,
         /function renderEmployeePerformanceDashboard[\s\S]*!isAdminUser\(\) && !isViewerUser\(\)/
+    );
+});
+
+test("Viewer can open committee cards and inspect completed and remaining facilities", () => {
+    assert.doesNotMatch(
+        users,
+        /renderCommitteeAssignmentCards[\s\S]*?if \(!isAdminUser\(\)\) return;[\s\S]*?container\.querySelectorAll\("\.committee-card"\)/
+    );
+    assert.match(
+        sidebar,
+        /function showCommitteeFacilityList[\s\S]*?!isAdminUser\(\) && !isViewerUser\(\)/
+    );
+    assert.match(sidebar, /data-admin-assigned-list-filter="remaining"/);
+    assert.match(sidebar, /المتبقية \(\$\{remainingCount\}\)/);
+    assert.match(sidebar, /const canManageAssignments = isAdminUser\(\);/);
+    assert.match(sidebar, /\$\{canManageAssignments \? `/);
+    assert.match(
+        sidebar,
+        /if \(!canManageAssignments\) return;[\s\S]*?selectAll\.addEventListener/
     );
 });
 

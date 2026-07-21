@@ -1428,11 +1428,10 @@ function renderCommitteeAssignmentCards() {
         const progressClass = getCompletionRateClass(kpis.completionRate);
 
         return `
-            <article class="committee-card ${isAdminUser() && selectedCommitteeUsername === committee.username ? "active" : ""}"
+            <article class="committee-card ${selectedCommitteeUsername === committee.username ? "active" : ""}"
                      data-committee-username="${committee.username}"
-                     ${isAdminUser()
-                        ? `role="button" tabindex="0" aria-pressed="${selectedCommitteeUsername === committee.username}"`
-                        : 'role="article"'}>
+                     role="button" tabindex="0"
+                     aria-pressed="${selectedCommitteeUsername === committee.username}">
                 <div class="committee-card-header">
                     <div>
                         <h6>${escapeHtml(committee.committeeName)}</h6>
@@ -1457,8 +1456,6 @@ function renderCommitteeAssignmentCards() {
         `;
 
     }).join("");
-
-    if (!isAdminUser()) return;
 
     container.querySelectorAll(".committee-card").forEach(card => {
 
