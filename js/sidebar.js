@@ -894,7 +894,14 @@ function showFacilityDetails(facility) {
     const backToAssignedFacilities =
         document.getElementById("backToAssignedFacilities");
 
-    if (visitDate) visitDate.value = new Date().toISOString().slice(0, 10);
+    if (visitDate) {
+
+        const today = getCurrentLocalDateValue();
+
+        visitDate.value = today;
+        visitDate.max = today;
+
+    }
 
     const toggleIncompleteReason = () => {
 
@@ -1007,6 +1014,16 @@ function showFacilityDetails(facility) {
         if (saveVisit.disabled) return;
 
         const result = visitResult.value;
+
+        if (isFutureVisitDate(visitDate.value)) {
+
+            visitSaveMessage.textContent =
+                "لا يمكن حفظ زيارة بتاريخ مستقبلي. اختر تاريخ اليوم أو تاريخًا سابقًا.";
+            visitSaveMessage.className = "small text-danger mb-2";
+
+            return;
+
+        }
 
         if (result === "incomplete" && !incompleteReason.value) {
 
