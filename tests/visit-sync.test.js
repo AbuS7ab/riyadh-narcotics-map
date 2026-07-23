@@ -133,3 +133,22 @@ test("an incomplete visit remains partial and is not marked as a violation", asy
     assert.equal(visit.incompleteReason, "تعذر مقابلة المسؤول");
 
 });
+
+
+test("a future visit date is rejected before any cloud write", async () => {
+
+    const { context, supabase } = await createVisitRuntime();
+    const writesBefore = supabase.writeCount("facilityStatus");
+
+    await assert.rejects(
+        context.addVisit("100", createVisit("future-visit", {
+            date: "2999-01-01"
+        })),
+        /Future visit dates are not allowed/
+    );
+
+    assert.equal(supabase.writeCount("facilityStatus"), writesBefore);
+    assert.equal(supabase.rows.get("facilityStatus").value["100"], undefined);
+    assert.equal(context.getFacilityStatus("100"), undefined);
+
+});

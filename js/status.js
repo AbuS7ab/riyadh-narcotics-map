@@ -5,6 +5,27 @@
 let facilityStatus = {};
 
 
+function getCurrentLocalDateValue(date = new Date()) {
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+
+}
+
+
+function isFutureVisitDate(value, today = getCurrentLocalDateValue()) {
+
+    const normalizedValue = String(value || "").slice(0, 10);
+
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalizedValue) &&
+        normalizedValue > today;
+
+}
+
+
 function getDefaultFacilityStatus() {
 
     return {
@@ -92,7 +113,7 @@ function createVisitRecord(visit) {
             typeof visit.facilityLicense === "undefined"
             ? null
             : String(visit.facilityLicense),
-        date: visit.date || new Date().toISOString().slice(0, 10),
+        date: visit.date || getCurrentLocalDateValue(),
         committeeUsername: visit.committeeUsername || "",
         committeeName: visit.committeeName || "",
         teamSnapshot: {
@@ -256,8 +277,21 @@ async function addVisit(license, visit) {
 
     if (typeof isCommitteeUser === "function" && !isCommitteeUser()) return;
 
+    const requestedVisitDate = visit && visit.date
+        ? String(visit.date).slice(0, 10)
+        : getCurrentLocalDateValue();
+
+    if (isFutureVisitDate(requestedVisitDate)) {
+
+        throw new RangeError("Future visit dates are not allowed.");
+
+    }
+
     const normalizedLicense = String(license);
-    const visitRecord = createVisitRecord(visit);
+    const visitRecord = createVisitRecord({
+        ...visit,
+        date: requestedVisitDate
+    });
     const currentFacility = getFacilityStatus(normalizedLicense);
     const statusBefore = currentFacility ? currentFacility.visitStatus : "pending";
 
