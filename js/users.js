@@ -662,9 +662,10 @@ function getCommitteeKpis(username) {
 
     });
 
-    const completionRate = activeAssignments.length === 0
+    const performanceTotal = completedCount + remainingCount;
+    const completionRate = performanceTotal === 0
         ? 0
-        : Math.round((completedCount / activeAssignments.length) * 100);
+        : Math.round((completedCount / performanceTotal) * 100);
 
     return {
         assignedCount,
