@@ -1017,15 +1017,37 @@ body.role-committee .main-grid {
 .admin-assigned-summary {
     margin-bottom: 12px;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 }
 
-.admin-assigned-summary div {
+.admin-assigned-summary-card {
     padding: 10px;
     border: 1px solid var(--line);
     border-radius: 10px;
     background: #F8FBF9;
+    text-align: right;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.admin-assigned-summary-card:hover,
+.admin-assigned-summary-card:focus-visible {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 122, 82, 0.12);
+}
+
+.admin-assigned-summary-card:active {
+    transform: translateY(1px);
+}
+
+.admin-assigned-summary-card.active {
+    border-color: var(--primary);
+    background: var(--primary);
+}
+
+.admin-assigned-summary-card.active span,
+.admin-assigned-summary-card.active strong {
+    color: #FFFFFF;
 }
 
 .admin-assigned-summary span,

@@ -155,6 +155,28 @@ function getCommitteeFacilityListSummary(committeeUsername, facilities) {
 
 }
 
+
+function getCompletedFacilitiesForCommittee(committeeUsername, facilities) {
+
+    const completedLicenses = new Set(
+        getActiveAssignmentsForCommittee(committeeUsername)
+            .filter(assignment => {
+
+                return assignment.status === "completed" ||
+                    facilityHasCompletedVisit(assignment.facilityLicense);
+
+            })
+            .map(assignment => String(assignment.facilityLicense))
+    );
+
+    return facilities.filter(facility => {
+
+        return completedLicenses.has(String(facility.license));
+
+    });
+
+}
+
 function showDashboardNeutralState() {
 
     const details = document.querySelector(".card-body");
@@ -323,22 +345,24 @@ function showCommitteeFacilityList(committee, facilities) {
         committee.username,
         assignedFacilities
     );
+    const completedFacilities = sortAdminAssignedFacilities(
+        committee.username,
+        getCompletedFacilitiesForCommittee(committee.username, allFacilities)
+    );
     const summary = getCommitteeFacilityListSummary(
         committee.username,
         sortedFacilities
     );
-    const counts = summary.currentBatchCounts;
     const remainingCount = summary.remainingCount;
-    const visibleFacilities = sortedFacilities.filter(facility => {
+    const visibleFacilities = adminAssignedListFilter === "completed"
+        ? completedFacilities
+        : sortedFacilities.filter(facility => {
 
-        const status = getCommitteeAssignedDisplayStatus(facility);
+            if (adminAssignedListFilter === "all") return true;
 
-        if (adminAssignedListFilter === "all") return true;
-        if (adminAssignedListFilter === "remaining") return status !== "completed";
+            return getCommitteeAssignedDisplayStatus(facility) !== "completed";
 
-        return status === adminAssignedListFilter;
-
-    });
+        });
 
     if (typeof fitFacilityBounds === "function") {
 
@@ -349,24 +373,24 @@ function showCommitteeFacilityList(committee, facilities) {
     const details = document.querySelector(".card-body");
 
     details.innerHTML = `
-        <div class="admin-assigned-summary" aria-label="ملخص المنشآت المسندة">
-            <div><span>إجمالي المنشآت المسندة</span><strong>${summary.assignedCount}</strong></div>
-            <div><span>عدد المتبقي</span><strong>${remainingCount}</strong></div>
-            <div><span>عدد المكتمل</span><strong>${summary.completedCount}</strong></div>
-            <div><span>نسبة الإنجاز</span><strong>${summary.completionRate}%</strong></div>
-        </div>
-        <div class="assigned-list-filters" role="group" aria-label="تصفية المنشآت المسندة">
+        <div class="admin-assigned-summary" role="group" aria-label="تصفية منشآت اللجنة">
             <button type="button" data-admin-assigned-list-filter="all"
-                    class="btn btn-sm ${adminAssignedListFilter === "all" ? "btn-primary" : "btn-outline-primary"}">
-                الكل (${sortedFacilities.length})
+                    class="admin-assigned-summary-card ${adminAssignedListFilter === "all" ? "active" : ""}"
+                    aria-pressed="${adminAssignedListFilter === "all"}">
+                <span>إجمالي المنشآت المسندة</span>
+                <strong>${summary.assignedCount}</strong>
             </button>
             <button type="button" data-admin-assigned-list-filter="remaining"
-                    class="btn btn-sm ${adminAssignedListFilter === "remaining" ? "btn-primary" : "btn-outline-primary"}">
-                المتبقية (${remainingCount})
+                    class="admin-assigned-summary-card ${adminAssignedListFilter === "remaining" ? "active" : ""}"
+                    aria-pressed="${adminAssignedListFilter === "remaining"}">
+                <span>عدد المتبقي</span>
+                <strong>${remainingCount}</strong>
             </button>
             <button type="button" data-admin-assigned-list-filter="completed"
-                    class="btn btn-sm ${adminAssignedListFilter === "completed" ? "btn-primary" : "btn-outline-primary"}">
-                تمت الزيارة (${counts.completed})
+                    class="admin-assigned-summary-card ${adminAssignedListFilter === "completed" ? "active" : ""}"
+                    aria-pressed="${adminAssignedListFilter === "completed"}">
+                <span>عدد المكتمل</span>
+                <strong>${summary.completedCount}</strong>
             </button>
         </div>
         ${canManageAssignments ? `
