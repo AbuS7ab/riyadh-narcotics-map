@@ -161,6 +161,90 @@ test("legacy assignments with the same timestamp remain one batch", async () => 
 });
 
 
+test("legacy assignments keep one batch after unique ids were backfilled", async () => {
+
+    const { context } = await createKpiRuntime({
+        "200": createAssignment("200", {
+            assignmentBatchId: "batch-committee4-backfilled-200",
+            assignedAt: "2026-07-20T08:00:00.000Z"
+        }),
+        "201": createAssignment("201", {
+            assignmentBatchId: "batch-committee4-backfilled-201",
+            assignedAt: "2026-07-20T08:00:03.000Z",
+            status: "completed"
+        }),
+        "202": createAssignment("202", {
+            assignmentBatchId: "batch-committee4-backfilled-202",
+            assignedAt: "2026-07-20T08:00:06.000Z"
+        })
+    });
+
+    const kpis = context.getCommitteeKpis("committee4");
+    const displayedFacilities = context.getFacilitiesForLatestAssignmentBatch(
+        "committee4",
+        [
+            { license: "200" },
+            { license: "201" },
+            { license: "202" }
+        ]
+    );
+
+    assert.equal(kpis.assignedCount, 3);
+    assert.equal(kpis.completedCount, 1);
+    assert.equal(kpis.remainingCount, 2);
+    assert.deepEqual(
+        Array.from(displayedFacilities, facility => facility.license),
+        ["200", "201", "202"]
+    );
+
+});
+
+
+test("updating a legacy assignment does not create a one-item batch", async () => {
+
+    const { context, supabase } = await createKpiRuntime({
+        "200": createAssignment("200"),
+        "201": createAssignment("201")
+    });
+
+    await context.assignFacilityToCommittee(
+        "201",
+        "committee4",
+        "in_progress"
+    );
+
+    const savedAssignments = supabase.rows.get("facilityAssignments").value;
+    const kpis = context.getCommitteeKpis("committee4");
+
+    assert.equal(savedAssignments["201"].assignmentBatchId, null);
+    assert.equal(kpis.assignedCount, 2);
+    assert.equal(kpis.remainingCount, 2);
+
+});
+
+
+test("legacy assignment sessions separated by more than five minutes stay distinct", async () => {
+
+    const { context } = await createKpiRuntime({
+        "100": createAssignment("100", {
+            assignedAt: "2026-07-20T07:50:00.000Z"
+        }),
+        "101": createAssignment("101", {
+            assignedAt: "2026-07-20T07:50:03.000Z"
+        }),
+        "200": createAssignment("200", {
+            assignedAt: "2026-07-20T08:00:00.000Z"
+        })
+    });
+
+    const kpis = context.getCommitteeKpis("committee4");
+
+    assert.equal(kpis.assignedCount, 1);
+    assert.equal(kpis.remainingCount, 1);
+
+});
+
+
 test("violations remain cumulative across old and current batches", async () => {
 
     const { context } = await createKpiRuntime({
