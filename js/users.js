@@ -468,6 +468,48 @@ function getActiveAssignmentsForCommittee(username) {
 }
 
 
+function getAssignmentBatchKey(assignment) {
+
+    if (!assignment || typeof assignment !== "object") return "";
+
+    return String(
+        assignment.assignmentBatchId ||
+        assignment.smartBatchId ||
+        assignment.assignedAt ||
+        assignment.id ||
+        ""
+    );
+
+}
+
+
+function getLatestAssignmentBatchForCommittee(username, assignmentsSnapshot = null) {
+
+    const assignments = Array.isArray(assignmentsSnapshot)
+        ? assignmentsSnapshot
+        : getActiveAssignmentsForCommittee(username);
+
+    if (assignments.length === 0) return [];
+
+    const latestAssignment = assignments.reduce((latest, assignment) => {
+
+        const latestTime = new Date(latest.assignedAt || 0).getTime();
+        const assignmentTime = new Date(assignment.assignedAt || 0).getTime();
+
+        return assignmentTime > latestTime ? assignment : latest;
+
+    });
+    const latestBatchKey = getAssignmentBatchKey(latestAssignment);
+
+    return assignments.filter(assignment => {
+
+        return getAssignmentBatchKey(assignment) === latestBatchKey;
+
+    });
+
+}
+
+
 function visitIndicatesViolation(visit) {
 
     if (!visit || typeof visit !== "object") return false;
@@ -539,13 +581,25 @@ function facilityHasCompletedVisit(license) {
 function getCommitteeKpis(username) {
 
     const activeAssignments = getActiveAssignmentsForCommittee(username);
-    const assignedCount = activeAssignments.length;
+    const latestBatchAssignments = getLatestAssignmentBatchForCommittee(
+        username,
+        activeAssignments
+    );
+    const batchTotal = latestBatchAssignments.length;
     const completedCount = activeAssignments.filter(assignment => {
 
         return assignment.status === "completed" ||
             facilityHasCompletedVisit(assignment.facilityLicense);
 
     }).length;
+    const batchCompletedCount = latestBatchAssignments.filter(assignment => {
+
+        return assignment.status === "completed" ||
+            facilityHasCompletedVisit(assignment.facilityLicense);
+
+    }).length;
+    const remainingCount = Math.max(batchTotal - batchCompletedCount, 0);
+    const assignedCount = remainingCount === 0 ? 0 : batchTotal;
     const violatingFacilities = new Set();
 
     activeAssignments.forEach(assignment => {
@@ -560,13 +614,14 @@ function getCommitteeKpis(username) {
 
     });
 
-    const completionRate = assignedCount === 0
+    const completionRate = activeAssignments.length === 0
         ? 0
-        : Math.round((completedCount / assignedCount) * 100);
+        : Math.round((completedCount / activeAssignments.length) * 100);
 
     return {
         assignedCount,
         completedCount,
+        remainingCount,
         violatingFacilityCount: violatingFacilities.size,
         completionRate
     };
@@ -640,6 +695,15 @@ function normalizeAssignmentMetadata(options = {}) {
 }
 
 
+function createAssignmentBatchId(committeeUsername) {
+
+    return `batch-${committeeUsername}-${Date.now()}-${
+        Math.random().toString(36).slice(2)
+    }`;
+
+}
+
+
 async function assignFacilityToCommittee(
     facilityLicense,
     committeeUsername,
@@ -692,6 +756,8 @@ async function assignFacilityToCommittee(
     const assignedAt = isActiveAssignment(existingAssignment)
         ? existingAssignment.assignedAt
         : new Date().toISOString();
+    const assignmentBatchId = options.assignmentBatchId ||
+        createAssignmentBatchId(committeeUsername);
     const metadata = normalizeAssignmentMetadata(options);
 
     facilityAssignments = await mutateCloudObject(
@@ -714,6 +780,9 @@ async function assignFacilityToCommittee(
                 assignedAt: isActiveAssignment(remoteAssignment)
                     ? remoteAssignment.assignedAt
                     : assignedAt,
+                assignmentBatchId: isActiveAssignment(remoteAssignment)
+                    ? remoteAssignment.assignmentBatchId || assignmentBatchId
+                    : assignmentBatchId,
                 status: assignmentStatuses.includes(status) ? status : "assigned",
                 teamSnapshot: createTeamSnapshot(committee),
                 visitType: metadata.visitType,
@@ -872,6 +941,9 @@ async function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, 
     if (!committee || committee.role !== "committee" || !committee.active) return false;
 
     const assignedAt = new Date().toISOString();
+    const assignmentBatchId = options.assignmentBatchId ||
+        options.smartBatchId ||
+        createAssignmentBatchId(committeeUsername);
     const metadata = normalizeAssignmentMetadata(options);
     const uniqueLicenses = [...new Set(facilityLicenses.map(license => String(license)))];
     let assignedCount = 0;
@@ -894,6 +966,7 @@ async function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, 
                     facilityLicense: license,
                     committeeUsername,
                     assignedAt,
+                    assignmentBatchId,
                     status: "assigned",
                     teamSnapshot: createTeamSnapshot(committee),
                     visitType: metadata.visitType,
@@ -1375,6 +1448,24 @@ function getFacilitiesForActiveAssignments(username, facilities) {
 }
 
 
+function getFacilitiesForLatestAssignmentBatch(username, facilities) {
+
+    const latestBatchAssignments = getLatestAssignmentBatchForCommittee(username);
+    const latestBatchLicenses = new Set(latestBatchAssignments.map(assignment => {
+
+        return String(assignment.facilityLicense);
+
+    }));
+
+    return facilities.filter(facility => {
+
+        return latestBatchLicenses.has(String(facility.license));
+
+    });
+
+}
+
+
 function refreshAssignmentViews(username = "") {
 
     renderCommitteeAssignmentCards();
@@ -1397,7 +1488,7 @@ function refreshAssignmentViews(username = "") {
 
         showCommitteeFacilityList(
             users[username],
-            getFacilitiesForActiveAssignments(username, allFacilities)
+            getFacilitiesForLatestAssignmentBatch(username, allFacilities)
         );
 
     }
@@ -1444,6 +1535,7 @@ function renderCommitteeAssignmentCards() {
                 <div class="committee-card-counts">
                     <span>المسندة <strong>${kpis.assignedCount}</strong></span>
                     <span>المنجزة <strong>${kpis.completedCount}</strong></span>
+                    <span>المتبقي <strong>${kpis.remainingCount}</strong></span>
                     <span>المخالفات <strong>${kpis.violatingFacilityCount}</strong></span>
                     <span>نسبة الإنجاز <strong>${kpis.completionRate}%</strong></span>
                 </div>
@@ -1476,17 +1568,10 @@ function renderCommitteeAssignmentCards() {
             selectedCommitteeUsername = username;
             renderCommitteeAssignmentCards();
 
-            const activeAssignments = getActiveAssignmentsForCommittee(username);
-            const activeFacilityLicenses = new Set(activeAssignments.map(assignment => {
-
-                return String(assignment.facilityLicense);
-
-            }));
-            const assignedFacilities = allFacilities.filter(facility => {
-
-                return activeFacilityLicenses.has(String(facility.license));
-
-            });
+            const assignedFacilities = getFacilitiesForLatestAssignmentBatch(
+                username,
+                allFacilities
+            );
 
             showCommitteeFacilityList(users[username], assignedFacilities);
 
