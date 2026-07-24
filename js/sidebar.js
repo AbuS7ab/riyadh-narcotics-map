@@ -133,6 +133,28 @@ function sortAdminAssignedFacilities(committeeUsername, facilities) {
 
 }
 
+
+function getCommitteeFacilityListSummary(committeeUsername, facilities) {
+
+    const currentBatchCounts = facilities.reduce((result, facility) => {
+
+        result[getCommitteeAssignedDisplayStatus(facility)] += 1;
+
+        return result;
+
+    }, { pending: 0, in_progress: 0, completed: 0 });
+    const kpis = getCommitteeKpis(committeeUsername);
+
+    return {
+        assignedCount: kpis.assignedCount,
+        remainingCount: kpis.remainingCount,
+        completedCount: kpis.completedCount,
+        completionRate: kpis.completionRate,
+        currentBatchCounts
+    };
+
+}
+
 function showDashboardNeutralState() {
 
     const details = document.querySelector(".card-body");
@@ -301,17 +323,12 @@ function showCommitteeFacilityList(committee, facilities) {
         committee.username,
         assignedFacilities
     );
-    const counts = sortedFacilities.reduce((result, facility) => {
-
-        result[getCommitteeAssignedDisplayStatus(facility)] += 1;
-
-        return result;
-
-    }, { pending: 0, in_progress: 0, completed: 0 });
-    const remainingCount = counts.pending + counts.in_progress;
-    const completionRate = sortedFacilities.length === 0
-        ? 0
-        : Math.round((counts.completed / sortedFacilities.length) * 100);
+    const summary = getCommitteeFacilityListSummary(
+        committee.username,
+        sortedFacilities
+    );
+    const counts = summary.currentBatchCounts;
+    const remainingCount = summary.remainingCount;
     const visibleFacilities = sortedFacilities.filter(facility => {
 
         const status = getCommitteeAssignedDisplayStatus(facility);
@@ -333,10 +350,10 @@ function showCommitteeFacilityList(committee, facilities) {
 
     details.innerHTML = `
         <div class="admin-assigned-summary" aria-label="ملخص المنشآت المسندة">
-            <div><span>إجمالي المنشآت المسندة</span><strong>${sortedFacilities.length}</strong></div>
+            <div><span>إجمالي المنشآت المسندة</span><strong>${summary.assignedCount}</strong></div>
             <div><span>عدد المتبقي</span><strong>${remainingCount}</strong></div>
-            <div><span>عدد المكتمل</span><strong>${counts.completed}</strong></div>
-            <div><span>نسبة الإنجاز</span><strong>${completionRate}%</strong></div>
+            <div><span>عدد المكتمل</span><strong>${summary.completedCount}</strong></div>
+            <div><span>نسبة الإنجاز</span><strong>${summary.completionRate}%</strong></div>
         </div>
         <div class="assigned-list-filters" role="group" aria-label="تصفية المنشآت المسندة">
             <button type="button" data-admin-assigned-list-filter="all"

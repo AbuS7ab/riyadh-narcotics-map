@@ -117,6 +117,93 @@ test("current workload uses the latest batch while performance stays cumulative"
 });
 
 
+test("completion rate ignores unfinished assignments from older batches", async () => {
+
+    const assignments = {};
+
+    for (let index = 0; index < 18; index += 1) {
+
+        assignments[`completed-${index}`] = createAssignment(
+            `completed-${index}`,
+            {
+                assignmentBatchId: "completed-history",
+                assignedAt: "2026-07-19T08:00:00.000Z",
+                status: "completed"
+            }
+        );
+
+    }
+
+    for (let index = 0; index < 8; index += 1) {
+
+        assignments[`legacy-pending-${index}`] = createAssignment(
+            `legacy-pending-${index}`,
+            {
+                assignmentBatchId: "older-unfinished-batch",
+                assignedAt: "2026-07-20T08:00:00.000Z"
+            }
+        );
+
+    }
+
+    assignments.current = createAssignment("current", {
+        assignmentBatchId: "current-batch",
+        assignedAt: "2026-07-21T08:00:00.000Z"
+    });
+
+    const { context } = await createKpiRuntime(assignments);
+    const kpis = context.getCommitteeKpis("committee4");
+
+    assert.equal(kpis.assignedCount, 1);
+    assert.equal(kpis.completedCount, 18);
+    assert.equal(kpis.remainingCount, 1);
+    assert.equal(kpis.completionRate, 95);
+
+});
+
+
+test("committee details summary reuses the cumulative committee KPIs", async () => {
+
+    const { context } = await createKpiRuntime({
+        "100": createAssignment("100", {
+            assignmentBatchId: "old-batch",
+            assignedAt: "2026-07-19T08:00:00.000Z",
+            status: "completed"
+        }),
+        "200": createAssignment("200", {
+            assignmentBatchId: "current-batch",
+            assignedAt: "2026-07-20T08:00:00.000Z"
+        })
+    });
+
+    context.getFacilityDisplayLicense = facility => facility.license;
+    context.getVisitStatusDisplay = () => ({
+        badge: "secondary",
+        text: "قيد الانتظار"
+    });
+
+    const sidebarSource = require("node:fs").readFileSync(
+        require("node:path").join(__dirname, "..", "js", "sidebar.js"),
+        "utf8"
+    );
+
+    require("node:vm").runInContext(sidebarSource, context);
+
+    const summary = context.getCommitteeFacilityListSummary(
+        "committee4",
+        [{ license: "200" }]
+    );
+
+    assert.equal(summary.assignedCount, 1);
+    assert.equal(summary.remainingCount, 1);
+    assert.equal(summary.completedCount, 1);
+    assert.equal(summary.completionRate, 50);
+    assert.equal(summary.currentBatchCounts.pending, 1);
+    assert.equal(summary.currentBatchCounts.completed, 0);
+
+});
+
+
 test("assigned count resets to zero after the latest batch is complete", async () => {
 
     const { context } = await createKpiRuntime({
@@ -157,6 +244,90 @@ test("legacy assignments with the same timestamp remain one batch", async () => 
     assert.equal(kpis.completedCount, 2);
     assert.equal(kpis.remainingCount, 1);
     assert.equal(kpis.completionRate, 67);
+
+});
+
+
+test("legacy assignments keep one batch after unique ids were backfilled", async () => {
+
+    const { context } = await createKpiRuntime({
+        "200": createAssignment("200", {
+            assignmentBatchId: "batch-committee4-backfilled-200",
+            assignedAt: "2026-07-20T08:00:00.000Z"
+        }),
+        "201": createAssignment("201", {
+            assignmentBatchId: "batch-committee4-backfilled-201",
+            assignedAt: "2026-07-20T08:00:03.000Z",
+            status: "completed"
+        }),
+        "202": createAssignment("202", {
+            assignmentBatchId: "batch-committee4-backfilled-202",
+            assignedAt: "2026-07-20T08:00:06.000Z"
+        })
+    });
+
+    const kpis = context.getCommitteeKpis("committee4");
+    const displayedFacilities = context.getFacilitiesForLatestAssignmentBatch(
+        "committee4",
+        [
+            { license: "200" },
+            { license: "201" },
+            { license: "202" }
+        ]
+    );
+
+    assert.equal(kpis.assignedCount, 3);
+    assert.equal(kpis.completedCount, 1);
+    assert.equal(kpis.remainingCount, 2);
+    assert.deepEqual(
+        Array.from(displayedFacilities, facility => facility.license),
+        ["200", "201", "202"]
+    );
+
+});
+
+
+test("updating a legacy assignment does not create a one-item batch", async () => {
+
+    const { context, supabase } = await createKpiRuntime({
+        "200": createAssignment("200"),
+        "201": createAssignment("201")
+    });
+
+    await context.assignFacilityToCommittee(
+        "201",
+        "committee4",
+        "in_progress"
+    );
+
+    const savedAssignments = supabase.rows.get("facilityAssignments").value;
+    const kpis = context.getCommitteeKpis("committee4");
+
+    assert.equal(savedAssignments["201"].assignmentBatchId, null);
+    assert.equal(kpis.assignedCount, 2);
+    assert.equal(kpis.remainingCount, 2);
+
+});
+
+
+test("legacy assignment sessions separated by more than five minutes stay distinct", async () => {
+
+    const { context } = await createKpiRuntime({
+        "100": createAssignment("100", {
+            assignedAt: "2026-07-20T07:50:00.000Z"
+        }),
+        "101": createAssignment("101", {
+            assignedAt: "2026-07-20T07:50:03.000Z"
+        }),
+        "200": createAssignment("200", {
+            assignedAt: "2026-07-20T08:00:00.000Z"
+        })
+    });
+
+    const kpis = context.getCommitteeKpis("committee4");
+
+    assert.equal(kpis.assignedCount, 1);
+    assert.equal(kpis.remainingCount, 1);
 
 });
 

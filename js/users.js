@@ -5,6 +5,7 @@
 const usersStorageKey = "narcoUsers";
 const assignmentsStorageKey = "facilityAssignments";
 const assignmentStatuses = ["assigned", "in_progress", "completed", "cancelled"];
+const legacyAssignmentBatchGapMs = 5 * 60 * 1000;
 const currentUsername = getCurrentUsername();
 
 const defaultUsers = [
@@ -483,6 +484,19 @@ function getAssignmentBatchKey(assignment) {
 }
 
 
+function getExplicitAssignmentBatchKey(assignment) {
+
+    if (!assignment || typeof assignment !== "object") return "";
+
+    return String(
+        assignment.assignmentBatchId ||
+        assignment.smartBatchId ||
+        ""
+    );
+
+}
+
+
 function getLatestAssignmentBatchForCommittee(username, assignmentsSnapshot = null) {
 
     const assignments = Array.isArray(assignmentsSnapshot)
@@ -491,21 +505,55 @@ function getLatestAssignmentBatchForCommittee(username, assignmentsSnapshot = nu
 
     if (assignments.length === 0) return [];
 
-    const latestAssignment = assignments.reduce((latest, assignment) => {
+    const assignmentsByNewest = [...assignments].sort((first, second) => {
 
-        const latestTime = new Date(latest.assignedAt || 0).getTime();
-        const assignmentTime = new Date(assignment.assignedAt || 0).getTime();
-
-        return assignmentTime > latestTime ? assignment : latest;
+        return new Date(second.assignedAt || 0).getTime() -
+            new Date(first.assignedAt || 0).getTime();
 
     });
+    const latestAssignment = assignmentsByNewest[0];
     const latestBatchKey = getAssignmentBatchKey(latestAssignment);
-
-    return assignments.filter(assignment => {
+    const matchingBatchAssignments = assignments.filter(assignment => {
 
         return getAssignmentBatchKey(assignment) === latestBatchKey;
 
     });
+
+    if (matchingBatchAssignments.length > 1 ||
+        !getExplicitAssignmentBatchKey(latestAssignment)) {
+
+        return matchingBatchAssignments;
+
+    }
+
+    const compatibleLegacyBatch = [latestAssignment];
+
+    for (let index = 1; index < assignmentsByNewest.length; index += 1) {
+
+        const previousTime = new Date(
+            assignmentsByNewest[index - 1].assignedAt || 0
+        ).getTime();
+        const assignmentTime = new Date(
+            assignmentsByNewest[index].assignedAt || 0
+        ).getTime();
+
+        if (!Number.isFinite(previousTime) ||
+            !Number.isFinite(assignmentTime) ||
+            previousTime <= 0 ||
+            assignmentTime <= 0 ||
+            previousTime - assignmentTime > legacyAssignmentBatchGapMs) {
+
+            break;
+
+        }
+
+        compatibleLegacyBatch.push(assignmentsByNewest[index]);
+
+    }
+
+    return compatibleLegacyBatch.length > 1
+        ? compatibleLegacyBatch
+        : matchingBatchAssignments;
 
 }
 
@@ -614,9 +662,10 @@ function getCommitteeKpis(username) {
 
     });
 
-    const completionRate = activeAssignments.length === 0
+    const performanceTotal = completedCount + remainingCount;
+    const completionRate = performanceTotal === 0
         ? 0
-        : Math.round((completedCount / activeAssignments.length) * 100);
+        : Math.round((completedCount / performanceTotal) * 100);
 
     return {
         assignedCount,
@@ -781,7 +830,7 @@ async function assignFacilityToCommittee(
                     ? remoteAssignment.assignedAt
                     : assignedAt,
                 assignmentBatchId: isActiveAssignment(remoteAssignment)
-                    ? remoteAssignment.assignmentBatchId || assignmentBatchId
+                    ? remoteAssignment.assignmentBatchId || null
                     : assignmentBatchId,
                 status: assignmentStatuses.includes(status) ? status : "assigned",
                 teamSnapshot: createTeamSnapshot(committee),
