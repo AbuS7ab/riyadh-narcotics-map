@@ -82,7 +82,7 @@ async function createKpiRuntime(assignments, facilityStatuses = {}) {
 }
 
 
-test("current workload uses the latest batch while performance stays cumulative", async () => {
+test("current workload rate uses completed current assignments while totals stay cumulative", async () => {
 
     const { context } = await createKpiRuntime({
         "100": createAssignment("100", {
@@ -112,7 +112,7 @@ test("current workload uses the latest batch while performance stays cumulative"
     assert.equal(kpis.assignedCount, 3);
     assert.equal(kpis.completedCount, 3);
     assert.equal(kpis.remainingCount, 2);
-    assert.equal(kpis.completionRate, 60);
+    assert.equal(kpis.completionRate, 33);
 
 });
 
@@ -157,7 +157,7 @@ test("assignments added while work remains open stay in the same current cycle",
     assert.equal(kpis.assignedCount, 9);
     assert.equal(kpis.completedCount, 18);
     assert.equal(kpis.remainingCount, 9);
-    assert.equal(kpis.completionRate, 67);
+    assert.equal(kpis.completionRate, 0);
 
 });
 
@@ -225,7 +225,7 @@ test("current cycle matches the nine facilities shown to the committee", async (
     assert.equal(kpis.assignedCount, 9);
     assert.equal(kpis.completedCount, 19);
     assert.equal(kpis.remainingCount, 1);
-    assert.equal(kpis.completionRate, 95);
+    assert.equal(kpis.completionRate, 89);
     assert.equal(currentFacilities.length, 9);
     assert.ok(currentFacilities.some(facility => facility.license === "current-pending"));
     assert.ok(!currentFacilities.some(facility => facility.license === "history-0"));
@@ -233,7 +233,7 @@ test("current cycle matches the nine facilities shown to the committee", async (
 });
 
 
-test("committee details summary reuses the cumulative committee KPIs", async () => {
+test("committee details summary reuses the current-assignment completion rate", async () => {
 
     const { context } = await createKpiRuntime({
         "100": createAssignment("100", {
@@ -268,7 +268,7 @@ test("committee details summary reuses the cumulative committee KPIs", async () 
     assert.equal(summary.assignedCount, 1);
     assert.equal(summary.remainingCount, 1);
     assert.equal(summary.completedCount, 1);
-    assert.equal(summary.completionRate, 50);
+    assert.equal(summary.completionRate, 0);
     assert.equal(summary.currentBatchCounts.pending, 1);
     assert.equal(summary.currentBatchCounts.completed, 0);
 
@@ -314,7 +314,7 @@ test("legacy assignments with the same timestamp remain one batch", async () => 
     assert.equal(kpis.assignedCount, 2);
     assert.equal(kpis.completedCount, 2);
     assert.equal(kpis.remainingCount, 1);
-    assert.equal(kpis.completionRate, 67);
+    assert.equal(kpis.completionRate, 50);
 
 });
 
@@ -428,7 +428,7 @@ test("violations remain cumulative across old and current batches", async () => 
     assert.equal(kpis.remainingCount, 1);
     assert.equal(kpis.completedCount, 1);
     assert.equal(kpis.violatingFacilityCount, 1);
-    assert.equal(kpis.completionRate, 50);
+    assert.equal(kpis.completionRate, 0);
 
 });
 
