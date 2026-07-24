@@ -5,7 +5,6 @@
 const usersStorageKey = "narcoUsers";
 const assignmentsStorageKey = "facilityAssignments";
 const assignmentStatuses = ["assigned", "in_progress", "completed", "cancelled"];
-const legacyAssignmentBatchGapMs = 5 * 60 * 1000;
 const currentUsername = getCurrentUsername();
 
 const defaultUsers = [
@@ -469,35 +468,69 @@ function getActiveAssignmentsForCommittee(username) {
 }
 
 
-function getAssignmentBatchKey(assignment) {
+function getAssignmentEventTime(value) {
 
-    if (!assignment || typeof assignment !== "object") return "";
+    const timestamp = new Date(value || 0).getTime();
 
-    return String(
-        assignment.assignmentBatchId ||
-        assignment.smartBatchId ||
-        assignment.assignedAt ||
-        assignment.id ||
-        ""
-    );
+    return Number.isFinite(timestamp) && timestamp > 0
+        ? timestamp
+        : 0;
 
 }
 
 
-function getExplicitAssignmentBatchKey(assignment) {
+function getAssignmentCompletionTime(assignment) {
 
-    if (!assignment || typeof assignment !== "object") return "";
+    if (!assignment || typeof assignment !== "object") return 0;
 
-    return String(
-        assignment.assignmentBatchId ||
-        assignment.smartBatchId ||
-        ""
-    );
+    const assignedAt = getAssignmentEventTime(assignment.assignedAt);
+    const status = typeof getFacilityStatus === "function"
+        ? getFacilityStatus(assignment.facilityLicense)
+        : null;
+    const visits = status && Array.isArray(status.visits)
+        ? status.visits
+        : [];
+    const completedVisits = visits.filter(visit => {
+
+        if (!visitIndicatesCompletion(visit)) return false;
+
+        if (assignment.id && visit.assignmentId) {
+
+            return String(visit.assignmentId) === String(assignment.id);
+
+        }
+
+        if (visit.committeeUsername &&
+            String(visit.committeeUsername) !== String(assignment.committeeUsername)) {
+
+            return false;
+
+        }
+
+        const visitTime = getAssignmentEventTime(visit.createdAt || visit.date);
+
+        return !assignedAt || !visitTime || visitTime >= assignedAt;
+
+    });
+    const completionTimes = completedVisits
+        .map(visit => getAssignmentEventTime(visit.createdAt || visit.date))
+        .filter(Boolean)
+        .sort((first, second) => first - second);
+
+    if (completionTimes.length > 0) return completionTimes[0];
+
+    return assignment.status === "completed" ||
+        facilityHasCompletedVisit(assignment.facilityLicense)
+        ? assignedAt
+        : 0;
 
 }
 
 
-function getLatestAssignmentBatchForCommittee(username, assignmentsSnapshot = null) {
+function getCurrentAssignmentCycleForCommittee(
+    username,
+    assignmentsSnapshot = null
+) {
 
     const assignments = Array.isArray(assignmentsSnapshot)
         ? assignmentsSnapshot
@@ -505,55 +538,69 @@ function getLatestAssignmentBatchForCommittee(username, assignmentsSnapshot = nu
 
     if (assignments.length === 0) return [];
 
-    const assignmentsByNewest = [...assignments].sort((first, second) => {
+    const events = [];
 
-        return new Date(second.assignedAt || 0).getTime() -
-            new Date(first.assignedAt || 0).getTime();
+    assignments.forEach((assignment, sourceIndex) => {
 
-    });
-    const latestAssignment = assignmentsByNewest[0];
-    const latestBatchKey = getAssignmentBatchKey(latestAssignment);
-    const matchingBatchAssignments = assignments.filter(assignment => {
+        const assignedAt = getAssignmentEventTime(assignment.assignedAt);
 
-        return getAssignmentBatchKey(assignment) === latestBatchKey;
+        events.push({
+            type: "assigned",
+            timestamp: assignedAt,
+            priority: 0,
+            sourceIndex,
+            assignment
+        });
 
-    });
+        const completedAt = getAssignmentCompletionTime(assignment);
 
-    if (matchingBatchAssignments.length > 1 ||
-        !getExplicitAssignmentBatchKey(latestAssignment)) {
+        if (completedAt) {
 
-        return matchingBatchAssignments;
-
-    }
-
-    const compatibleLegacyBatch = [latestAssignment];
-
-    for (let index = 1; index < assignmentsByNewest.length; index += 1) {
-
-        const previousTime = new Date(
-            assignmentsByNewest[index - 1].assignedAt || 0
-        ).getTime();
-        const assignmentTime = new Date(
-            assignmentsByNewest[index].assignedAt || 0
-        ).getTime();
-
-        if (!Number.isFinite(previousTime) ||
-            !Number.isFinite(assignmentTime) ||
-            previousTime <= 0 ||
-            assignmentTime <= 0 ||
-            previousTime - assignmentTime > legacyAssignmentBatchGapMs) {
-
-            break;
+            events.push({
+                type: "completed",
+                timestamp: Math.max(completedAt, assignedAt),
+                priority: 1,
+                sourceIndex,
+                assignment
+            });
 
         }
 
-        compatibleLegacyBatch.push(assignmentsByNewest[index]);
+    });
 
-    }
+    events.sort((first, second) => {
 
-    return compatibleLegacyBatch.length > 1
-        ? compatibleLegacyBatch
-        : matchingBatchAssignments;
+        return first.timestamp - second.timestamp ||
+            first.priority - second.priority ||
+            first.sourceIndex - second.sourceIndex;
+
+    });
+
+    let outstandingCount = 0;
+    let currentCycle = [];
+
+    events.forEach(event => {
+
+        if (event.type === "assigned") {
+
+            currentCycle.push(event.assignment);
+            outstandingCount += 1;
+
+            return;
+
+        }
+
+        outstandingCount = Math.max(outstandingCount - 1, 0);
+
+        if (outstandingCount === 0) {
+
+            currentCycle = [];
+
+        }
+
+    });
+
+    return outstandingCount > 0 ? currentCycle : [];
 
 }
 
@@ -629,25 +676,25 @@ function facilityHasCompletedVisit(license) {
 function getCommitteeKpis(username) {
 
     const activeAssignments = getActiveAssignmentsForCommittee(username);
-    const latestBatchAssignments = getLatestAssignmentBatchForCommittee(
+    const currentCycleAssignments = getCurrentAssignmentCycleForCommittee(
         username,
         activeAssignments
     );
-    const batchTotal = latestBatchAssignments.length;
+    const cycleTotal = currentCycleAssignments.length;
     const completedCount = activeAssignments.filter(assignment => {
 
         return assignment.status === "completed" ||
             facilityHasCompletedVisit(assignment.facilityLicense);
 
     }).length;
-    const batchCompletedCount = latestBatchAssignments.filter(assignment => {
+    const cycleCompletedCount = currentCycleAssignments.filter(assignment => {
 
         return assignment.status === "completed" ||
             facilityHasCompletedVisit(assignment.facilityLicense);
 
     }).length;
-    const remainingCount = Math.max(batchTotal - batchCompletedCount, 0);
-    const assignedCount = remainingCount === 0 ? 0 : batchTotal;
+    const remainingCount = Math.max(cycleTotal - cycleCompletedCount, 0);
+    const assignedCount = remainingCount === 0 ? 0 : cycleTotal;
     const violatingFacilities = new Set();
 
     activeAssignments.forEach(assignment => {
@@ -1474,7 +1521,7 @@ function getAssignedFacilitiesForCurrentUser(facilities) {
 
     if (!isCommitteeUser()) return [];
 
-    return getFacilitiesForActiveAssignments(currentUser.username, facilities);
+    return getFacilitiesForCurrentAssignmentCycle(currentUser.username, facilities);
 
 }
 
@@ -1497,10 +1544,10 @@ function getFacilitiesForActiveAssignments(username, facilities) {
 }
 
 
-function getFacilitiesForLatestAssignmentBatch(username, facilities) {
+function getFacilitiesForCurrentAssignmentCycle(username, facilities) {
 
-    const latestBatchAssignments = getLatestAssignmentBatchForCommittee(username);
-    const latestBatchLicenses = new Set(latestBatchAssignments.map(assignment => {
+    const currentCycleAssignments = getCurrentAssignmentCycleForCommittee(username);
+    const currentCycleLicenses = new Set(currentCycleAssignments.map(assignment => {
 
         return String(assignment.facilityLicense);
 
@@ -1508,7 +1555,7 @@ function getFacilitiesForLatestAssignmentBatch(username, facilities) {
 
     return facilities.filter(facility => {
 
-        return latestBatchLicenses.has(String(facility.license));
+        return currentCycleLicenses.has(String(facility.license));
 
     });
 
@@ -1537,7 +1584,7 @@ function refreshAssignmentViews(username = "") {
 
         showCommitteeFacilityList(
             users[username],
-            getFacilitiesForLatestAssignmentBatch(username, allFacilities)
+            getFacilitiesForCurrentAssignmentCycle(username, allFacilities)
         );
 
     }
@@ -1617,7 +1664,7 @@ function renderCommitteeAssignmentCards() {
             selectedCommitteeUsername = username;
             renderCommitteeAssignmentCards();
 
-            const assignedFacilities = getFacilitiesForLatestAssignmentBatch(
+            const assignedFacilities = getFacilitiesForCurrentAssignmentCycle(
                 username,
                 allFacilities
             );

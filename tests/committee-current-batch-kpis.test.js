@@ -117,7 +117,7 @@ test("current workload uses the latest batch while performance stays cumulative"
 });
 
 
-test("completion rate ignores unfinished assignments from older batches", async () => {
+test("assignments added while work remains open stay in the same current cycle", async () => {
 
     const assignments = {};
 
@@ -154,10 +154,81 @@ test("completion rate ignores unfinished assignments from older batches", async 
     const { context } = await createKpiRuntime(assignments);
     const kpis = context.getCommitteeKpis("committee4");
 
-    assert.equal(kpis.assignedCount, 1);
+    assert.equal(kpis.assignedCount, 9);
     assert.equal(kpis.completedCount, 18);
+    assert.equal(kpis.remainingCount, 9);
+    assert.equal(kpis.completionRate, 67);
+
+});
+
+
+test("current cycle matches the nine facilities shown to the committee", async () => {
+
+    const assignments = {};
+    const facilityStatuses = {};
+
+    for (let index = 0; index < 11; index += 1) {
+
+        const license = `history-${index}`;
+        const assignment = createAssignment(license, {
+            assignedAt: "2026-07-01T08:00:00.000Z",
+            status: "completed"
+        });
+
+        assignments[license] = assignment;
+        facilityStatuses[license] = {
+            visitStatus: "visited",
+            visits: [{
+                assignmentId: assignment.id,
+                committeeUsername: "committee4",
+                result: "no_violation",
+                visitStatus: "visited",
+                createdAt: "2026-07-02T08:00:00.000Z"
+            }]
+        };
+
+    }
+
+    for (let index = 0; index < 8; index += 1) {
+
+        const license = `current-completed-${index}`;
+        const assignment = createAssignment(license, {
+            assignedAt: "2026-07-20T08:00:00.000Z",
+            status: "completed"
+        });
+
+        assignments[license] = assignment;
+        facilityStatuses[license] = {
+            visitStatus: "visited",
+            visits: [{
+                assignmentId: assignment.id,
+                committeeUsername: "committee4",
+                result: "no_violation",
+                visitStatus: "visited",
+                createdAt: "2026-07-20T09:00:00.000Z"
+            }]
+        };
+
+    }
+
+    assignments["current-pending"] = createAssignment("current-pending", {
+        assignedAt: "2026-07-20T08:30:00.000Z"
+    });
+
+    const { context } = await createKpiRuntime(assignments, facilityStatuses);
+    const kpis = context.getCommitteeKpis("committee4");
+    const currentFacilities = context.getFacilitiesForCurrentAssignmentCycle(
+        "committee4",
+        Object.keys(assignments).map(license => ({ license }))
+    );
+
+    assert.equal(kpis.assignedCount, 9);
+    assert.equal(kpis.completedCount, 19);
     assert.equal(kpis.remainingCount, 1);
     assert.equal(kpis.completionRate, 95);
+    assert.equal(currentFacilities.length, 9);
+    assert.ok(currentFacilities.some(facility => facility.license === "current-pending"));
+    assert.ok(!currentFacilities.some(facility => facility.license === "history-0"));
 
 });
 
@@ -267,7 +338,7 @@ test("legacy assignments keep one batch after unique ids were backfilled", async
     });
 
     const kpis = context.getCommitteeKpis("committee4");
-    const displayedFacilities = context.getFacilitiesForLatestAssignmentBatch(
+    const displayedFacilities = context.getFacilitiesForCurrentAssignmentCycle(
         "committee4",
         [
             { license: "200" },
@@ -310,7 +381,7 @@ test("updating a legacy assignment does not create a one-item batch", async () =
 });
 
 
-test("legacy assignment sessions separated by more than five minutes stay distinct", async () => {
+test("time gaps do not split a workload that was never completed", async () => {
 
     const { context } = await createKpiRuntime({
         "100": createAssignment("100", {
@@ -326,8 +397,8 @@ test("legacy assignment sessions separated by more than five minutes stay distin
 
     const kpis = context.getCommitteeKpis("committee4");
 
-    assert.equal(kpis.assignedCount, 1);
-    assert.equal(kpis.remainingCount, 1);
+    assert.equal(kpis.assignedCount, 3);
+    assert.equal(kpis.remainingCount, 3);
 
 });
 
