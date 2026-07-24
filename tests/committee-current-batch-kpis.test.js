@@ -275,6 +275,30 @@ test("committee details summary reuses the current-assignment completion rate", 
 });
 
 
+test("committee detail KPI cards filter current and cumulative facilities", () => {
+
+    const sidebarSource = require("node:fs").readFileSync(
+        require("node:path").join(__dirname, "..", "js", "sidebar.js"),
+        "utf8"
+    );
+    const summaryMarkup = sidebarSource.match(
+        /<div class="admin-assigned-summary"[\s\S]*?<\/div>\n        \$\{canManageAssignments/
+    );
+
+    assert.ok(summaryMarkup);
+    assert.match(summaryMarkup[0], /data-admin-assigned-list-filter="all"/);
+    assert.match(summaryMarkup[0], /data-admin-assigned-list-filter="remaining"/);
+    assert.match(summaryMarkup[0], /data-admin-assigned-list-filter="completed"/);
+    assert.match(summaryMarkup[0], /<strong>\$\{summary\.completedCount\}<\/strong>/);
+    assert.doesNotMatch(summaryMarkup[0], /نسبة الإنجاز/);
+    assert.match(
+        sidebarSource,
+        /adminAssignedListFilter === "completed"\s*\?\s*completedFacilities/
+    );
+
+});
+
+
 test("assigned count resets to zero after the latest batch is complete", async () => {
 
     const { context } = await createKpiRuntime({

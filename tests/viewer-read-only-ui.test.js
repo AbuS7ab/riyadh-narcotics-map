@@ -39,7 +39,13 @@ test("Viewer can open committee cards and inspect completed and remaining facili
         /function showCommitteeFacilityList[\s\S]*?!isAdminUser\(\) && !isViewerUser\(\)/
     );
     assert.match(sidebar, /data-admin-assigned-list-filter="remaining"/);
-    assert.match(sidebar, /المتبقية \(\$\{remainingCount\}\)/);
+    assert.match(sidebar, /data-admin-assigned-list-filter="completed"/);
+    assert.match(sidebar, /<span>عدد المتبقي<\/span>/);
+    assert.match(sidebar, /<span>عدد المكتمل<\/span>/);
+    assert.match(
+        sidebar,
+        /getCompletedFacilitiesForCommittee\(committee\.username, allFacilities\)/
+    );
     assert.match(sidebar, /const canManageAssignments = isAdminUser\(\);/);
     assert.match(sidebar, /\$\{canManageAssignments \? `/);
     assert.match(
