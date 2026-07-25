@@ -211,9 +211,14 @@
                     <option>نوع المنشأة</option>
                 </select>
 
-                <select class="form-select management-read-only" aria-label="الحي">
-                    <option>الحي</option>
-                </select>
+                <input id="districtFilter"
+                       class="form-control management-read-only"
+                       type="search"
+                       list="districtOptions"
+                       placeholder="ابحث بالحي"
+                       aria-label="البحث بالحي"
+                       autocomplete="off">
+                <datalist id="districtOptions"></datalist>
             </section>
 
             <section id="externalVisitsWorkspace" class="workspace-card external-visits-workspace management-read-only d-none">
@@ -810,6 +815,8 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 <script src="js/markers.js"></script>
 
 <script src="js/dashboard.js"></script>
+
+<script src="js/districts.js"></script>
 
 <script src="js/filters.js"></script>
 

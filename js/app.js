@@ -256,7 +256,8 @@ function syncFacilityCollections() {
     allFacilities = getAccessibleFacilities(mergedFacilities);
     filteredFacilities = [...allFacilities];
 
-    refreshView();
+    initializeDistrictFilter(allFacilities);
+    applyFilters();
     renderAssignmentBoard(allFacilities);
 
     if (typeof refreshEmployeePerformanceDashboard === "function") {
