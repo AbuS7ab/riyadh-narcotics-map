@@ -1703,3 +1703,30 @@ body.role-committee .main-grid {
         min-height: 92px;
     }
 }
+.facility-archive-list {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.facility-archive-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    background: #f8fafc;
+}
+
+.facility-archive-item small {
+    display: block;
+    color: #64748b;
+}
+
+@media (max-width: 767px) {
+    .facility-archive-item {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

@@ -217,7 +217,10 @@ function applyFacilityOverride(facility) {
         originalLicense,
         updatedLicense,
         displayLicense: updatedLicense,
-        isCustom: Boolean(facility.isCustom)
+        isCustom: Boolean(facility.isCustom),
+        activityStatus: normalizeFacilityActivityStatus(
+            override.activityStatus || facility.activityStatus
+        )
     };
 
 }
@@ -246,6 +249,7 @@ function findFacilityByOriginalLicense(license) {
 function syncFacilityCollections() {
 
     const mergedFacilities = getMergedFacilities();
+    const activeFacilities = mergedFacilities.filter(isFacilityActive);
 
     mergedFacilities.forEach(facility => {
 
@@ -253,12 +257,13 @@ function syncFacilityCollections() {
 
     });
 
-    allFacilities = getAccessibleFacilities(mergedFacilities);
+    allFacilities = getAccessibleFacilities(activeFacilities);
     filteredFacilities = [...allFacilities];
 
     initializeDistrictFilter(allFacilities);
     applyFilters();
     renderAssignmentBoard(allFacilities);
+    renderCancelledFacilitiesArchive(mergedFacilities);
 
     if (typeof refreshEmployeePerformanceDashboard === "function") {
 
@@ -373,7 +378,13 @@ function collectCustomFacilityFormData() {
         lngRaw: longitudeValue,
         lat: Number(latitudeValue),
         lng: Number(longitudeValue),
-        google_maps: trimCustomFacilityInput(document.getElementById("customFacilityMaps").value)
+        google_maps: trimCustomFacilityInput(document.getElementById("customFacilityMaps").value),
+        activityStatus: normalizeFacilityActivityStatus(
+            document.getElementById("customFacilityActivityStatus").value
+        ),
+        cancellationReason: trimCustomFacilityInput(
+            document.getElementById("customFacilityCancellationReason").value
+        )
     };
 
 }
@@ -397,7 +408,8 @@ function buildCustomFacility(data) {
         lat: data.lat,
         lng: data.lng,
         google_maps: googleMapsUrl,
-        source: "custom"
+        source: "custom",
+        ...data.activity
     };
 
 }
@@ -419,7 +431,8 @@ function buildFacilityOverride(data) {
         sector: data.sector,
         lat: data.lat,
         lng: data.lng,
-        google_maps: googleMapsUrl
+        google_maps: googleMapsUrl,
+        ...data.activity
     };
 
 }
@@ -440,6 +453,11 @@ function validateCustomFacility(data) {
 
     if (!data.name) return "اسم المنشأة مطلوب.";
     if (!data.license) return "رقم الترخيص مطلوب.";
+    if (data.activityStatus === "cancelled" && !data.cancellationReason) {
+
+        return "سبب إلغاء النشاط مطلوب.";
+
+    }
     if (!data.latRaw ||
         !data.lngRaw ||
         !Number.isFinite(data.lat) ||
@@ -512,6 +530,7 @@ function resetCustomFacilityForm() {
     if (title) title.textContent = "إضافة منشأة";
     if (submit) submit.textContent = "حفظ المنشأة";
     form.classList.add("d-none");
+    updateFacilityCancellationReasonVisibility();
     showCustomFacilityMessage("", "d-none");
 
 }
@@ -567,37 +586,107 @@ async function saveCustomFacilityFromForm() {
     }
 
     const source = getEditableFacilitySource(data.originalLicense);
+    const originalLicense = data.originalLicense || data.license;
+    const existingFacility = data.originalLicense
+        ? findFacilityByOriginalLicense(data.originalLicense)
+        : null;
+    const activity = buildFacilityActivityUpdate(
+        existingFacility,
+        data.activityStatus,
+        data.cancellationReason,
+        currentUser && currentUser.username
+    );
+    const changes = [];
+    let nextCustomFacilities = customFacilities;
+    let nextFacilityOverrides = facilityOverrides;
 
     if (!data.originalLicense || source === "custom") {
 
-        const originalLicense = data.originalLicense || data.license;
-        const nextCustomFacilities = { ...customFacilities };
+        nextCustomFacilities = { ...customFacilities };
 
         nextCustomFacilities[originalLicense] = buildCustomFacility({
             ...data,
-            originalLicense
+            originalLicense,
+            activity
         });
 
-        await persistCustomFacilities(nextCustomFacilities);
+        changes.push({
+            key: "customFacilities",
+            previousValue: customFacilities,
+            nextValue: nextCustomFacilities
+        });
 
     } else {
 
-        const nextFacilityOverrides = { ...facilityOverrides };
+        nextFacilityOverrides = { ...facilityOverrides };
 
-        nextFacilityOverrides[data.originalLicense] = buildFacilityOverride(data);
+        nextFacilityOverrides[data.originalLicense] = buildFacilityOverride({
+            ...data,
+            activity
+        });
 
-        await persistFacilityOverrides(nextFacilityOverrides);
+        changes.push({
+            key: "facilityOverrides",
+            previousValue: facilityOverrides,
+            nextValue: nextFacilityOverrides
+        });
 
     }
 
-    const savedOriginalLicense = data.originalLicense || data.license;
-    const savedFacility = findFacilityByOriginalLicense(savedOriginalLicense);
+    const nextFacilityAssignments = { ...facilityAssignments };
+    const assignment = nextFacilityAssignments[originalLicense];
+
+    if (data.activityStatus === "cancelled" && isActiveAssignment(assignment)) {
+
+        nextFacilityAssignments[originalLicense] = {
+            ...assignment,
+            status: "cancelled",
+            cancelledAt: activity.cancelledAt,
+            cancelledBy: activity.cancelledBy,
+            cancellationReason: `إلغاء نشاط المنشأة: ${activity.cancellationReason}`
+        };
+        changes.push({
+            key: "facilityAssignments",
+            previousValue: facilityAssignments,
+            nextValue: nextFacilityAssignments
+        });
+
+    }
+
+    const savedCollections = await mutateCloudCollectionsWithRollback(changes);
+
+    if (savedCollections.customFacilities) {
+
+        customFacilities = savedCollections.customFacilities;
+
+    }
+
+    if (savedCollections.facilityOverrides) {
+
+        facilityOverrides = savedCollections.facilityOverrides;
+
+    }
+
+    if (savedCollections.facilityAssignments) {
+
+        facilityAssignments = savedCollections.facilityAssignments;
+
+    }
+
+    syncFacilityCollections();
 
     resetCustomFacilityForm();
 
-    if (savedFacility && typeof showFacilityDetails === "function") {
+    const savedFacility = findFacilityByOriginalLicense(originalLicense);
+
+    if (savedFacility && isFacilityActive(savedFacility) &&
+        typeof showFacilityDetails === "function") {
 
         showFacilityDetails(savedFacility);
+
+    } else {
+
+        showDashboardNeutralState();
 
     }
 
@@ -631,6 +720,11 @@ function editFacility(license) {
     document.getElementById("customFacilityLng").value =
         typeof facility.lng === "undefined" ? "" : facility.lng;
     document.getElementById("customFacilityMaps").value = facility.google_maps || "";
+    document.getElementById("customFacilityActivityStatus").value =
+        normalizeFacilityActivityStatus(facility.activityStatus);
+    document.getElementById("customFacilityCancellationReason").value =
+        facility.cancellationReason || "";
+    updateFacilityCancellationReasonVisibility();
     showCustomFacilityMessage("", "d-none");
 
 }
@@ -697,8 +791,19 @@ function initializeCustomFacilitiesPanel() {
     const showFormButton = document.getElementById("showCustomFacilityForm");
     const form = document.getElementById("customFacilityForm");
     const cancelButton = document.getElementById("cancelCustomFacilityEdit");
+    const activityStatus = document.getElementById("customFacilityActivityStatus");
 
     if (!showFormButton || !form || !isAdminUser()) return;
+
+    if (activityStatus) {
+
+        activityStatus.addEventListener(
+            "change",
+            updateFacilityCancellationReasonVisibility
+        );
+        updateFacilityCancellationReasonVisibility();
+
+    }
 
     showFormButton.addEventListener("click", () => {
 
@@ -745,6 +850,108 @@ function initializeCustomFacilitiesPanel() {
         cancelButton.addEventListener("click", resetCustomFacilityForm);
 
     }
+
+}
+
+
+function updateFacilityCancellationReasonVisibility() {
+
+    const activityStatus = document.getElementById("customFacilityActivityStatus");
+    const reasonGroup =
+        document.getElementById("customFacilityCancellationReasonGroup");
+    const reasonInput =
+        document.getElementById("customFacilityCancellationReason");
+
+    if (!activityStatus || !reasonGroup || !reasonInput) return;
+
+    const isCancelled = activityStatus.value === "cancelled";
+
+    reasonGroup.classList.toggle("d-none", !isCancelled);
+    reasonInput.required = isCancelled;
+
+    if (!isCancelled) reasonInput.value = "";
+
+}
+
+
+function formatFacilityCancellationDate(value) {
+
+    if (!value) return "-";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "-";
+
+    return new Intl.DateTimeFormat("ar-SA", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }).format(date);
+
+}
+
+
+function renderCancelledFacilitiesArchive(facilities = getMergedFacilities()) {
+
+    const list = document.getElementById("cancelledFacilitiesList");
+    const count = document.getElementById("cancelledFacilitiesCount");
+
+    if (!list || !count || !isAdminUser()) return;
+
+    const cancelledFacilities = facilities
+        .filter(facility => !isFacilityActive(facility))
+        .sort((first, second) => String(first.name || "").localeCompare(
+            String(second.name || ""),
+            "ar"
+        ));
+
+    count.textContent = cancelledFacilities.length;
+
+    if (cancelledFacilities.length === 0) {
+
+        list.innerHTML =
+            `<div class="text-muted small">لا توجد منشآت ملغى نشاطها.</div>`;
+
+        return;
+
+    }
+
+    list.innerHTML = cancelledFacilities.map(facility => `
+        <article class="facility-archive-item">
+            <div>
+                <strong>${escapeHtml(facility.name)}</strong>
+                <small>الترخيص: ${escapeHtml(getFacilityDisplayLicense(facility))}</small>
+                <small>السبب: ${escapeHtml(facility.cancellationReason || "-")}</small>
+                <small>تاريخ الإلغاء: ${escapeHtml(
+                    formatFacilityCancellationDate(facility.cancelledAt)
+                )}</small>
+            </div>
+            <button type="button"
+                    class="btn btn-outline-success btn-sm reactivate-facility"
+                    data-facility-license="${escapeHtml(facility.license)}">
+                إعادة التنشيط
+            </button>
+        </article>
+    `).join("");
+
+    list.querySelectorAll(".reactivate-facility").forEach(button => {
+
+        button.addEventListener("click", () => {
+
+            editFacility(button.dataset.facilityLicense);
+            const activityStatus =
+                document.getElementById("customFacilityActivityStatus");
+
+            if (activityStatus) {
+
+                activityStatus.value = "active";
+                updateFacilityCancellationReasonVisibility();
+
+            }
+
+        });
+
+    });
 
 }
 
