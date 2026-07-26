@@ -269,6 +269,7 @@ function syncFacilityCollections() {
     filteredFacilities = [...allFacilities];
 
     initializeDistrictFilter(allFacilities);
+    initializeVisitDateFilter();
     applyFilters();
     renderAssignmentBoard(allFacilities);
     renderCancelledFacilitiesArchive(mergedFacilities);

@@ -595,6 +595,32 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
     box-shadow: 0 7px 20px rgba(0, 61, 47, .05);
 }
 
+.visit-date-range-filter {
+    grid-column: span 2;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(145px, 1fr)) auto;
+    gap: 8px;
+    align-items: end;
+}
+
+.visit-date-field label {
+    display: block;
+    margin: 0 2px 4px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.visit-date-range-error {
+    grid-column: 1 / -1;
+    color: var(--danger);
+    font-size: 11px;
+}
+
+.visit-date-range-filter [aria-invalid="true"] {
+    border-color: var(--danger);
+}
+
 .search-control {
     min-width: 0;
 }
@@ -1468,6 +1494,10 @@ body.role-committee .main-grid {
         width: 100%;
     }
 
+    .visit-date-range-filter {
+        grid-column: 1 / -1;
+    }
+
     .assignment-board-body {
         grid-template-columns: 1fr;
     }
@@ -1639,6 +1669,11 @@ body.role-committee .main-grid {
 
     .search-control {
         grid-column: auto;
+    }
+
+    .visit-date-range-filter {
+        grid-column: auto;
+        grid-template-columns: 1fr;
     }
 
     .type-stats {
