@@ -47,10 +47,45 @@ function createContext() {
 }
 
 test("visit date range controls are available with an explicit clear action", () => {
+    assert.match(html, /id="visitDateRangeFilter"[\s\S]*?type="text"/);
     assert.match(html, /id="visitDateFromFilter"[\s\S]*?type="date"/);
     assert.match(html, /id="visitDateToFilter"[\s\S]*?type="date"/);
     assert.match(html, /id="clearVisitDateFilter"/);
     assert.match(html, /id="visitDateRangeError"/);
+    assert.match(html, /flatpickr\.min\.css/);
+    assert.match(html, /flatpickr\/dist\/l10n\/ar\.js/);
+    assert.match(filters, /mode:\s*"range"/);
+});
+
+test("visit dates accept current and legacy date fields and formats", () => {
+    const context = createContext();
+
+    vm.runInNewContext(filters, context);
+
+    assert.equal(
+        context.visitMatchesDateRange(
+            { visitDate: "2026-7-10" },
+            "2026-07-10",
+            "2026-07-10"
+        ),
+        true
+    );
+    assert.equal(
+        context.visitMatchesDateRange(
+            { completedAt: "15/07/2026" },
+            "2026-07-15",
+            "2026-07-15"
+        ),
+        true
+    );
+    assert.equal(
+        context.visitMatchesDateRange(
+            { createdAt: "2026-07-16T20:15:00.000Z" },
+            "2026-07-16",
+            "2026-07-16"
+        ),
+        true
+    );
 });
 
 test("date range includes both boundary dates and facilities appear once", () => {

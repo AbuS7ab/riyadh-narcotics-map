@@ -15,6 +15,8 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
 <link rel="stylesheet" href="css/style.css">
 
 </head>
@@ -223,17 +225,33 @@
                 <div class="visit-date-range-filter management-read-only"
                      role="group"
                      aria-label="تصفية المنشآت حسب تاريخ الزيارة">
-                    <div class="visit-date-field">
-                        <label for="visitDateFromFilter">من تاريخ</label>
-                        <input id="visitDateFromFilter"
-                               class="form-control"
-                               type="date">
+                    <div class="visit-date-field visit-date-calendar-field">
+                        <label for="visitDateRangeFilter">تاريخ الزيارة</label>
+                        <div class="visit-date-calendar-control">
+                            <i class="fa-regular fa-calendar" aria-hidden="true"></i>
+                            <input id="visitDateRangeFilter"
+                                   class="form-control"
+                                   type="text"
+                                   placeholder="اختر تاريخ البداية والنهاية"
+                                   aria-describedby="visitDateRangeHint visitDateRangeError"
+                                   autocomplete="off"
+                                   readonly>
+                        </div>
+                        <small id="visitDateRangeHint">اختر اليوم الأول ثم اليوم الأخير</small>
                     </div>
-                    <div class="visit-date-field">
-                        <label for="visitDateToFilter">إلى تاريخ</label>
-                        <input id="visitDateToFilter"
-                               class="form-control"
-                               type="date">
+                    <div id="visitDateFallbackFields" class="visit-date-fallback-fields d-none">
+                        <div class="visit-date-field">
+                            <label for="visitDateFromFilter">من تاريخ</label>
+                            <input id="visitDateFromFilter"
+                                   class="form-control"
+                                   type="date">
+                        </div>
+                        <div class="visit-date-field">
+                            <label for="visitDateToFilter">إلى تاريخ</label>
+                            <input id="visitDateToFilter"
+                                   class="form-control"
+                                   type="date">
+                        </div>
                     </div>
                     <button id="clearVisitDateFilter"
                             class="btn btn-outline-secondary d-none"
@@ -858,6 +876,10 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
 
 <script src="js/sidebar.js"></script>
 

@@ -91,18 +91,52 @@ function initializeDistrictFilter(facilities) {
 
 function getNormalizedVisitDate(value) {
 
-    const normalizedValue = String(value || "").slice(0, 10);
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
 
-    return /^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)
-        ? normalizedValue
-        : "";
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, "0");
+        const day = String(value.getDate()).padStart(2, "0");
+
+        return `${year}-${month}-${day}`;
+
+    }
+
+    const normalizedValue = String(value || "").trim();
+    const isoMatch = normalizedValue.match(
+        /^(\d{4})-(\d{1,2})-(\d{1,2})(?:T.*)?$/
+    );
+
+    if (isoMatch) {
+
+        return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+
+    }
+
+    const displayMatch = normalizedValue.match(
+        /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/
+    );
+
+    if (displayMatch) {
+
+        return `${displayMatch[3]}-${displayMatch[2].padStart(2, "0")}-${displayMatch[1].padStart(2, "0")}`;
+
+    }
+
+    return "";
 
 }
 
 
 function visitMatchesDateRange(visit, dateFrom, dateTo) {
 
-    const visitDate = getNormalizedVisitDate(visit && visit.date);
+    const visitDate = getNormalizedVisitDate(
+        visit && (
+            visit.date ||
+            visit.visitDate ||
+            visit.completedAt ||
+            visit.createdAt
+        )
+    );
 
     if (!visitDate) return false;
     if (dateFrom && visitDate < dateFrom) return false;
@@ -130,12 +164,21 @@ function facilityHasVisitInDateRange(license, dateFrom, dateTo) {
 
 function initializeVisitDateFilter() {
 
+    const dateRangeInput = document.getElementById("visitDateRangeFilter");
     const dateFromInput = document.getElementById("visitDateFromFilter");
     const dateToInput = document.getElementById("visitDateToFilter");
+    const fallbackFields = document.getElementById("visitDateFallbackFields");
     const clearButton = document.getElementById("clearVisitDateFilter");
     const errorMessage = document.getElementById("visitDateRangeError");
 
-    if (!dateFromInput || !dateToInput || !clearButton || !errorMessage) return;
+    if (
+        !dateRangeInput ||
+        !dateFromInput ||
+        !dateToInput ||
+        !fallbackFields ||
+        !clearButton ||
+        !errorMessage
+    ) return;
 
     const today = typeof getCurrentLocalDateValue === "function"
         ? getCurrentLocalDateValue()
@@ -148,8 +191,9 @@ function initializeVisitDateFilter() {
 
     }
 
-    if (dateFromInput.dataset.filterInitialized === "true") return;
+    if (dateRangeInput.dataset.filterInitialized === "true") return;
 
+    dateRangeInput.dataset.filterInitialized = "true";
     dateFromInput.dataset.filterInitialized = "true";
     dateToInput.dataset.filterInitialized = "true";
 
@@ -162,6 +206,7 @@ function initializeVisitDateFilter() {
         activeFilters.visitDateFrom = dateFrom;
         activeFilters.visitDateTo = dateTo;
 
+        dateRangeInput.setAttribute("aria-invalid", String(isInvalidRange));
         dateFromInput.setAttribute("aria-invalid", String(isInvalidRange));
         dateToInput.setAttribute("aria-invalid", String(isInvalidRange));
         errorMessage.classList.toggle("d-none", !isInvalidRange);
@@ -175,10 +220,54 @@ function initializeVisitDateFilter() {
     dateFromInput.addEventListener("change", updateDateRange);
     dateToInput.addEventListener("change", updateDateRange);
 
+    let rangePicker = null;
+
+    if (typeof flatpickr === "function") {
+
+        rangePicker = flatpickr(dateRangeInput, {
+            mode: "range",
+            locale: window.flatpickr && window.flatpickr.l10ns
+                ? window.flatpickr.l10ns.ar
+                : "ar",
+            dateFormat: "d-m-Y",
+            maxDate: today || null,
+            disableMobile: true,
+            monthSelectorType: "static",
+            onChange(selectedDates) {
+
+                dateFromInput.value = getNormalizedVisitDate(
+                    selectedDates[0] || ""
+                );
+                dateToInput.value = getNormalizedVisitDate(
+                    selectedDates[1] || ""
+                );
+                updateDateRange();
+
+            }
+        });
+
+    } else {
+
+        dateRangeInput.classList.add("d-none");
+        fallbackFields.classList.remove("d-none");
+
+    }
+
     clearButton.addEventListener("click", () => {
 
         dateFromInput.value = "";
         dateToInput.value = "";
+
+        if (rangePicker) {
+
+            rangePicker.clear(false);
+
+        } else {
+
+            dateRangeInput.value = "";
+
+        }
+
         updateDateRange();
 
     });
