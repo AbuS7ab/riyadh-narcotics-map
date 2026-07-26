@@ -171,6 +171,14 @@ function getMergedFacilities() {
 
         const license = String(facility.license);
 
+        if (licenses.has(license)) {
+
+            console.warn(`Duplicate facility license ignored: ${license}`);
+
+            return;
+
+        }
+
         licenses.add(license);
         mergedFacilities.push(applyFacilityOverride({
             ...facility,
