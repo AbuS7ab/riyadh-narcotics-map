@@ -799,6 +799,25 @@ function createAssignmentBatchId(committeeUsername) {
 }
 
 
+function isFacilityEligibleForAssignment(facilityOrLicense) {
+
+    if (typeof isFacilityActive !== "function") return true;
+
+    if (facilityOrLicense && typeof facilityOrLicense === "object") {
+
+        return isFacilityActive(facilityOrLicense);
+
+    }
+
+    if (typeof findFacilityByOriginalLicense !== "function") return true;
+
+    return isFacilityActive(
+        findFacilityByOriginalLicense(String(facilityOrLicense || ""))
+    );
+
+}
+
+
 async function assignFacilityToCommittee(
     facilityLicense,
     committeeUsername,
@@ -840,6 +859,8 @@ async function assignFacilityToCommittee(
         return true;
 
     }
+
+    if (!isFacilityEligibleForAssignment(normalizedLicense)) return false;
 
     if (isActiveAssignment(existingAssignment) &&
         existingAssignment.committeeUsername !== committeeUsername) {
@@ -1040,7 +1061,8 @@ async function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, 
         options.smartBatchId ||
         createAssignmentBatchId(committeeUsername);
     const metadata = normalizeAssignmentMetadata(options);
-    const uniqueLicenses = [...new Set(facilityLicenses.map(license => String(license)))];
+    const uniqueLicenses = [...new Set(facilityLicenses.map(license => String(license)))]
+        .filter(isFacilityEligibleForAssignment);
     let assignedCount = 0;
 
     facilityAssignments = await mutateCloudObject(
@@ -1696,7 +1718,8 @@ function getUnassignedFacilities(facilities) {
 
         const assignment = getFacilityAssignment(facility.license);
 
-        return !isActiveAssignment(assignment);
+        return isFacilityEligibleForAssignment(facility) &&
+            !isActiveAssignment(assignment);
 
     });
 

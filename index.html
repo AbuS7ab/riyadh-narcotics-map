@@ -526,6 +526,20 @@
                             <label for="customFacilityMaps" class="form-label small mb-1">رابط خرائط Google (اختياري)</label>
                             <input id="customFacilityMaps" class="form-control form-control-sm">
                         </div>
+                        <div class="col-md-4">
+                            <label for="customFacilityActivityStatus" class="form-label small mb-1">حالة نشاط الأدوية المقيدة</label>
+                            <select id="customFacilityActivityStatus" class="form-select form-select-sm">
+                                <option value="active">نشط</option>
+                                <option value="cancelled">ملغى</option>
+                            </select>
+                        </div>
+                        <div id="customFacilityCancellationReasonGroup" class="col-md-8 d-none">
+                            <label for="customFacilityCancellationReason" class="form-label small mb-1">سبب إلغاء النشاط</label>
+                            <input id="customFacilityCancellationReason"
+                                   class="form-control form-control-sm"
+                                   maxlength="300"
+                                   placeholder="مثال: إلغاء ترخيص نشاط الأدوية المخدرة والمؤثرات العقلية">
+                        </div>
                         <div class="col-12 d-flex align-items-center gap-2">
                             <button id="customFacilitySubmit"
                                     type="submit"
@@ -540,6 +554,16 @@
                             <div id="customFacilityMessage" class="small d-none" role="status"></div>
                         </div>
                     </form>
+
+                    <div class="facility-archive mt-4">
+                        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                            <h6 class="mb-0">المنشآت الملغى نشاطها</h6>
+                            <span id="cancelledFacilitiesCount" class="badge text-bg-secondary">0</span>
+                        </div>
+                        <div id="cancelledFacilitiesList" class="facility-archive-list">
+                            <div class="text-muted small">لا توجد منشآت ملغى نشاطها.</div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -793,6 +817,8 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 <script src="js/config.js"></script>
 
 <script src="js/cloud.js"></script>
+
+<script src="js/facility-activity.js"></script>
 
 <script src="js/users.js"></script>
 
