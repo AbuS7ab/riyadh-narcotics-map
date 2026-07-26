@@ -57,6 +57,12 @@ test("visit date range controls are available with an explicit clear action", ()
     assert.match(filters, /mode:\s*"range"/);
 });
 
+test("calendar maximum date is passed as a Date instead of a display-formatted string", () => {
+    assert.match(filters, /const currentLocalDate = new Date\(\)/);
+    assert.match(filters, /maxDate:\s*currentLocalDate/);
+    assert.doesNotMatch(filters, /maxDate:\s*today/);
+});
+
 test("visit dates accept current and legacy date fields and formats", () => {
     const context = createContext();
 
