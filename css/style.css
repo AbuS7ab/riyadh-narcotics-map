@@ -598,9 +598,13 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 .visit-date-range-filter {
     grid-column: span 2;
     display: grid;
-    grid-template-columns: repeat(2, minmax(145px, 1fr)) auto;
+    grid-template-columns: minmax(260px, 1fr) auto;
     gap: 8px;
     align-items: end;
+}
+
+.visit-date-calendar-field {
+    min-width: 0;
 }
 
 .visit-date-field label {
@@ -611,6 +615,42 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
     font-weight: 700;
 }
 
+.visit-date-field small {
+    display: block;
+    margin: 4px 2px 0;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.visit-date-calendar-control {
+    position: relative;
+}
+
+.visit-date-calendar-control > i {
+    position: absolute;
+    top: 50%;
+    right: 13px;
+    z-index: 2;
+    color: var(--primary);
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.visit-date-calendar-control .form-control {
+    padding-right: 38px;
+    cursor: pointer;
+}
+
+.visit-date-fallback-fields {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(145px, 1fr));
+    gap: 8px;
+}
+
+.visit-date-fallback-fields:not(.d-none) {
+    display: grid;
+}
+
 .visit-date-range-error {
     grid-column: 1 / -1;
     color: var(--danger);
@@ -619,6 +659,54 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 
 .visit-date-range-filter [aria-invalid="true"] {
     border-color: var(--danger);
+}
+
+.flatpickr-calendar {
+    direction: rtl;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 16px 40px rgba(0, 61, 47, .16);
+    font-family: inherit;
+    overflow: hidden;
+}
+
+.flatpickr-months .flatpickr-month,
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+    color: var(--primary-dark);
+    fill: var(--primary-dark);
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.selected.inRange,
+.flatpickr-day.startRange.inRange,
+.flatpickr-day.endRange.inRange,
+.flatpickr-day.selected:focus,
+.flatpickr-day.startRange:focus,
+.flatpickr-day.endRange:focus,
+.flatpickr-day.selected:hover,
+.flatpickr-day.startRange:hover,
+.flatpickr-day.endRange:hover {
+    border-color: var(--primary);
+    background: var(--primary);
+}
+
+.flatpickr-day.inRange {
+    border-color: #B8E9D8;
+    background: #B8E9D8;
+    box-shadow: -5px 0 0 #B8E9D8, 5px 0 0 #B8E9D8;
+}
+
+.flatpickr-day.today {
+    border-color: var(--primary);
+}
+
+.flatpickr-day.today:hover,
+.flatpickr-day.today:focus {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #fff;
 }
 
 .search-control {
