@@ -13,6 +13,10 @@ const activeFilters = {
 
     district: "all",
 
+    visitDateFrom: "",
+
+    visitDateTo: "",
+
     type: "all"
 
 };
@@ -85,6 +89,103 @@ function initializeDistrictFilter(facilities) {
 }
 
 
+function getNormalizedVisitDate(value) {
+
+    const normalizedValue = String(value || "").slice(0, 10);
+
+    return /^\d{4}-\d{2}-\d{2}$/.test(normalizedValue)
+        ? normalizedValue
+        : "";
+
+}
+
+
+function visitMatchesDateRange(visit, dateFrom, dateTo) {
+
+    const visitDate = getNormalizedVisitDate(visit && visit.date);
+
+    if (!visitDate) return false;
+    if (dateFrom && visitDate < dateFrom) return false;
+    if (dateTo && visitDate > dateTo) return false;
+
+    return true;
+
+}
+
+
+function facilityHasVisitInDateRange(license, dateFrom, dateTo) {
+
+    const visits = typeof getFacilityVisits === "function"
+        ? getFacilityVisits(license)
+        : [];
+
+    return visits.some(visit => {
+
+        return visitMatchesDateRange(visit, dateFrom, dateTo);
+
+    });
+
+}
+
+
+function initializeVisitDateFilter() {
+
+    const dateFromInput = document.getElementById("visitDateFromFilter");
+    const dateToInput = document.getElementById("visitDateToFilter");
+    const clearButton = document.getElementById("clearVisitDateFilter");
+    const errorMessage = document.getElementById("visitDateRangeError");
+
+    if (!dateFromInput || !dateToInput || !clearButton || !errorMessage) return;
+
+    const today = typeof getCurrentLocalDateValue === "function"
+        ? getCurrentLocalDateValue()
+        : "";
+
+    if (today) {
+
+        dateFromInput.max = today;
+        dateToInput.max = today;
+
+    }
+
+    if (dateFromInput.dataset.filterInitialized === "true") return;
+
+    dateFromInput.dataset.filterInitialized = "true";
+    dateToInput.dataset.filterInitialized = "true";
+
+    const updateDateRange = () => {
+
+        const dateFrom = getNormalizedVisitDate(dateFromInput.value);
+        const dateTo = getNormalizedVisitDate(dateToInput.value);
+        const isInvalidRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+
+        activeFilters.visitDateFrom = dateFrom;
+        activeFilters.visitDateTo = dateTo;
+
+        dateFromInput.setAttribute("aria-invalid", String(isInvalidRange));
+        dateToInput.setAttribute("aria-invalid", String(isInvalidRange));
+        errorMessage.classList.toggle("d-none", !isInvalidRange);
+        clearButton.classList.toggle("d-none", !dateFrom && !dateTo);
+
+        applyFilters({ fitBounds: !isInvalidRange });
+        showFacilityList(filteredFacilities, { fitBounds: false });
+
+    };
+
+    dateFromInput.addEventListener("change", updateDateRange);
+    dateToInput.addEventListener("change", updateDateRange);
+
+    clearButton.addEventListener("click", () => {
+
+        dateFromInput.value = "";
+        dateToInput.value = "";
+        updateDateRange();
+
+    });
+
+}
+
+
 // تحديث فلتر
 function setFilter(filterName, value) {
 
@@ -132,7 +233,18 @@ function setFilter(filterName, value) {
 // تطبيق الفلاتر
 function applyFilters(options = {}) {
 
+    const dateFrom = getNormalizedVisitDate(activeFilters.visitDateFrom);
+    const dateTo = getNormalizedVisitDate(activeFilters.visitDateTo);
+    const hasDateFilter = Boolean(dateFrom || dateTo);
+    const hasInvalidDateRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+
     filteredFacilities = allFacilities.filter(facility => {
+
+        if (hasInvalidDateRange) {
+
+            return false;
+
+        }
 
         const state = getFacilityStatus(facility.license);
 
@@ -170,6 +282,15 @@ function applyFilters(options = {}) {
                 return false;
 
             }
+
+        }
+
+        if (
+            hasDateFilter &&
+            !facilityHasVisitInDateRange(facility.license, dateFrom, dateTo)
+        ) {
+
+            return false;
 
         }
 

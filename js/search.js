@@ -12,7 +12,11 @@ function searchFacilities(query) {
         return [];
     }
 
-    return allFacilities
+    const searchableFacilities = Array.isArray(filteredFacilities)
+        ? filteredFacilities
+        : allFacilities;
+
+    return searchableFacilities
     .filter(facility => {
 
         const displayLicense = getFacilityDisplayLicense(facility);

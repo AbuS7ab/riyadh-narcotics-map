@@ -219,6 +219,33 @@
                        aria-label="البحث بالحي"
                        autocomplete="off">
                 <datalist id="districtOptions"></datalist>
+
+                <div class="visit-date-range-filter management-read-only"
+                     role="group"
+                     aria-label="تصفية المنشآت حسب تاريخ الزيارة">
+                    <div class="visit-date-field">
+                        <label for="visitDateFromFilter">من تاريخ</label>
+                        <input id="visitDateFromFilter"
+                               class="form-control"
+                               type="date">
+                    </div>
+                    <div class="visit-date-field">
+                        <label for="visitDateToFilter">إلى تاريخ</label>
+                        <input id="visitDateToFilter"
+                               class="form-control"
+                               type="date">
+                    </div>
+                    <button id="clearVisitDateFilter"
+                            class="btn btn-outline-secondary d-none"
+                            type="button">
+                        مسح التاريخ
+                    </button>
+                    <div id="visitDateRangeError"
+                         class="visit-date-range-error d-none"
+                         role="alert">
+                        تاريخ البداية يجب ألا يكون بعد تاريخ النهاية.
+                    </div>
+                </div>
             </section>
 
             <section id="externalVisitsWorkspace" class="workspace-card external-visits-workspace management-read-only d-none">
