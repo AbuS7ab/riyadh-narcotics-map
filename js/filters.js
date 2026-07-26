@@ -180,8 +180,9 @@ function initializeVisitDateFilter() {
         !errorMessage
     ) return;
 
+    const currentLocalDate = new Date();
     const today = typeof getCurrentLocalDateValue === "function"
-        ? getCurrentLocalDateValue()
+        ? getCurrentLocalDateValue(currentLocalDate)
         : "";
 
     if (today) {
@@ -230,7 +231,9 @@ function initializeVisitDateFilter() {
                 ? window.flatpickr.l10ns.ar
                 : "ar",
             dateFormat: "d-m-Y",
-            maxDate: today || null,
+            // Pass a Date object so flatpickr does not parse the ISO value
+            // using the visible d-m-Y format.
+            maxDate: currentLocalDate,
             disableMobile: true,
             monthSelectorType: "static",
             onChange(selectedDates) {
