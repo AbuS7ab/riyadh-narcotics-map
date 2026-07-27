@@ -52,6 +52,7 @@ test("visit date range controls are available with an explicit clear action", ()
     assert.match(html, /id="visitDateToFilter"[\s\S]*?type="date"/);
     assert.match(html, /id="clearVisitDateFilter"/);
     assert.match(html, /id="visitDateRangeError"/);
+    assert.doesNotMatch(html, /visitDateRangeHint|اختر اليوم الأول ثم اليوم الأخير/);
     assert.match(html, /flatpickr\.min\.css/);
     assert.match(html, /flatpickr\/dist\/l10n\/ar\.js/);
     assert.match(filters, /mode:\s*"range"/);
