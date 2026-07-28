@@ -133,6 +133,8 @@ function createVisitRecord(visit) {
         } : null,
         visitType: visit.visitType || "periodic",
         visitReason: visit.visitReason || "الخطة الدورية",
+        visitCycleId: visit.visitCycleId || null,
+        visitCycleNumber: Number(visit.visitCycleNumber) || null,
         result,
         incompleteReason: visit.incompleteReason || "",
         visitStatus,

@@ -2,6 +2,30 @@
 
 All notable changes to Narco Compliance are documented in this file.
 
+## [v0.10.0] - 2026-07-28
+
+### Added
+
+- Administrator-controlled periodic visit cycles that snapshot all active
+  facilities without editing existing visits or assignments.
+- A configurable minimum interval between periodic visits, defaulting to 75
+  days, with live eligibility, due-soon, waiting, assigned, and completed
+  counts.
+- Assignment history archiving before a completed assignment is replaced by a
+  new cycle assignment.
+- Cycle identifiers on assignments and visits so each cycle is measured
+  independently.
+
+### Safety
+
+- A cycle cannot start until every active facility has a completed first visit.
+- Periodic assignment excludes recently visited facilities while reactive work
+  remains available outside the interval rule.
+- Reassignment uses compensating cloud writes so a failed assignment write
+  restores the previous history state.
+- Committee workload status is derived from the current assignment instead of
+  a facility's older visit status.
+
 ## [v1.0-beta] - 2026-07-08
 
 ### Added

@@ -8,6 +8,7 @@ const SUPABASE_ANON_KEY = "";
 const cloudStorageKeys = {
     users: "users",
     assignments: "facilityAssignments",
+    assignmentHistory: "facilityAssignmentHistory",
     facilityStatus: "facilityStatus",
     appSettings: "appSettings",
     customFacilities: "customFacilities",
@@ -26,6 +27,11 @@ const cloudDataSets = {
         cloudKey: cloudStorageKeys.assignments,
         localKey: "facilityAssignments",
         label: "assignments"
+    },
+    assignmentHistory: {
+        cloudKey: cloudStorageKeys.assignmentHistory,
+        localKey: "facilityAssignmentHistory",
+        label: "assignmentHistory"
     },
     facilityStatus: {
         cloudKey: cloudStorageKeys.facilityStatus,
@@ -1059,6 +1065,26 @@ function loadAssignments() {
 function saveAssignments(assignments, options) {
 
     return writeCloudObject(cloudStorageKeys.assignments, assignments, options);
+
+}
+
+
+function loadAssignmentHistory() {
+
+    return isPortableDataObject(cloudCache[cloudStorageKeys.assignmentHistory])
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.assignmentHistory])
+        : {};
+
+}
+
+
+function saveAssignmentHistory(history, options) {
+
+    return writeCloudObject(
+        cloudStorageKeys.assignmentHistory,
+        history,
+        options
+    );
 
 }
 

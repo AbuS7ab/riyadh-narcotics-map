@@ -314,6 +314,14 @@ function applyRemoteCloudData(event) {
 
     }
 
+    if (changedKeys.includes("facilityAssignmentHistory")) {
+
+        facilityAssignmentHistory = normalizeAssignmentHistory(
+            loadAssignmentHistory()
+        );
+
+    }
+
     if (changedKeys.includes("facilityStatus")) {
 
         facilityStatus = loadFacilityStatus();

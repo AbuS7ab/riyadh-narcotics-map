@@ -4,7 +4,10 @@
 
 const usersStorageKey = "narcoUsers";
 const assignmentsStorageKey = "facilityAssignments";
+const assignmentHistoryStorageKey = "facilityAssignmentHistory";
 const assignmentStatuses = ["assigned", "in_progress", "completed", "cancelled"];
+const openAssignmentStatuses = ["assigned", "in_progress"];
+const defaultPeriodicVisitIntervalDays = 75;
 const currentUsername = getCurrentUsername();
 
 const defaultUsers = [
@@ -25,6 +28,7 @@ const defaultUsers = [
 let users = {};
 let currentUser = null;
 let facilityAssignments = {};
+let facilityAssignmentHistory = {};
 let selectedCommitteeUsername = null;
 let smartAssignmentStartMode = "auto";
 
@@ -199,13 +203,35 @@ function normalizeAssignments(storedAssignments) {
 }
 
 
+function normalizeAssignmentHistory(storedHistory) {
+
+    if (!storedHistory ||
+        typeof storedHistory !== "object" ||
+        Array.isArray(storedHistory)) {
+
+        return {};
+
+    }
+
+    return normalizeAssignments(storedHistory);
+
+}
+
+
 async function initializeUserState() {
 
     users = await initializeUsers();
     currentUser = currentUsername ? users[currentUsername] || null : null;
     facilityAssignments = normalizeAssignments(loadAssignments());
+    facilityAssignmentHistory = normalizeAssignmentHistory(
+        loadAssignmentHistory()
+    );
 
     await seedCloudKey(assignmentsStorageKey, facilityAssignments);
+    await seedCloudKey(
+        assignmentHistoryStorageKey,
+        facilityAssignmentHistory
+    );
 
 }
 
@@ -355,7 +381,7 @@ function validateUsersObject(nextUsers) {
 
 function getActiveAssignmentCount(username) {
 
-    return getActiveAssignmentsForCommittee(username).length;
+    return getOpenAssignmentsForCommittee(username).length;
 
 }
 
@@ -444,17 +470,29 @@ function getFacilityAssignment(license) {
 
 function isActiveAssignment(assignment) {
 
-    return assignment &&
-        assignment.status !== "cancelled";
+    return Boolean(
+        assignment &&
+        openAssignmentStatuses.includes(assignment.status)
+    );
+
+}
+
+
+function isRetainedAssignment(assignment) {
+
+    return Boolean(assignment && assignment.status !== "cancelled");
 
 }
 
 
 function getActiveAssignmentsForCommittee(username) {
 
-    const activeAssignments = Object.values(facilityAssignments).filter(assignment => {
+    const activeAssignments = [
+        ...Object.values(facilityAssignmentHistory),
+        ...Object.values(facilityAssignments)
+    ].filter(assignment => {
 
-        return isActiveAssignment(assignment) &&
+        return isRetainedAssignment(assignment) &&
             assignment.committeeUsername === username;
 
     });
@@ -464,6 +502,38 @@ function getActiveAssignmentsForCommittee(username) {
     );
 
     return activeAssignments;
+
+}
+
+
+function getOpenAssignmentsForCommittee(username) {
+
+    return Object.values(facilityAssignments).filter(assignment => {
+
+        return isActiveAssignment(assignment) &&
+            assignment.committeeUsername === username;
+
+    });
+
+}
+
+
+function getFacilityAssignmentHistory(license) {
+
+    const normalizedLicense = String(license);
+
+    return Object.values(facilityAssignmentHistory)
+        .filter(assignment => {
+
+            return String(assignment.facilityLicense) === normalizedLicense;
+
+        })
+        .sort((first, second) => {
+
+            return getAssignmentEventTime(second.archivedAt || second.assignedAt) -
+                getAssignmentEventTime(first.archivedAt || first.assignedAt);
+
+        });
 
 }
 
@@ -519,10 +589,7 @@ function getAssignmentCompletionTime(assignment) {
 
     if (completionTimes.length > 0) return completionTimes[0];
 
-    return assignment.status === "completed" ||
-        facilityHasCompletedVisit(assignment.facilityLicense)
-        ? assignedAt
-        : 0;
+    return assignment.status === "completed" ? assignedAt : 0;
 
 }
 
@@ -655,7 +722,9 @@ function facilityHasViolation(license) {
 
 function facilityHasCompletedVisit(license) {
 
-    const status = getFacilityStatus(license);
+    const status = typeof getFacilityStatus === "function"
+        ? getFacilityStatus(license)
+        : null;
 
     if (!status) return false;
 
@@ -673,6 +742,425 @@ function facilityHasCompletedVisit(license) {
 }
 
 
+function getCompletedFacilityVisits(license) {
+
+    const visits = typeof getFacilityVisits === "function"
+        ? getFacilityVisits(license)
+        : [];
+
+    return visits.filter(visitIndicatesCompletion);
+
+}
+
+
+function getLatestCompletedFacilityVisit(license) {
+
+    const visits = getCompletedFacilityVisits(license);
+
+    if (visits.length > 0) return visits[0];
+
+    const status = typeof getFacilityStatus === "function"
+        ? getFacilityStatus(license)
+        : null;
+
+    if (status && facilityHasCompletedVisit(license) && status.visitDate) {
+
+        return {
+            date: status.visitDate,
+            visitCycleId: null,
+            legacyStatusVisit: true
+        };
+
+    }
+
+    return null;
+
+}
+
+
+function getPeriodicVisitPlan(settings = loadAppSettings()) {
+
+    const storedPlan = settings && settings.periodicVisitPlan;
+    const cycles = storedPlan && Array.isArray(storedPlan.cycles)
+        ? storedPlan.cycles.filter(cycle => cycle && typeof cycle === "object")
+        : [];
+
+    return {
+        currentCycleId: storedPlan && storedPlan.currentCycleId || "",
+        cycles
+    };
+
+}
+
+
+function getActivePeriodicVisitCycle(settings = loadAppSettings()) {
+
+    const plan = getPeriodicVisitPlan(settings);
+
+    return plan.cycles.find(cycle => {
+
+        return cycle.id === plan.currentCycleId &&
+            cycle.status === "active";
+
+    }) || null;
+
+}
+
+
+function hasFacilityCompletedPeriodicCycle(license, cycleId) {
+
+    if (!cycleId) return false;
+
+    return getCompletedFacilityVisits(license).some(visit => {
+
+        return String(visit.visitCycleId || "") === String(cycleId);
+
+    });
+
+}
+
+
+function getLocalDateDayNumber(value) {
+
+    const match = String(value || "").slice(0, 10).match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+    );
+
+    if (!match) return null;
+
+    return Math.floor(Date.UTC(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3])
+    ) / 86400000);
+
+}
+
+
+function addDaysToLocalDate(value, days) {
+
+    const dayNumber = getLocalDateDayNumber(value);
+
+    if (dayNumber === null) return "";
+
+    return new Date((dayNumber + Number(days || 0)) * 86400000)
+        .toISOString()
+        .slice(0, 10);
+
+}
+
+
+function getPeriodicAssignmentEligibility(
+    facilityOrLicense,
+    options = {}
+) {
+
+    const facility = facilityOrLicense && typeof facilityOrLicense === "object"
+        ? facilityOrLicense
+        : typeof findFacilityByOriginalLicense === "function"
+            ? findFacilityByOriginalLicense(String(facilityOrLicense || ""))
+            : { license: String(facilityOrLicense || "") };
+    const license = String(
+        facility && facility.license ||
+        facilityOrLicense ||
+        ""
+    );
+    const cycle = options.cycle || getActivePeriodicVisitCycle();
+    const today = options.today ||
+        (typeof getCurrentLocalDateValue === "function"
+            ? getCurrentLocalDateValue()
+            : new Date().toISOString().slice(0, 10));
+    const assignment = getFacilityAssignment(license);
+
+    if (!facility || !isFacilityEligibleForAssignment(facility)) {
+
+        return { eligible: false, reason: "inactive" };
+
+    }
+
+    if (isActiveAssignment(assignment)) {
+
+        return { eligible: false, reason: "assignment" };
+
+    }
+
+    if (!cycle) {
+
+        return facilityHasCompletedVisit(license)
+            ? { eligible: false, reason: "visited" }
+            : { eligible: true, reason: "unvisited" };
+
+    }
+
+    const cycleLicenses = new Set(
+        Array.isArray(cycle.facilityLicenses)
+            ? cycle.facilityLicenses.map(String)
+            : []
+    );
+
+    if (!cycleLicenses.has(license)) {
+
+        return { eligible: false, reason: "outside_cycle" };
+
+    }
+
+    if (hasFacilityCompletedPeriodicCycle(license, cycle.id)) {
+
+        return { eligible: false, reason: "completed_cycle" };
+
+    }
+
+    const latestVisit = getLatestCompletedFacilityVisit(license);
+
+    if (!latestVisit) {
+
+        return {
+            eligible: true,
+            reason: "no_completed_visit",
+            daysUntilDue: 0,
+            dueDate: today
+        };
+
+    }
+
+    const lastVisitDate = String(latestVisit.date || "").slice(0, 10);
+    const minimumIntervalDays = Math.max(
+        1,
+        Math.floor(
+            Number(cycle.minimumIntervalDays) ||
+            defaultPeriodicVisitIntervalDays
+        )
+    );
+    const dueDate = addDaysToLocalDate(lastVisitDate, minimumIntervalDays);
+    const todayDay = getLocalDateDayNumber(today);
+    const dueDay = getLocalDateDayNumber(dueDate);
+
+    if (todayDay === null || dueDay === null) {
+
+        return {
+            eligible: false,
+            reason: "unknown_visit_date",
+            lastVisitDate
+        };
+
+    }
+
+    const daysUntilDue = dueDay - todayDay;
+
+    return {
+        eligible: daysUntilDue <= 0,
+        reason: daysUntilDue <= 0 ? "due" : "waiting",
+        lastVisitDate,
+        dueDate,
+        daysUntilDue
+    };
+
+}
+
+
+function getPeriodicVisitCycleSummary(facilities, options = {}) {
+
+    const cycle = options.cycle || getActivePeriodicVisitCycle();
+    const summary = {
+        total: 0,
+        eligible: 0,
+        dueSoon: 0,
+        waiting: 0,
+        assigned: 0,
+        completed: 0,
+        unknownVisitDate: 0
+    };
+
+    if (!cycle) return summary;
+
+    const cycleLicenses = new Set(
+        Array.isArray(cycle.facilityLicenses)
+            ? cycle.facilityLicenses.map(String)
+            : []
+    );
+
+    facilities.forEach(facility => {
+
+        if (!cycleLicenses.has(String(facility.license))) return;
+
+        summary.total += 1;
+
+        const eligibility = getPeriodicAssignmentEligibility(
+            facility,
+            { ...options, cycle }
+        );
+
+        if (eligibility.reason === "completed_cycle") {
+
+            summary.completed += 1;
+
+        } else if (eligibility.reason === "assignment") {
+
+            summary.assigned += 1;
+
+        } else if (eligibility.eligible) {
+
+            summary.eligible += 1;
+
+        } else if (eligibility.reason === "waiting") {
+
+            if (eligibility.daysUntilDue <= 15) {
+
+                summary.dueSoon += 1;
+
+            } else {
+
+                summary.waiting += 1;
+
+            }
+
+        } else if (eligibility.reason === "unknown_visit_date") {
+
+            summary.unknownVisitDate += 1;
+
+        }
+
+    });
+
+    return summary;
+
+}
+
+
+function isPeriodicVisitCycleComplete(
+    cycle,
+    facilities = typeof allFacilities === "undefined" ? [] : allFacilities
+) {
+
+    if (!cycle) return false;
+
+    const summary = getPeriodicVisitCycleSummary(facilities, { cycle });
+
+    return summary.total > 0 && summary.completed === summary.total;
+
+}
+
+
+function createPeriodicVisitCycleId(sequence) {
+
+    return `periodic-cycle-${sequence}-${Date.now()}-${
+        Math.random().toString(36).slice(2)
+    }`;
+
+}
+
+
+async function startPeriodicVisitCycle(
+    facilities,
+    minimumIntervalDays = defaultPeriodicVisitIntervalDays
+) {
+
+    if (!isAdminUser()) return null;
+
+    const activeFacilities = facilities.filter(facility => {
+
+        return isFacilityEligibleForAssignment(facility);
+
+    });
+    const uncoveredFacilities = activeFacilities.filter(facility => {
+
+        return !facilityHasCompletedVisit(facility.license);
+
+    });
+
+    if (uncoveredFacilities.length > 0) {
+
+        const error = new Error(
+            `لا يمكن بدء الدورة قبل إكمال التغطية الأولى لـ ${uncoveredFacilities.length} منشأة.`
+        );
+
+        error.code = "BASELINE_COVERAGE_INCOMPLETE";
+        error.uncoveredCount = uncoveredFacilities.length;
+
+        throw error;
+
+    }
+
+    const intervalDays = Math.max(
+        1,
+        Math.min(
+            365,
+            Math.floor(
+                Number(minimumIntervalDays) ||
+                defaultPeriodicVisitIntervalDays
+            )
+        )
+    );
+    let startedCycle = null;
+
+    const savedSettings = await mutateCloudObject("appSettings", settings => {
+
+        const plan = getPeriodicVisitPlan(settings);
+        const activeCycle = getActivePeriodicVisitCycle(settings);
+
+        if (activeCycle && !isPeriodicVisitCycleComplete(activeCycle, activeFacilities)) {
+
+            const error = new Error("توجد دورة زيارات دورية نشطة لم تكتمل.");
+
+            error.code = "PERIODIC_CYCLE_ALREADY_ACTIVE";
+
+            throw error;
+
+        }
+
+        const cycles = plan.cycles.map(cycle => {
+
+            if (!activeCycle || cycle.id !== activeCycle.id) return cycle;
+
+            return {
+                ...cycle,
+                status: "completed",
+                completedAt: new Date().toISOString()
+            };
+
+        });
+        const sequence = cycles.reduce((maximum, cycle) => {
+
+            return Math.max(maximum, Number(cycle.sequence) || 0);
+
+        }, 0) + 1;
+        const startedAt = new Date().toISOString();
+
+        startedCycle = {
+            id: createPeriodicVisitCycleId(sequence),
+            sequence,
+            status: "active",
+            startedAt,
+            startedBy: currentUser.username,
+            minimumIntervalDays: intervalDays,
+            facilityLicenses: activeFacilities.map(facility => {
+
+                return String(facility.license);
+
+            })
+        };
+
+        settings.periodicVisitPlan = {
+            currentCycleId: startedCycle.id,
+            cycles: [...cycles, startedCycle]
+        };
+
+        return settings;
+
+    });
+
+    if (!startedCycle ||
+        getActivePeriodicVisitCycle(savedSettings)?.id !== startedCycle.id) {
+
+        throw new Error("تعذر تأكيد بدء دورة الزيارات الدورية.");
+
+    }
+
+    return startedCycle;
+
+}
+
+
 function getCommitteeKpis(username) {
 
     const activeAssignments = getActiveAssignmentsForCommittee(username);
@@ -683,14 +1171,12 @@ function getCommitteeKpis(username) {
     const cycleTotal = currentCycleAssignments.length;
     const completedCount = activeAssignments.filter(assignment => {
 
-        return assignment.status === "completed" ||
-            facilityHasCompletedVisit(assignment.facilityLicense);
+        return Boolean(getAssignmentCompletionTime(assignment));
 
     }).length;
     const cycleCompletedCount = currentCycleAssignments.filter(assignment => {
 
-        return assignment.status === "completed" ||
-            facilityHasCompletedVisit(assignment.facilityLicense);
+        return Boolean(getAssignmentCompletionTime(assignment));
 
     }).length;
     const remainingCount = Math.max(cycleTotal - cycleCompletedCount, 0);
@@ -784,8 +1270,22 @@ function normalizeAssignmentMetadata(options = {}) {
     const visitReason = visitType === "reactive"
         ? String(options.visitReason || "").trim()
         : "الخطة الدورية";
+    const activeCycle = visitType === "periodic"
+        ? getActivePeriodicVisitCycle()
+        : null;
+    const visitCycleId = activeCycle
+        ? String(options.visitCycleId || activeCycle.id)
+        : "";
+    const visitCycleNumber = activeCycle
+        ? Number(options.visitCycleNumber || activeCycle.sequence) || null
+        : null;
 
-    return { visitType, visitReason };
+    return {
+        visitType,
+        visitReason,
+        visitCycleId,
+        visitCycleNumber
+    };
 
 }
 
@@ -814,6 +1314,82 @@ function isFacilityEligibleForAssignment(facilityOrLicense) {
     return isFacilityActive(
         findFacilityByOriginalLicense(String(facilityOrLicense || ""))
     );
+
+}
+
+
+function isFacilityAssignableForVisit(facilityOrLicense, visitType = "periodic") {
+
+    if (!isFacilityEligibleForAssignment(facilityOrLicense)) return false;
+
+    const license = String(
+        facilityOrLicense && typeof facilityOrLicense === "object"
+            ? facilityOrLicense.license
+            : facilityOrLicense
+    );
+
+    if (isActiveAssignment(getFacilityAssignment(license))) return false;
+
+    if (visitType === "reactive") return true;
+
+    return getPeriodicAssignmentEligibility(facilityOrLicense).eligible;
+
+}
+
+
+function createArchivedAssignment(assignment, reason) {
+
+    return {
+        ...assignment,
+        archivedAt: new Date().toISOString(),
+        archivedBy: currentUser && currentUser.username || "",
+        archiveReason: reason
+    };
+
+}
+
+
+async function persistAssignmentReplacement(
+    previousAssignments,
+    nextAssignments,
+    assignmentsToArchive,
+    reason
+) {
+
+    const nextHistory = { ...facilityAssignmentHistory };
+
+    assignmentsToArchive.forEach(assignment => {
+
+        if (!assignment || !assignment.id) return;
+
+        nextHistory[String(assignment.id)] = createArchivedAssignment(
+            assignment,
+            reason
+        );
+
+    });
+
+    const savedCollections = await mutateCloudCollectionsWithRollback([
+        {
+            key: assignmentHistoryStorageKey,
+            previousValue: facilityAssignmentHistory,
+            nextValue: nextHistory
+        },
+        {
+            key: assignmentsStorageKey,
+            previousValue: previousAssignments,
+            nextValue: nextAssignments
+        }
+    ]);
+
+    facilityAssignmentHistory = normalizeAssignmentHistory(
+        savedCollections[assignmentHistoryStorageKey]
+    );
+    facilityAssignments = normalizeAssignments(
+        savedCollections[assignmentsStorageKey]
+    );
+
+    return facilityAssignments;
 
 }
 
@@ -862,8 +1438,17 @@ async function assignFacilityToCommittee(
 
     if (!isFacilityEligibleForAssignment(normalizedLicense)) return false;
 
+    const metadata = normalizeAssignmentMetadata(options);
+
     if (isActiveAssignment(existingAssignment) &&
         existingAssignment.committeeUsername !== committeeUsername) {
+
+        return false;
+
+    }
+
+    if (!isActiveAssignment(existingAssignment) &&
+        !isFacilityAssignableForVisit(normalizedLicense, metadata.visitType)) {
 
         return false;
 
@@ -874,41 +1459,67 @@ async function assignFacilityToCommittee(
         : new Date().toISOString();
     const assignmentBatchId = options.assignmentBatchId ||
         createAssignmentBatchId(committeeUsername);
-    const metadata = normalizeAssignmentMetadata(options);
+    const nextAssignment = {
+        id: createAssignmentId(normalizedLicense),
+        facilityLicense: normalizedLicense,
+        committeeUsername,
+        assignedAt,
+        assignmentBatchId,
+        status: assignmentStatuses.includes(status) ? status : "assigned",
+        teamSnapshot: createTeamSnapshot(committee),
+        visitType: metadata.visitType,
+        visitReason: metadata.visitReason,
+        visitCycleId: metadata.visitCycleId || null,
+        visitCycleNumber: metadata.visitCycleNumber
+    };
 
-    facilityAssignments = await mutateCloudObject(
-        "facilityAssignments",
-        nextAssignments => {
+    if (existingAssignment && !isActiveAssignment(existingAssignment)) {
 
-            const remoteAssignment = nextAssignments[normalizedLicense];
+        const nextAssignments = {
+            ...facilityAssignments,
+            [normalizedLicense]: nextAssignment
+        };
 
-            if (isActiveAssignment(remoteAssignment) &&
-                remoteAssignment.committeeUsername !== committeeUsername) {
+        await persistAssignmentReplacement(
+            facilityAssignments,
+            nextAssignments,
+            [existingAssignment],
+            metadata.visitCycleId
+                ? `periodic_cycle_${metadata.visitCycleNumber}`
+                : `${metadata.visitType}_reassignment`
+        );
 
-                throw new Error("المنشأة أُسندت إلى لجنة أخرى أثناء العملية.");
+    } else {
+
+        facilityAssignments = await mutateCloudObject(
+            assignmentsStorageKey,
+            nextAssignments => {
+
+                const remoteAssignment = nextAssignments[normalizedLicense];
+
+                if (isActiveAssignment(remoteAssignment) &&
+                    remoteAssignment.committeeUsername !== committeeUsername) {
+
+                    throw new Error("المنشأة أُسندت إلى لجنة أخرى أثناء العملية.");
+
+                }
+
+                nextAssignments[normalizedLicense] = {
+                    ...nextAssignment,
+                    assignedAt: isActiveAssignment(remoteAssignment)
+                        ? remoteAssignment.assignedAt
+                        : assignedAt,
+                    assignmentBatchId: isActiveAssignment(remoteAssignment)
+                        ? remoteAssignment.assignmentBatchId || null
+                        : assignmentBatchId
+                };
+
+                return nextAssignments;
 
             }
+        );
 
-            nextAssignments[normalizedLicense] = {
-                id: createAssignmentId(normalizedLicense),
-                facilityLicense: normalizedLicense,
-                committeeUsername,
-                assignedAt: isActiveAssignment(remoteAssignment)
-                    ? remoteAssignment.assignedAt
-                    : assignedAt,
-                assignmentBatchId: isActiveAssignment(remoteAssignment)
-                    ? remoteAssignment.assignmentBatchId || null
-                    : assignmentBatchId,
-                status: assignmentStatuses.includes(status) ? status : "assigned",
-                teamSnapshot: createTeamSnapshot(committee),
-                visitType: metadata.visitType,
-                visitReason: metadata.visitReason
-            };
-
-            return nextAssignments;
-
-        }
-    );
+    }
 
     refreshAssignmentViews(committeeUsername);
 
@@ -1062,11 +1673,61 @@ async function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, 
         createAssignmentBatchId(committeeUsername);
     const metadata = normalizeAssignmentMetadata(options);
     const uniqueLicenses = [...new Set(facilityLicenses.map(license => String(license)))]
-        .filter(isFacilityEligibleForAssignment);
+        .filter(license => {
+
+            return isFacilityAssignableForVisit(license, metadata.visitType);
+
+        });
     let assignedCount = 0;
+    const assignmentsToArchive = uniqueLicenses
+        .map(license => facilityAssignments[license])
+        .filter(assignment => assignment && !isActiveAssignment(assignment));
+
+    if (assignmentsToArchive.length > 0) {
+
+        const nextAssignments = { ...facilityAssignments };
+
+        uniqueLicenses.forEach((license, index) => {
+
+            nextAssignments[license] = {
+                id: createAssignmentId(license),
+                facilityLicense: license,
+                committeeUsername,
+                assignedAt,
+                assignmentBatchId,
+                status: "assigned",
+                teamSnapshot: createTeamSnapshot(committee),
+                visitType: metadata.visitType,
+                visitReason: metadata.visitReason,
+                visitCycleId: metadata.visitCycleId || null,
+                visitCycleNumber: metadata.visitCycleNumber,
+                assignmentSource: options.assignmentSource || "manual",
+                smartBatchId: options.smartBatchId || null,
+                smartSequence: typeof options.smartSequenceStart === "number"
+                    ? options.smartSequenceStart + index
+                    : null
+            };
+
+        });
+
+        await persistAssignmentReplacement(
+            facilityAssignments,
+            nextAssignments,
+            assignmentsToArchive,
+            metadata.visitCycleId
+                ? `periodic_cycle_${metadata.visitCycleNumber}`
+                : `${metadata.visitType}_reassignment`
+        );
+
+        assignedCount = uniqueLicenses.length;
+        refreshAssignmentViews(committeeUsername);
+
+        return assignedCount;
+
+    }
 
     facilityAssignments = await mutateCloudObject(
-        "facilityAssignments",
+        assignmentsStorageKey,
         nextAssignments => {
 
             assignedCount = 0;
@@ -1088,6 +1749,8 @@ async function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, 
                     teamSnapshot: createTeamSnapshot(committee),
                     visitType: metadata.visitType,
                     visitReason: metadata.visitReason,
+                    visitCycleId: metadata.visitCycleId || null,
+                    visitCycleNumber: metadata.visitCycleNumber,
                     assignmentSource: options.assignmentSource || "manual",
                     smartBatchId: options.smartBatchId || null,
                     smartSequence: typeof options.smartSequenceStart === "number"
@@ -1320,39 +1983,9 @@ function getSmartAssignmentIneligibilityReason(facility, duplicateLicenses = new
 
     }
 
-    const assignment = getFacilityAssignment(facility.license);
+    const eligibility = getPeriodicAssignmentEligibility(facility);
 
-    if (isActiveAssignment(assignment)) {
-
-        return "assignment";
-
-    }
-
-    const visits = typeof getFacilityVisits === "function"
-        ? getFacilityVisits(facility.license)
-        : [];
-
-    if (visits.length > 0) {
-
-        return "visited";
-
-    }
-
-    const status = typeof getFacilityStatus === "function"
-        ? getFacilityStatus(facility.license)
-        : null;
-
-    if (status &&
-        (status.visitStatus === "visited" ||
-            status.visitStatus === "partial" ||
-            status.visitStatus === "violation" ||
-            status.violation === true)) {
-
-        return "visited";
-
-    }
-
-    return "";
+    return eligibility.eligible ? "" : eligibility.reason;
 
 }
 
@@ -1451,7 +2084,9 @@ async function smartAssignFacilities(
 
             return {
                 ok: false,
-                message: "منشأة البداية غير مؤهلة للإسناد لأنها مسندة أو تمت زيارتها سابقاً."
+                message: startReason === "waiting"
+                    ? "منشأة البداية لم تبلغ مدة الاستحقاق الزمني."
+                    : "منشأة البداية غير مؤهلة للإسناد أو لديها إسناد مفتوح."
             };
 
         }
@@ -1712,14 +2347,11 @@ function renderCommitteeAssignmentCards() {
 }
 
 
-function getUnassignedFacilities(facilities) {
+function getUnassignedFacilities(facilities, visitType = "periodic") {
 
     return facilities.filter(facility => {
 
-        const assignment = getFacilityAssignment(facility.license);
-
-        return isFacilityEligibleForAssignment(facility) &&
-            !isActiveAssignment(assignment);
+        return isFacilityAssignableForVisit(facility, visitType);
 
     });
 
@@ -1744,6 +2376,115 @@ function syncSmartAssignmentStartFromChecked() {
 }
 
 
+function renderPeriodicVisitCyclePanel(facilities) {
+
+    const title = document.getElementById("periodicVisitCycleTitle");
+    const description = document.getElementById("periodicVisitCycleDescription");
+    const metrics = document.getElementById("periodicVisitCycleMetrics");
+    const intervalInput = document.getElementById("periodicVisitIntervalDays");
+    const startButton = document.getElementById("startPeriodicVisitCycle");
+    const assignmentSearchLabel = document.getElementById("assignmentSearchLabel");
+
+    if (!title ||
+        !description ||
+        !metrics ||
+        !intervalInput ||
+        !startButton) return;
+
+    const cycle = getActivePeriodicVisitCycle();
+    const activeFacilities = facilities.filter(isFacilityEligibleForAssignment);
+
+    if (!cycle) {
+
+        const uncoveredCount = activeFacilities.filter(facility => {
+
+            return !facilityHasCompletedVisit(facility.license);
+
+        }).length;
+        const coveredCount = activeFacilities.length - uncoveredCount;
+
+        title.textContent = "التغطية الأولى";
+        description.textContent = uncoveredCount > 0
+            ? `يتبقى ${uncoveredCount} منشأة قبل فتح دورة إعادة الزيارة.`
+            : "اكتملت التغطية الأولى ويمكن فتح جميع المنشآت للدورة الدورية.";
+        metrics.innerHTML = `
+            <div class="periodic-cycle-metric">
+                <span>المنشآت النشطة</span>
+                <strong>${activeFacilities.length}</strong>
+            </div>
+            <div class="periodic-cycle-metric">
+                <span>تمت زيارتها</span>
+                <strong>${coveredCount}</strong>
+            </div>
+            <div class="periodic-cycle-metric">
+                <span>لم تُزر</span>
+                <strong>${uncoveredCount}</strong>
+            </div>
+        `;
+        startButton.textContent = "بدء دورة الزيارات الدورية";
+        startButton.disabled = uncoveredCount > 0;
+        intervalInput.disabled = uncoveredCount > 0;
+
+        if (assignmentSearchLabel) {
+
+            assignmentSearchLabel.textContent = "المنشآت غير المسندة";
+
+        }
+
+        return;
+
+    }
+
+    const summary = getPeriodicVisitCycleSummary(activeFacilities, { cycle });
+    const isComplete = summary.total > 0 && summary.completed === summary.total;
+
+    title.textContent = `دورة الزيارات الدورية ${cycle.sequence}`;
+    description.textContent =
+        `فتحت لجميع المنشآت النشطة؛ الإسناد متاح بعد مرور ${cycle.minimumIntervalDays} يومًا من آخر زيارة.`;
+    metrics.innerHTML = `
+        <div class="periodic-cycle-metric">
+            <span>مستحقة الآن</span>
+            <strong>${summary.eligible}</strong>
+        </div>
+        <div class="periodic-cycle-metric">
+            <span>خلال 15 يومًا</span>
+            <strong>${summary.dueSoon}</strong>
+        </div>
+        <div class="periodic-cycle-metric">
+            <span>لم يحن موعدها</span>
+            <strong>${summary.waiting}</strong>
+        </div>
+        <div class="periodic-cycle-metric">
+            <span>مسندة حاليًا</span>
+            <strong>${summary.assigned}</strong>
+        </div>
+        <div class="periodic-cycle-metric">
+            <span>مكتملة بالدورة</span>
+            <strong>${summary.completed}</strong>
+        </div>
+        <div class="periodic-cycle-metric">
+            <span>تاريخ غير معروف</span>
+            <strong>${summary.unknownVisitDate}</strong>
+        </div>
+    `;
+    intervalInput.value = String(
+        cycle.minimumIntervalDays || defaultPeriodicVisitIntervalDays
+    );
+    intervalInput.disabled = !isComplete;
+    startButton.textContent = isComplete
+        ? "بدء الدورة التالية"
+        : `الدورة ${cycle.sequence} نشطة`;
+    startButton.disabled = !isComplete;
+
+    if (assignmentSearchLabel) {
+
+        assignmentSearchLabel.textContent = "المنشآت المستحقة للإسناد";
+
+    }
+
+}
+
+
 function renderAssignmentBoard(facilities) {
 
     const list = document.getElementById("unassignedFacilitiesList");
@@ -1762,8 +2503,27 @@ function renderAssignmentBoard(facilities) {
         !startFacilitySelect ||
         !isAdminUser()) return;
 
+    renderPeriodicVisitCyclePanel(facilities);
+
     const selectedCommittee = committeeSelect.value;
     const selectedStartFacility = startFacilitySelect.value;
+    const selectedVisitType = visitTypeSelect.value === "reactive"
+        ? "reactive"
+        : "periodic";
+
+    if (selectedVisitType === "reactive") {
+
+        const assignmentSearchLabel =
+            document.getElementById("assignmentSearchLabel");
+
+        if (assignmentSearchLabel) {
+
+            assignmentSearchLabel.textContent =
+                "المنشآت المتاحة للزيارة التفاعلية";
+
+        }
+
+    }
 
     committeeSelect.innerHTML = `
         <option value="">اختر اللجنة</option>
@@ -1784,7 +2544,7 @@ function renderAssignmentBoard(facilities) {
 
     startFacilitySelect.innerHTML = `
         <option value="">تحديد تلقائي لنقطة البداية</option>
-        ${facilities
+        ${getUnassignedFacilities(facilities, "periodic")
             .filter(hasValidCoordinates)
             .map(facility => {
                 const displayLicense = getFacilityDisplayLicense(facility);
@@ -1811,7 +2571,10 @@ function renderAssignmentBoard(facilities) {
     }
 
     const query = searchInput.value.trim().toLowerCase();
-    const unassignedFacilities = getUnassignedFacilities(facilities).filter(facility => {
+    const unassignedFacilities = getUnassignedFacilities(
+        facilities,
+        selectedVisitType
+    ).filter(facility => {
 
         return [
             facility.name,
@@ -1827,7 +2590,11 @@ function renderAssignmentBoard(facilities) {
     if (unassignedFacilities.length === 0) {
 
         list.innerHTML = `
-            <div class="text-muted small p-3">لا توجد منشآت غير مسندة.</div>
+            <div class="text-muted small p-3">${
+                selectedVisitType === "periodic" && getActivePeriodicVisitCycle()
+                    ? "لا توجد منشآت مستحقة للإسناد حاليًا."
+                    : "لا توجد منشآت غير مسندة."
+            }</div>
         `;
 
         return;
@@ -1869,6 +2636,12 @@ function initializeAssignmentBoard() {
     const startFacilitySelect =
         document.getElementById("smartAssignmentStartFacility");
     const smartAssignButton = document.getElementById("smartAssignFacilities");
+    const periodicIntervalInput =
+        document.getElementById("periodicVisitIntervalDays");
+    const startPeriodicCycleButton =
+        document.getElementById("startPeriodicVisitCycle");
+    const periodicCycleMessage =
+        document.getElementById("periodicVisitCycleMessage");
 
     if (!searchInput ||
         !list ||
@@ -1880,7 +2653,69 @@ function initializeAssignmentBoard() {
         !smartAssignmentCount ||
         !startFacilitySelect ||
         !smartAssignButton ||
+        !periodicIntervalInput ||
+        !startPeriodicCycleButton ||
+        !periodicCycleMessage ||
         !isAdminUser()) return;
+
+    startPeriodicCycleButton.addEventListener("click", async () => {
+
+        const activeCycle = getActivePeriodicVisitCycle();
+        const intervalDays = Math.floor(Number(periodicIntervalInput.value));
+
+        if (!Number.isInteger(intervalDays) ||
+            intervalDays < 1 ||
+            intervalDays > 365) {
+
+            periodicCycleMessage.textContent =
+                "أدخل مدة صحيحة بين 1 و365 يومًا.";
+            periodicCycleMessage.className = "small text-danger";
+
+            return;
+
+        }
+
+        const actionLabel = activeCycle
+            ? "بدء الدورة الدورية التالية"
+            : "فتح جميع المنشآت النشطة لدورة الزيارات الدورية";
+        const confirmed = window.confirm(
+            `${actionLabel} بحد أدنى ${intervalDays} يومًا بين الزيارتين؟\n` +
+            "لن تُحذف أو تُعدّل أي زيارة أو إسناد سابق."
+        );
+
+        if (!confirmed) return;
+
+        startPeriodicCycleButton.disabled = true;
+        periodicCycleMessage.textContent = "جاري بدء الدورة ومزامنتها...";
+        periodicCycleMessage.className = "small text-muted";
+
+        try {
+
+            const cycle = await startPeriodicVisitCycle(
+                allFacilities,
+                intervalDays
+            );
+
+            renderAssignmentBoard(allFacilities);
+
+            const refreshedMessage =
+                document.getElementById("periodicVisitCycleMessage");
+
+            refreshedMessage.textContent =
+                `تم بدء الدورة ${cycle.sequence}. ستظهر المنشآت عند بلوغ الاستحقاق الزمني.`;
+            refreshedMessage.className = "small text-success";
+
+        } catch (error) {
+
+            periodicCycleMessage.textContent = error && error.message
+                ? error.message
+                : "تعذر بدء دورة الزيارات الدورية.";
+            periodicCycleMessage.className = "small text-danger";
+            renderPeriodicVisitCyclePanel(allFacilities);
+
+        }
+
+    });
 
     searchInput.addEventListener("input", () => {
 
@@ -1920,6 +2755,12 @@ function initializeAssignmentBoard() {
     };
 
     visitTypeSelect.addEventListener("change", syncVisitReasonVisibility);
+    visitTypeSelect.addEventListener("change", () => {
+
+        smartAssignmentStartMode = "auto";
+        renderAssignmentBoard(allFacilities);
+
+    });
 
     syncVisitReasonVisibility();
 
@@ -2049,7 +2890,9 @@ function initializeAssignmentBoard() {
 
         if (assignedFacilities.length === 0) {
 
-            message.textContent = "لا توجد منشآت غير مسندة";
+            message.textContent = getActivePeriodicVisitCycle()
+                ? "لا توجد منشآت مستحقة للإسناد حاليًا."
+                : "لا توجد منشآت غير مسندة";
             message.className = "small text-danger";
 
             return;
@@ -2428,6 +3271,7 @@ function exportAppData() {
         exportedAt: new Date().toISOString(),
         users,
         facilityAssignments,
+        facilityAssignmentHistory,
         facilityStatus,
         employees: typeof employees === "undefined" ? {} : employees,
         appSettings: loadAppSettings()
@@ -2511,6 +3355,16 @@ async function importAppData(file) {
                 key: "employees",
                 previousValue: typeof employees === "undefined" ? {} : employees,
                 nextValue: importedData.employees
+            });
+
+        }
+
+        if (isPortableDataObject(importedData.facilityAssignmentHistory)) {
+
+            changes.push({
+                key: assignmentHistoryStorageKey,
+                previousValue: facilityAssignmentHistory,
+                nextValue: importedData.facilityAssignmentHistory
             });
 
         }

@@ -1079,11 +1079,82 @@ body.role-committee .main-grid {
     margin-top: 18px;
 }
 
+.periodic-cycle-panel {
+    margin: 18px 18px 0;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.4fr) minmax(210px, 0.7fr);
+    align-items: center;
+    gap: 16px;
+    border: 1px solid rgba(0, 122, 82, 0.24);
+    border-radius: 14px;
+    background: linear-gradient(135deg, #F5FBF8 0%, #FFFFFF 100%);
+}
+
+.periodic-cycle-panel p,
+.periodic-cycle-action label {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.periodic-cycle-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.periodic-cycle-metric {
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #FFFFFF;
+}
+
+.periodic-cycle-metric span,
+.periodic-cycle-metric strong {
+    display: block;
+}
+
+.periodic-cycle-metric span {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.periodic-cycle-metric strong {
+    color: var(--primary-dark);
+    font-size: 17px;
+}
+
+.periodic-cycle-action {
+    display: grid;
+    gap: 8px;
+}
+
+.periodic-cycle-panel > [role="status"] {
+    grid-column: 1 / -1;
+}
+
 .assignment-board-body {
     padding: 18px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
     gap: 20px;
+}
+
+@media (max-width: 992px) {
+    .periodic-cycle-panel {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 576px) {
+    .periodic-cycle-panel {
+        margin: 12px 12px 0;
+    }
+
+    .periodic-cycle-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 .assignment-facility-list {
