@@ -8,12 +8,42 @@ let adminAssignedListFilter = "all";
 
 function getCommitteeAssignedDisplayStatus(facility) {
 
-    const state = getFacilityStatus(facility.license);
+    const assignment = getFacilityAssignment(facility.license);
 
-    if (state.visitStatus === "visited") return "completed";
-    if (state.visitStatus === "partial") return "in_progress";
+    if (assignment && assignment.status === "completed") return "completed";
+    if (assignment && assignment.status === "in_progress") return "in_progress";
 
     return "pending";
+
+}
+
+
+function getCurrentAssignmentVisitStatusDisplay(facility) {
+
+    const displayStatus = getCommitteeAssignedDisplayStatus(facility);
+
+    if (displayStatus === "completed") {
+
+        return {
+            text: "🟢 تمت زيارة الإسناد",
+            badge: "success"
+        };
+
+    }
+
+    if (displayStatus === "in_progress") {
+
+        return {
+            text: "🟠 لم تستكمل زيارة الإسناد",
+            badge: "warning"
+        };
+
+    }
+
+    return {
+        text: "🟡 قيد الانتظار",
+        badge: "secondary"
+    };
 
 }
 
@@ -162,8 +192,7 @@ function getCompletedFacilitiesForCommittee(committeeUsername, facilities) {
         getActiveAssignmentsForCommittee(committeeUsername)
             .filter(assignment => {
 
-                return assignment.status === "completed" ||
-                    facilityHasCompletedVisit(assignment.facilityLicense);
+                return Boolean(getAssignmentCompletionTime(assignment));
 
             })
             .map(assignment => String(assignment.facilityLicense))
@@ -287,7 +316,14 @@ function showFacilityList(facilities, options = {}) {
         let statusText = "قيد الانتظار";
         let statusBadge = "secondary";
 
-        if (state.visitStatus === "visited") {
+        if (isCommitteeAssignedView) {
+
+            const assignmentDisplay = getCurrentAssignmentVisitStatusDisplay(facility);
+
+            statusText = assignmentDisplay.text;
+            statusBadge = assignmentDisplay.badge;
+
+        } else if (state.visitStatus === "visited") {
 
             statusText = "تمت الزيارة";
             statusBadge = "success";
@@ -463,7 +499,9 @@ function showCommitteeFacilityList(committee, facilities) {
 
         const state = getFacilityStatus(facility.license);
         const displayLicense = getFacilityDisplayLicense(facility);
-        const visitDisplay = getVisitStatusDisplay(state);
+        const visitDisplay = adminAssignedListFilter === "completed"
+            ? getVisitStatusDisplay(state)
+            : getCurrentAssignmentVisitStatusDisplay(facility);
         const displayStatus = getCommitteeAssignedDisplayStatus(facility);
         const item = document.createElement("div");
 
@@ -678,6 +716,9 @@ function renderAssignmentVisitContext(assignment) {
                 : ""}
             <div><strong>نوع الزيارة:</strong> ${getVisitTypeLabel(assignment.visitType)}</div>
             <div><strong>سبب الزيارة:</strong> ${escapeHtml(assignment.visitReason || "الخطة الدورية")}</div>
+            ${assignment.visitCycleNumber
+                ? `<div><strong>الدورة:</strong> ${escapeHtml(assignment.visitCycleNumber)}</div>`
+                : ""}
         </div>
     `;
 
@@ -714,6 +755,9 @@ function renderVisitHistory(visits) {
                     : ""}
                 <div class="small"><strong>نوع الزيارة:</strong> ${getVisitTypeLabel(visit.visitType)}</div>
                 <div class="small"><strong>سبب الزيارة:</strong> ${escapeHtml(visit.visitReason || "الخطة الدورية")}</div>
+                ${visit.visitCycleNumber
+                    ? `<div class="small"><strong>الدورة:</strong> ${escapeHtml(visit.visitCycleNumber)}</div>`
+                    : ""}
                 ${visit.incompleteReason
                     ? `<div class="small"><strong>سبب عدم الاكتمال:</strong> ${escapeHtml(visit.incompleteReason)}</div>`
                     : ""}
@@ -733,7 +777,7 @@ function renderAssignmentControl(facility) {
     if (!isAdminUser()) return "";
 
     const storedAssignment = getFacilityAssignment(facility.license);
-    const assignment = isActiveAssignment(storedAssignment)
+    const assignment = isRetainedAssignment(storedAssignment)
         ? storedAssignment
         : null;
     const committeeOptions = getCommitteeUsers().map(user => `
@@ -820,7 +864,14 @@ function showFacilityDetails(facility) {
     const visits = getFacilityVisits(facility.license);
     const annualVisitCount = getAnnualVisitCount(facility.license);
     const storedAssignment = getFacilityAssignment(facility.license);
-    const assignment = isActiveAssignment(storedAssignment) ? storedAssignment : null;
+    const assignment = isRetainedAssignment(storedAssignment)
+        ? storedAssignment
+        : null;
+    const canRecordVisit = Boolean(
+        isCommitteeUser() &&
+        isActiveAssignment(storedAssignment) &&
+        storedAssignment.committeeUsername === currentUser.username
+    );
 
     const statusDisplay = getVisitStatusDisplay(state);
     const displayLicense = getFacilityDisplayLicense(facility);
@@ -872,7 +923,7 @@ function showFacilityDetails(facility) {
 
         <hr>
 
-        ${isCommitteeUser() ? `
+        ${canRecordVisit ? `
         <button id="newVisit" class="btn btn-outline-success w-100 mb-3 committee-only">
             + زيارة جديدة
         </button>
@@ -910,6 +961,10 @@ function showFacilityDetails(facility) {
                 حفظ
             </button>
         </div>
+        ` : isCommitteeUser() ? `
+            <div class="alert alert-light border small">
+                هذا الإسناد غير مفتوح لإضافة زيارة جديدة.
+            </div>
         ` : ""}
 
         <hr>
@@ -1076,9 +1131,20 @@ function showFacilityDetails(facility) {
         }
 
         const storedCurrentAssignment = getFacilityAssignment(facility.license);
-        const currentAssignment = isActiveAssignment(storedCurrentAssignment)
+        const currentAssignment = isActiveAssignment(storedCurrentAssignment) &&
+            storedCurrentAssignment.committeeUsername === currentUser.username
             ? storedCurrentAssignment
             : null;
+
+        if (!currentAssignment) {
+
+            visitSaveMessage.textContent =
+                "لا يوجد إسناد مفتوح لهذه المنشأة أو تغير الإسناد أثناء عرض الصفحة.";
+            visitSaveMessage.className = "small text-danger mb-2";
+
+            return;
+
+        }
         const assignmentSnapshot = getAssignmentSnapshot(currentAssignment);
         const visitStatus = result === "incomplete" ? "partial" : "visited";
         const visitCommitteeUsername = currentAssignment
@@ -1116,6 +1182,12 @@ function showFacilityDetails(facility) {
                 visitReason: currentAssignment
                     ? currentAssignment.visitReason || "الخطة الدورية"
                     : "الخطة الدورية",
+                visitCycleId: currentAssignment
+                    ? currentAssignment.visitCycleId || null
+                    : null,
+                visitCycleNumber: currentAssignment
+                    ? currentAssignment.visitCycleNumber || null
+                    : null,
                 result,
                 incompleteReason: result === "incomplete" ? incompleteReason.value : "",
                 visitStatus,

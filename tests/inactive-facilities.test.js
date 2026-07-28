@@ -111,7 +111,7 @@ test("activity controls, archive, visibility filtering, and assignment guards ar
     );
     assert.match(
         usersSource,
-        /return isFacilityEligibleForAssignment\(facility\)[\s\S]*!isActiveAssignment\(assignment\)/
+        /function isFacilityAssignableForVisit[\s\S]*!isFacilityEligibleForAssignment\(facilityOrLicense\)[\s\S]*isActiveAssignment\(getFacilityAssignment\(license\)\)/
     );
 
 });

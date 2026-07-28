@@ -237,6 +237,7 @@ function createInitialRows(overrides = {}) {
     const keys = [
         "users",
         "facilityAssignments",
+        "facilityAssignmentHistory",
         "facilityStatus",
         "appSettings",
         "customFacilities",

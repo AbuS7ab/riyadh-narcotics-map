@@ -1,6 +1,6 @@
 {
   "name": "narco-compliance",
-  "version": "0.9.34",
+  "version": "0.10.0",
   "private": true,
   "scripts": {
     "test": "node --test",

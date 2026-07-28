@@ -458,9 +458,41 @@
                     <small>Assignment Board</small>
                 </div>
 
+                <div id="periodicVisitCyclePanel" class="periodic-cycle-panel">
+                    <div>
+                        <strong id="periodicVisitCycleTitle">دورة الزيارات الدورية</strong>
+                        <p id="periodicVisitCycleDescription" class="mb-0">
+                            أكمل التغطية الأولى ثم افتح دورة جديدة دون تعديل الزيارات السابقة.
+                        </p>
+                    </div>
+                    <div id="periodicVisitCycleMetrics" class="periodic-cycle-metrics"></div>
+                    <div class="periodic-cycle-action">
+                        <label for="periodicVisitIntervalDays">الحد الأدنى بين الزيارتين</label>
+                        <div class="input-group">
+                            <input id="periodicVisitIntervalDays"
+                                   class="form-control"
+                                   type="number"
+                                   min="1"
+                                   max="365"
+                                   value="75">
+                            <span class="input-group-text">يومًا</span>
+                        </div>
+                        <button id="startPeriodicVisitCycle"
+                                type="button"
+                                class="btn btn-outline-primary">
+                            بدء دورة الزيارات الدورية
+                        </button>
+                    </div>
+                    <div id="periodicVisitCycleMessage"
+                         class="small d-none"
+                         role="status"></div>
+                </div>
+
                 <div class="assignment-board-body">
                     <div>
-                        <label for="assignmentSearch" class="form-label">المنشآت غير المسندة</label>
+                        <label id="assignmentSearchLabel"
+                               for="assignmentSearch"
+                               class="form-label">المنشآت غير المسندة</label>
                         <input id="assignmentSearch" class="form-control mb-3"
                                placeholder="ابحث بالاسم أو الترخيص أو الحي أو النوع">
                         <div id="unassignedFacilitiesList" class="assignment-facility-list"></div>
