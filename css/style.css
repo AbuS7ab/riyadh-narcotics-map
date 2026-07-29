@@ -598,7 +598,7 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 .visit-date-range-filter {
     grid-column: span 2;
     display: grid;
-    grid-template-columns: minmax(260px, 1fr) auto;
+    grid-template-columns: minmax(260px, 1fr) auto auto;
     gap: 8px;
     align-items: end;
 }
@@ -654,6 +654,12 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 .visit-date-range-error {
     grid-column: 1 / -1;
     color: var(--danger);
+    font-size: 11px;
+}
+
+.model-b-export-message {
+    grid-column: 1 / -1;
+    min-height: 16px;
     font-size: 11px;
 }
 

@@ -275,6 +275,12 @@ function initializeVisitDateFilter() {
 
     });
 
+    if (typeof initializeModelBExport === "function") {
+
+        initializeModelBExport();
+
+    }
+
 }
 
 

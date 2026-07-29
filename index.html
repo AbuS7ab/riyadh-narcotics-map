@@ -257,11 +257,21 @@
                             type="button">
                         مسح التاريخ
                     </button>
+                    <button id="exportModelB"
+                            class="btn btn-outline-success"
+                            type="button">
+                        <i class="fa-solid fa-file-excel"></i>
+                        تصدير نموذج ب
+                    </button>
                     <div id="visitDateRangeError"
                          class="visit-date-range-error d-none"
                          role="alert">
                         تاريخ البداية يجب ألا يكون بعد تاريخ النهاية.
                     </div>
+                    <div id="modelBExportMessage"
+                         class="model-b-export-message text-muted"
+                         role="status"
+                         aria-live="polite"></div>
                 </div>
             </section>
 
@@ -890,6 +900,8 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
 <script src="js/config.js"></script>
 
 <script src="js/cloud.js"></script>
@@ -923,6 +935,8 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 <script src="js/dashboard.js"></script>
 
 <script src="js/districts.js"></script>
+
+<script src="js/model-b-export.js"></script>
 
 <script src="js/filters.js"></script>
 
