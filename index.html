@@ -141,7 +141,9 @@
 
                 <div class="dashboard-card operational-kpi kpi-violation"
                      data-filter-name="violation" data-filter-value="true"
-                     role="button" tabindex="0">
+                     role="button" tabindex="0"
+                     aria-controls="violationActionStatistics"
+                     aria-expanded="false">
                     <div class="kpi-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
                     <div>
                         <h6>المخالفات</h6>
@@ -162,8 +164,9 @@
             </section>
 
             <section id="violationActionStatistics"
-                     class="visit-statistics violation-action-statistics management-read-only"
-                     aria-label="متابعة إجراءات المخالفات">
+                     class="visit-statistics violation-action-statistics management-read-only d-none"
+                     aria-label="متابعة إجراءات المخالفات"
+                     aria-hidden="true">
                 <div><span>إجمالي المخالفات</span><strong id="violationActionsTotal">0</strong></div>
                 <div><span>قيد المتابعة</span><strong id="violationActionsFollowUp">0</strong></div>
                 <div><span>أُحيلت للجنة المخالفات</span><strong id="violationActionsReferred">0</strong></div>
