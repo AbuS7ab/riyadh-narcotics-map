@@ -32,6 +32,10 @@ const sidebar = fs.readFileSync(
     path.join(root, "js", "sidebar.js"),
     "utf8"
 );
+const dashboard = fs.readFileSync(
+    path.join(root, "js", "dashboard.js"),
+    "utf8"
+);
 
 
 function createUser(role) {
@@ -115,6 +119,28 @@ test("Admin can refer a violation and transaction number is mandatory", async ()
     assert.equal(visit.violationActions.length, 1);
     assert.equal(visit.violationActions[0].transactionNumber, "TX-123");
     assert.equal(context.getViolationActionStats().referred, 1);
+
+});
+
+
+test("Violation action statistics are hidden until the violation KPI is selected", () => {
+
+    assert.match(
+        html,
+        /class="dashboard-card operational-kpi kpi-violation"[\s\S]*?aria-controls="violationActionStatistics"[\s\S]*?aria-expanded="false"/
+    );
+    assert.match(
+        html,
+        /id="violationActionStatistics"[\s\S]*?management-read-only d-none[\s\S]*?aria-hidden="true"/
+    );
+    assert.match(
+        dashboard,
+        /if \(filterName === "violation"\)[\s\S]*?setViolationActionStatisticsVisibility\(value !== "all"\)/
+    );
+    assert.match(
+        dashboard,
+        /function setViolationActionStatisticsVisibility[\s\S]*?classList\.toggle\("d-none", !isVisible\)[\s\S]*?aria-expanded/
+    );
 
 });
 

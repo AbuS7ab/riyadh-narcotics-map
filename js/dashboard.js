@@ -38,6 +38,12 @@ function toggleDashboardFilter(card) {
 
     setFilter(filterName, value);
 
+    if (filterName === "violation") {
+
+        setViolationActionStatisticsVisibility(value !== "all");
+
+    }
+
     if (value === "all") {
 
         showDashboardNeutralState();
@@ -47,6 +53,26 @@ function toggleDashboardFilter(card) {
         showFacilityList(filteredFacilities);
 
     }
+
+}
+
+
+function setViolationActionStatisticsVisibility(isVisible) {
+
+    const statistics =
+        document.getElementById("violationActionStatistics");
+    const violationCard =
+        document.querySelector(".kpi-violation");
+
+    if (!statistics || !violationCard) return;
+
+    statistics.classList.toggle("d-none", !isVisible);
+    statistics.setAttribute("aria-hidden", String(!isVisible));
+    violationCard.setAttribute("aria-expanded", String(isVisible));
+    violationCard.classList.toggle(
+        "violation-statistics-expanded",
+        isVisible
+    );
 
 }
 

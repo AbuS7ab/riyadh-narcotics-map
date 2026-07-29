@@ -570,6 +570,11 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
     background: rgba(201, 74, 74, .11);
 }
 
+.kpi-violation.violation-statistics-expanded {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 3px rgba(201, 74, 74, .12), var(--shadow);
+}
+
 .violation-action-statistics {
     border-color: rgba(201, 74, 74, .22);
     background: linear-gradient(135deg, #fff, #fff8f7);
