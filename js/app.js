@@ -38,6 +38,7 @@ async function initializeApp() {
     initializeEmployeesInterface();
     initializeCustomFacilitiesPanel();
     initializeExternalVisitControls();
+    initializeViolationActionControls();
     initializeSyncAuditPanel();
     startCloudRefresh();
 

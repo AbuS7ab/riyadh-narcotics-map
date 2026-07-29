@@ -764,6 +764,9 @@ function renderVisitHistory(visits) {
                 ${visit.notes
                     ? `<div class="small mt-2"><strong>الملاحظات:</strong> ${escapeHtml(visit.notes)}</div>`
                     : ''}
+                ${typeof renderViolationActionTimeline === "function"
+                    ? renderViolationActionTimeline(visit)
+                    : ""}
             </div>
         `;
 

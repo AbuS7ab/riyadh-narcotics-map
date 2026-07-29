@@ -570,6 +570,80 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
     background: rgba(201, 74, 74, .11);
 }
 
+.violation-action-statistics {
+    border-color: rgba(201, 74, 74, .22);
+    background: linear-gradient(135deg, #fff, #fff8f7);
+}
+
+.violation-follow-up {
+    padding: 10px;
+    border: 1px solid rgba(201, 74, 74, .18);
+    border-radius: 10px;
+    background: #fff9f8;
+}
+
+.violation-follow-up-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.violation-action-timeline {
+    margin: 0 0 10px;
+    padding: 0 18px 0 0;
+}
+
+.violation-action-timeline li {
+    margin-bottom: 8px;
+    padding-right: 3px;
+}
+
+.violation-action-timeline li > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.violation-action-timeline small {
+    display: block;
+}
+
+.violation-action-dialog {
+    width: min(92vw, 520px);
+    padding: 0;
+    border: 0;
+    border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .24);
+}
+
+.violation-action-dialog::backdrop {
+    background: rgba(15, 35, 31, .58);
+    backdrop-filter: blur(2px);
+}
+
+.violation-action-dialog form {
+    padding: 22px;
+}
+
+.violation-action-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.violation-action-dialog-header small {
+    color: var(--danger);
+    font-weight: 700;
+}
+
+.violation-action-dialog-header h5 {
+    margin: 3px 0 0;
+}
+
 .progress {
     height: 4px;
     margin-top: 6px;
