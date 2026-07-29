@@ -42,12 +42,14 @@ function getModelBVisitParticipants(visit = {}) {
     const memberIds = [
         ...(Array.isArray(teamSnapshot.memberIds) ? teamSnapshot.memberIds : []),
         ...(Array.isArray(employeeSnapshot.memberIds) ? employeeSnapshot.memberIds : []),
-        ...(Array.isArray(employeeSnapshot.employeeIds) ? employeeSnapshot.employeeIds : [])
+        ...(Array.isArray(employeeSnapshot.employeeIds) ? employeeSnapshot.employeeIds : []),
+        ...(Array.isArray(visit.participantIds) ? visit.participantIds : [])
     ].map(String).filter(Boolean);
     let leader = String(teamSnapshot.leader || "").trim() ||
         getModelBEmployeeName(leaderId);
     const memberNames = [
         ...(Array.isArray(teamSnapshot.members) ? teamSnapshot.members : []),
+        ...(Array.isArray(visit.participants) ? visit.participants : []),
         ...memberIds
             .filter(employeeId => employeeId !== leaderId)
             .map(getModelBEmployeeName)
@@ -88,7 +90,43 @@ function getModelBVisitDate(value) {
 }
 
 
-function collectModelBVisitRows(facilities, dateFrom, dateTo) {
+function getModelBExternalFacility(visit = {}) {
+
+    const snapshot = visit.facilitySnapshot &&
+        typeof visit.facilitySnapshot === "object"
+        ? visit.facilitySnapshot
+        : {};
+
+    return {
+        name: visit.facilityName || snapshot.name || "",
+        type: visit.facilityType || snapshot.type || "",
+        license: visit.license || snapshot.license || "",
+        displayLicense: visit.displayLicense || snapshot.displayLicense ||
+            visit.license || snapshot.license || "",
+        city: visit.city || snapshot.city || "الرياض"
+    };
+
+}
+
+
+function isModelBExternalVisitExportable(visit) {
+
+    if (!visit || visit.isExternal === false) return false;
+
+    return visit.missionStatus !== "ملغاة" &&
+        visit.status !== "cancelled";
+
+}
+
+
+function collectModelBVisitRows(
+    facilities,
+    dateFrom,
+    dateTo,
+    externalVisitRecords = typeof externalVisits === "undefined"
+        ? {}
+        : externalVisits
+) {
 
     const rows = [];
 
@@ -117,6 +155,7 @@ function collectModelBVisitRows(facilities, dateFrom, dateTo) {
             rows.push({
                 facility,
                 visit,
+                source: "planned",
                 visitDate,
                 normalizedDate: typeof getNormalizedVisitDate === "function"
                     ? getNormalizedVisitDate(visitDateValue)
@@ -126,6 +165,36 @@ function collectModelBVisitRows(facilities, dateFrom, dateTo) {
         });
 
     });
+
+    Object.values(externalVisitRecords || {})
+        .filter(isModelBExternalVisitExportable)
+        .forEach(visit => {
+
+            if (
+                typeof visitMatchesDateRange === "function" &&
+                !visitMatchesDateRange(visit, dateFrom, dateTo)
+            ) return;
+
+            const visitDateValue =
+                visit.visitDate ||
+                visit.date ||
+                visit.completedAt ||
+                visit.createdAt;
+            const visitDate = getModelBVisitDate(visitDateValue);
+
+            if (!visitDate) return;
+
+            rows.push({
+                facility: getModelBExternalFacility(visit),
+                visit,
+                source: "external",
+                visitDate,
+                normalizedDate: typeof getNormalizedVisitDate === "function"
+                    ? getNormalizedVisitDate(visitDateValue)
+                    : String(visitDateValue || "").slice(0, 10)
+            });
+
+        });
 
     return rows
         .sort((first, second) => {
@@ -152,7 +221,9 @@ function collectModelBVisitRows(facilities, dateFrom, dateTo) {
                 String(record.facility.name || "").trim(),
                 String(record.facility.type || "").trim(),
                 String(displayLicense || "").trim(),
-                getModelBVisitType(record.visit.visitType),
+                record.source === "external"
+                    ? "خارج الخطة"
+                    : getModelBVisitType(record.visit.visitType),
                 record.visitDate,
                 "",
                 String(record.facility.city || "الرياض").trim(),
@@ -400,7 +471,10 @@ async function exportModelB() {
             workbookBlob,
             `نموذج ب - ${dateFrom} إلى ${dateTo}.xlsx`
         );
-        setModelBExportMessage(`تم تصدير ${rows.length} زيارة.`, "success");
+        setModelBExportMessage(
+            `تم تصدير ${rows.length} زيارة، شاملة الزيارات خارج الخطة.`,
+            "success"
+        );
 
     } catch (error) {
 

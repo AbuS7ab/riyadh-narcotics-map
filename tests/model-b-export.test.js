@@ -37,7 +37,13 @@ function createContext(overrides = {}) {
         },
         visitMatchesDateRange(visit, dateFrom, dateTo) {
 
-            const date = String(visit.date || "").slice(0, 10);
+            const date = String(
+                visit.date ||
+                visit.visitDate ||
+                visit.completedAt ||
+                visit.createdAt ||
+                ""
+            ).slice(0, 10);
 
             return Boolean(date) &&
                 (!dateFrom || date >= dateFrom) &&
@@ -149,6 +155,108 @@ test("Model B uses historical participant ids without duplicating the leader", (
 });
 
 
+test("Model B includes non-cancelled external visits in the selected range", () => {
+
+    const context = createContext({
+        employeeNames: {
+            memberId: "عضو بالمعرف"
+        }
+    });
+    const rows = context.collectModelBVisitRows(
+        [{
+            name: "منشأة داخل الخطة",
+            type: "صيدلية",
+            license: "100"
+        }],
+        "2026-07-20",
+        "2026-07-26",
+        {
+            external1: {
+                isExternal: true,
+                facilityName: "منشأة خارج الخطة",
+                facilityType: "مستشفى عام",
+                facilitySnapshot: {
+                    license: "EXT-001",
+                    city: "الخرج"
+                },
+                visitDate: "2026-07-23",
+                missionStatus: "مكتملة",
+                missionType: "بلاغ",
+                teamSnapshot: {
+                    leader: "قائد المهمة"
+                },
+                participants: ["قائد المهمة", "عضو مباشر"],
+                participantIds: ["memberId"]
+            },
+            externalCancelled: {
+                isExternal: true,
+                facilityName: "مهمة ملغاة",
+                visitDate: "2026-07-24",
+                missionStatus: "ملغاة"
+            },
+            externalOutsideRange: {
+                isExternal: true,
+                facilityName: "مهمة قديمة",
+                visitDate: "2026-07-10",
+                missionStatus: "مكتملة"
+            }
+        }
+    );
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0][2], "منشأة خارج الخطة");
+    assert.equal(rows[0][3], "مستشفى عام");
+    assert.equal(rows[0][4], "EXT-001");
+    assert.equal(rows[0][5], "خارج الخطة");
+    assert.equal(rows[0][8], "الخرج");
+    assert.equal(rows[0][12], "قائد المهمة");
+    assert.equal(rows[0][13], "عضو مباشر، عضو بالمعرف");
+
+    [1, 7, 9, 10, 11].forEach(columnIndex => {
+
+        assert.equal(rows[0][columnIndex], "");
+
+    });
+
+});
+
+
+test("Model B merges planned and external visits in chronological order", () => {
+
+    const context = createContext({
+        visitsByLicense: {
+            "100": [{
+                date: "2026-07-24",
+                visitType: "periodic"
+            }]
+        }
+    });
+    const rows = context.collectModelBVisitRows(
+        [{
+            name: "منشأة داخل الخطة",
+            type: "صيدلية",
+            license: "100"
+        }],
+        "2026-07-20",
+        "2026-07-26",
+        {
+            external1: {
+                facilityName: "منشأة خارج الخطة",
+                visitDate: "2026-07-22",
+                missionStatus: "قيد التنفيذ"
+            }
+        }
+    );
+
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0][2], "منشأة خارج الخطة");
+    assert.equal(rows[0][5], "خارج الخطة");
+    assert.equal(rows[1][2], "منشأة داخل الخطة");
+    assert.equal(rows[1][5], "اعتيادية");
+
+});
+
+
 test("Model B Open XML population preserves styles and leaves official blank columns empty", () => {
 
     const context = createContext();
@@ -215,6 +323,13 @@ test("Model B template and export controls are wired into the application", () =
             "utf8"
         ),
         /getMergedFacilities\(\)/
+    );
+    assert.match(
+        fs.readFileSync(
+            path.join(projectRoot, "js/model-b-export.js"),
+            "utf8"
+        ),
+        /typeof externalVisits === "undefined"/
     );
 
 });
