@@ -203,7 +203,26 @@ test("management statistics and Admin action controls are wired into the UI", ()
     assert.match(html, /id="violationActionDialog"/i);
     assert.match(
         sidebar,
-        /renderViolationActionTimeline\(visit\)/
+        /renderViolationActionTimeline\(visit,\s*facilityLicense\)/
     );
+
+});
+
+
+test("legacy violating visits use the parent facility license for action updates", async () => {
+
+    const { context } = await createViolationRuntime();
+    const legacyVisit = {
+        id: "legacy-violation",
+        date: "2026-07-20",
+        result: "violation",
+        visitStatus: "visited",
+        violation: true
+    };
+
+    const markup = context.renderViolationActionTimeline(legacyVisit, "100");
+
+    assert.match(markup, /data-facility-license="100"/);
+    assert.match(markup, /data-visit-id="legacy-violation"/);
 
 });

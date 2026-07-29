@@ -725,7 +725,7 @@ function renderAssignmentVisitContext(assignment) {
 }
 
 
-function renderVisitHistory(visits) {
+function renderVisitHistory(visits, facilityLicense = "") {
 
     if (visits.length === 0) {
 
@@ -765,7 +765,7 @@ function renderVisitHistory(visits) {
                     ? `<div class="small mt-2"><strong>الملاحظات:</strong> ${escapeHtml(visit.notes)}</div>`
                     : ''}
                 ${typeof renderViolationActionTimeline === "function"
-                    ? renderViolationActionTimeline(visit)
+                    ? renderViolationActionTimeline(visit, facilityLicense)
                     : ""}
             </div>
         `;
@@ -974,7 +974,7 @@ function showFacilityDetails(facility) {
 
         <h6 class="mb-3">السجل الرقابي</h6>
 
-        ${renderVisitHistory(visits)}
+        ${renderVisitHistory(visits, facility.license)}
 
     `;
 

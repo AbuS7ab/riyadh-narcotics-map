@@ -288,7 +288,7 @@ function getViolationActionActorLabel(action) {
 }
 
 
-function renderViolationActionTimeline(visit) {
+function renderViolationActionTimeline(visit, facilityLicense = "") {
 
     if (!canViewViolationActions() || !visitIndicatesViolation(visit)) return "";
 
@@ -336,7 +336,9 @@ function renderViolationActionTimeline(visit) {
             ${typeof isAdminUser === "function" && isAdminUser() ? `
                 <button type="button"
                         class="btn btn-outline-primary btn-sm violation-action-button"
-                        data-facility-license="${escapeHtml(visit.facilityLicense || "")}"
+                        data-facility-license="${escapeHtml(
+                            visit.facilityLicense || facilityLicense
+                        )}"
                         data-visit-id="${escapeHtml(visit.id)}">
                     تحديث إجراء المخالفة
                 </button>
