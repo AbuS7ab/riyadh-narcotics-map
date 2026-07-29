@@ -68,6 +68,29 @@ async function initializeFacilityStatusState() {
 }
 
 
+function normalizeViolationActionRecord(action) {
+
+    const allowedTypes = ["follow_up", "referred", "corrected"];
+    const actionType = allowedTypes.includes(action && action.type)
+        ? action.type
+        : "follow_up";
+
+    return {
+        id: action && action.id ||
+            `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        type: actionType,
+        effectiveDate: action && action.effectiveDate ||
+            getCurrentLocalDateValue(),
+        transactionNumber: action && action.transactionNumber || "",
+        destination: action && action.destination || "",
+        notes: action && action.notes || "",
+        createdBy: action && action.createdBy || "",
+        createdAt: action && action.createdAt || new Date().toISOString()
+    };
+
+}
+
+
 function createVisitRecord(visit) {
 
     const normalizedResult = ["no_violation", "violation", "incomplete"].includes(visit.result)
@@ -140,6 +163,9 @@ function createVisitRecord(visit) {
         visitStatus,
         violation: result === "violation" || Boolean(visit.violation),
         notes: visit.notes || "",
+        violationActions: Array.isArray(visit.violationActions)
+            ? visit.violationActions.map(normalizeViolationActionRecord)
+            : [],
         createdBy: visit.createdBy || "",
         createdAt: visit.createdAt || new Date().toISOString()
 

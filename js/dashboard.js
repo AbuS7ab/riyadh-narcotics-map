@@ -128,6 +128,25 @@ function updateDashboard(facilities) {
     document.getElementById("externalMissionsCancelled").textContent = externalStats.cancelled;
     document.getElementById("externalMissionsViolating").textContent = externalStats.violations;
 
+    if (typeof getViolationActionStats === "function") {
+
+        const violationActionStats = getViolationActionStats();
+
+        document.getElementById("violationActionsTotal").textContent =
+            violationActionStats.total;
+        document.getElementById("violationActionsFollowUp").textContent =
+            violationActionStats.underFollowUp;
+        document.getElementById("violationActionsReferred").textContent =
+            violationActionStats.referred;
+        document.getElementById("violationActionsCorrected").textContent =
+            violationActionStats.corrected;
+        document.getElementById("violationActionsResolutionRate").textContent =
+            `${violationActionStats.resolutionRate}%`;
+        document.getElementById("violationActionsAverageDays").textContent =
+            violationActionStats.averageResolutionDays;
+
+    }
+
     document.getElementById("pendingCount").textContent =
         states.filter(state => state.visitStatus === "pending").length;
 

@@ -161,6 +161,17 @@
 
             </section>
 
+            <section id="violationActionStatistics"
+                     class="visit-statistics violation-action-statistics management-read-only"
+                     aria-label="متابعة إجراءات المخالفات">
+                <div><span>إجمالي المخالفات</span><strong id="violationActionsTotal">0</strong></div>
+                <div><span>قيد المتابعة</span><strong id="violationActionsFollowUp">0</strong></div>
+                <div><span>أُحيلت للجنة المخالفات</span><strong id="violationActionsReferred">0</strong></div>
+                <div><span>تم تلافي الملاحظة</span><strong id="violationActionsCorrected">0</strong></div>
+                <div><span>نسبة المعالجة</span><strong id="violationActionsResolutionRate">0%</strong></div>
+                <div><span>متوسط أيام المعالجة</span><strong id="violationActionsAverageDays">0</strong></div>
+            </section>
+
             <section id="externalMissionStatistics" class="visit-statistics management-read-only d-none" aria-label="إحصاءات المهام خارج الخطة">
                 <div><span>إجمالي المهام خارج الخطة</span><strong id="externalMissionsTotal">0</strong></div>
                 <div><span>المهام المكتملة</span><strong id="externalMissionsCompleted">0</strong></div>
@@ -890,6 +901,67 @@
 
 </div>
 
+<dialog id="violationActionDialog"
+        class="violation-action-dialog"
+        aria-labelledby="violationActionDialogTitle">
+    <form id="violationActionForm">
+        <div class="violation-action-dialog-header">
+            <div>
+                <small>متابعة إدارية</small>
+                <h5 id="violationActionDialogTitle">تحديث إجراء المخالفة</h5>
+            </div>
+            <button id="closeViolationActionDialog"
+                    type="button"
+                    class="btn-close"
+                    aria-label="إغلاق"></button>
+        </div>
+
+        <label for="violationActionType" class="form-label">الإجراء</label>
+        <select id="violationActionType" class="form-select mb-3" required>
+            <option value="follow_up">قيد المتابعة</option>
+            <option value="referred">تمت إحالة المخالفة</option>
+            <option value="corrected">تم تلافي الملاحظة</option>
+        </select>
+
+        <label for="violationActionDate" class="form-label">تاريخ الإجراء</label>
+        <input id="violationActionDate"
+               class="form-control mb-3"
+               type="date"
+               required>
+
+        <div id="violationReferralFields" class="d-none">
+            <label for="violationTransactionNumber" class="form-label">
+                رقم المعاملة <span class="text-danger">*</span>
+            </label>
+            <input id="violationTransactionNumber"
+                   class="form-control mb-3"
+                   autocomplete="off">
+
+            <label for="violationDestination" class="form-label">الجهة المحال إليها</label>
+            <input id="violationDestination"
+                   class="form-control mb-3"
+                   value="لجنة المخالفات">
+        </div>
+
+        <label for="violationActionNotes" class="form-label">
+            ملخص ما تم
+            <span id="violationNotesRequiredHint" class="text-danger">*</span>
+        </label>
+        <textarea id="violationActionNotes"
+                  class="form-control mb-3"
+                  rows="3"
+                  placeholder="اكتب الإجراء أو نتيجة المتابعة باختصار"></textarea>
+
+        <div id="violationActionMessage" class="small d-none mb-2"></div>
+
+        <button id="saveViolationAction"
+                type="submit"
+                class="btn btn-primary w-100">
+            حفظ الإجراء
+        </button>
+    </form>
+</dialog>
+
 <link
 rel="stylesheet"
 href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
@@ -915,6 +987,8 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 <script src="js/employees.js"></script>
 
 <script src="js/status.js"></script>
+
+<script src="js/violation-actions.js"></script>
 
 <script src="js/sync-audit.js"></script>
 
