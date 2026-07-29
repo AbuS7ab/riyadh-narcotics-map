@@ -249,13 +249,129 @@ function escapeModelBOpenXmlText(value) {
 }
 
 
+function getModelBColumnNumber(columnLetters) {
+
+    return String(columnLetters || "")
+        .toUpperCase()
+        .split("")
+        .reduce(
+            (total, letter) =>
+                (total * 26) + letter.charCodeAt(0) - 64,
+            0
+        );
+
+}
+
+
+function ensureModelBOpenXmlCell(sheetXml, address) {
+
+    const addressMatch = String(address).match(/^([A-Z]+)(\d+)$/);
+
+    if (!addressMatch) {
+
+        throw new Error(`Model B template cell ${address} is invalid.`);
+
+    }
+
+    const existingCellPattern = new RegExp(
+        `<c\\b[^>]*?\\br="${address}"(?:\\s|>|\\/)`
+    );
+
+    if (existingCellPattern.test(sheetXml)) return sheetXml;
+
+    const columnLetters = addressMatch[1];
+    const rowNumber = Number(addressMatch[2]);
+    const targetColumnNumber = getModelBColumnNumber(columnLetters);
+    const styleCandidates = [];
+    const sameColumnPattern = new RegExp(
+        `<c\\b([^>]*?\\br="${columnLetters}(\\d+)"[^>]*?)` +
+        `(?:\\s*\\/\\s*>|>[\\s\\S]*?<\\/c>)`,
+        "g"
+    );
+    let columnMatch;
+
+    while ((columnMatch = sameColumnPattern.exec(sheetXml))) {
+
+        const styleMatch = columnMatch[1].match(/\bs="([^"]+)"/);
+
+        if (!styleMatch) continue;
+
+        styleCandidates.push({
+            rowNumber: Number(columnMatch[2]),
+            style: styleMatch[1]
+        });
+
+    }
+
+    styleCandidates.sort((first, second) =>
+        Math.abs(first.rowNumber - rowNumber) -
+        Math.abs(second.rowNumber - rowNumber)
+    );
+
+    if (styleCandidates.length === 0) {
+
+        throw new Error(`Model B template style for ${address} is missing.`);
+
+    }
+
+    const rowPattern = new RegExp(
+        `(<row\\b[^>]*?\\br="${rowNumber}"[^>]*>)([\\s\\S]*?)(<\\/row>)`
+    );
+    let rowFound = false;
+    const updatedXml = sheetXml.replace(
+        rowPattern,
+        (rowMatch, rowStart, rowContents, rowEnd) => {
+
+            rowFound = true;
+            const newCell =
+                `<c r="${address}" s="${styleCandidates[0].style}"/>`;
+            const cellPattern =
+                /<c\b[^>]*?\br="([A-Z]+)\d+"[^>]*?(?:\s*\/\s*>|>[\s\S]*?<\/c>)/g;
+            let cellMatch;
+
+            while ((cellMatch = cellPattern.exec(rowContents))) {
+
+                if (
+                    getModelBColumnNumber(cellMatch[1]) >
+                    targetColumnNumber
+                ) {
+
+                    const insertionPoint = cellMatch.index;
+
+                    return rowStart +
+                        rowContents.slice(0, insertionPoint) +
+                        newCell +
+                        rowContents.slice(insertionPoint) +
+                        rowEnd;
+
+                }
+
+            }
+
+            return rowStart + rowContents + newCell + rowEnd;
+
+        }
+    );
+
+    if (!rowFound) {
+
+        throw new Error(`Model B template row ${rowNumber} is missing.`);
+
+    }
+
+    return updatedXml;
+
+}
+
+
 function replaceModelBOpenXmlCell(sheetXml, address, value, valueType = "string") {
 
+    const completeSheetXml = ensureModelBOpenXmlCell(sheetXml, address);
     const pattern = new RegExp(
         `<c\\b([^>]*?\\br="${address}"[^>]*?)(?:\\s*\\/\\s*>|>[\\s\\S]*?<\\/c>)`
     );
     let replaced = false;
-    const updatedXml = sheetXml.replace(pattern, (match, rawAttributes) => {
+    const updatedXml = completeSheetXml.replace(pattern, (match, rawAttributes) => {
 
         replaced = true;
 

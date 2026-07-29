@@ -302,6 +302,47 @@ test("Model B Open XML population preserves styles and leaves official blank col
 });
 
 
+test("Model B fills missing template cells when a long export reaches a sparse row", () => {
+
+    const context = createContext();
+    const rowThreeCells = Array.from({ length: 14 }, (_, columnIndex) => {
+
+        const address = `${String.fromCharCode(65 + columnIndex)}3`;
+
+        return `<c r="${address}" s="${30 + columnIndex}"/>`;
+
+    }).join("");
+    const templateXml = [
+        "<worksheet><sheetData>",
+        `<row r="3">${rowThreeCells}</row>`,
+        '<row r="4"><c r="A4" s="30"/></row>',
+        "</sheetData></worksheet>"
+    ].join("");
+    const rows = [
+        [
+            1, "", "منشأة أولى", "صيدلية", "001", "اعتيادية",
+            new Date(2026, 6, 20, 12), "", "الرياض", "", "", "",
+            "قائد", "عضو"
+        ],
+        [
+            2, "", "منشأة ثانية", "مستشفى", "002", "اعتيادية",
+            new Date(2026, 6, 21, 12), "", "الرياض", "", "", "",
+            "قائد", "عضو"
+        ]
+    ];
+    const populatedXml = context.populateModelBWorksheetXml(templateXml, rows);
+
+    assert.match(
+        populatedXml,
+        /<c r="C4" s="32" t="inlineStr"><is><t>منشأة ثانية<\/t><\/is><\/c>/
+    );
+    assert.match(populatedXml, /<c r="N4" s="43" t="inlineStr">/);
+    assert.match(populatedXml, /<c r="B4" s="31"\/>/);
+    assert.match(populatedXml, /<c r="H4" s="37"\/>/);
+
+});
+
+
 test("Model B template and export controls are wired into the application", () => {
 
     const html = fs.readFileSync(path.join(projectRoot, "index.html"), "utf8");
