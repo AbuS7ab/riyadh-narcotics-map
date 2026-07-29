@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.11.0] - 2026-07-29
+
+- Added date-range export of field visits into the official `نموذج ب` Excel template.
+- Preserved the template layout and left transaction number, health affairs,
+  visit reason, statistics submission date, and notes blank.
+- Exported each visit as a separate row with the facility, date, visit type,
+  city, and historical committee participants.
+
 All notable changes to Narco Compliance are documented in this file.
 
 ## [v0.10.0] - 2026-07-28
