@@ -36,6 +36,10 @@ const dashboard = fs.readFileSync(
     path.join(root, "js", "dashboard.js"),
     "utf8"
 );
+const filters = fs.readFileSync(
+    path.join(root, "js", "filters.js"),
+    "utf8"
+);
 
 
 function createUser(role) {
@@ -170,7 +174,104 @@ test("referral and correction remain in the same immutable timeline", async () =
     assert.equal(stats.referred, 1);
     assert.equal(stats.corrected, 1);
     assert.equal(stats.resolutionRate, 100);
-    assert.equal(stats.averageResolutionDays, 3);
+    assert.equal("averageResolutionDays" in stats, false);
+
+});
+
+
+test("correction reason is required and shown with an explicit label", async () => {
+
+    const { context } = await createViolationRuntime();
+
+    await assert.rejects(
+        context.addViolationAction("100", "violation-1", {
+            type: "corrected",
+            effectiveDate: "2026-07-23"
+        }),
+        /Correction reason is required/i
+    );
+
+    await context.addViolationAction("100", "violation-1", {
+        type: "corrected",
+        effectiveDate: "2026-07-23",
+        notes: "استكمال السجل وتصحيح الرصيد"
+    });
+
+    const visit = context.getFacilityVisits("100")[0];
+    const markup = context.renderViolationActionTimeline(visit, "100");
+
+    assert.match(markup, /سبب التلافي:/);
+    assert.match(markup, /استكمال السجل وتصحيح الرصيد/);
+
+});
+
+
+test("violation action statistic cards filter matching facilities", async () => {
+
+    const { context } = await createViolationRuntime();
+
+    assert.equal(
+        context.facilityMatchesViolationActionFilter("100", "follow_up"),
+        true
+    );
+    assert.equal(
+        context.facilityMatchesViolationActionFilter("100", "referred"),
+        false
+    );
+
+    await context.addViolationAction("100", "violation-1", {
+        type: "referred",
+        effectiveDate: "2026-07-21",
+        transactionNumber: "TX-123"
+    });
+
+    assert.equal(
+        context.facilityMatchesViolationActionFilter("100", "referred"),
+        true
+    );
+    assert.equal(
+        context.facilityMatchesViolationActionFilter("100", "corrected"),
+        false
+    );
+
+    assert.match(html, /data-violation-action-filter="follow_up"/);
+    assert.match(html, /data-violation-action-filter="referred"/);
+    assert.match(html, /data-violation-action-filter="corrected"/);
+    assert.match(
+        filters,
+        /facilityMatchesViolationActionFilter\([\s\S]*?activeFilters\.violationAction/
+    );
+    assert.match(
+        dashboard,
+        /violationStatCards[\s\S]*?showFacilityList\(filteredFacilities\)/
+    );
+
+});
+
+
+test("average processing days is removed from the dashboard", () => {
+
+    assert.doesNotMatch(html, /violationActionsAverageDays/);
+    assert.doesNotMatch(html, /متوسط أيام المعالجة/);
+    assert.doesNotMatch(dashboard, /averageResolutionDays/);
+
+});
+
+
+test("dashboard statistics exclude facilities hidden from the active workspace", async () => {
+
+    const { context } = await createViolationRuntime();
+
+    assert.equal(context.getViolationActionStats().total, 1);
+    assert.equal(context.getViolationActionStats([]).total, 0);
+    assert.equal(
+        context.getViolationActionStats([{ license: "100" }]).total,
+        1
+    );
+    assert.match(
+        dashboard,
+        /getViolationActionStats\(facilities\)/
+    );
 
 });
 

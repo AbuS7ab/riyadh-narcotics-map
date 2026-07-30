@@ -26,6 +26,27 @@ operationalKpiCards.forEach(card => {
 
 });
 
+const violationStatCards =
+    document.querySelectorAll("[data-violation-action-filter]");
+
+violationStatCards.forEach(card => {
+
+    card.addEventListener("click", () => {
+
+        const selectedFilter = card.dataset.violationActionFilter;
+        const nextFilter =
+            activeFilters.violationAction === selectedFilter &&
+            selectedFilter !== "all"
+                ? "all"
+                : selectedFilter;
+
+        setFilter("violationAction", nextFilter);
+        showFacilityList(filteredFacilities);
+
+    });
+
+});
+
 
 function toggleDashboardFilter(card) {
 
@@ -41,6 +62,13 @@ function toggleDashboardFilter(card) {
     if (filterName === "violation") {
 
         setViolationActionStatisticsVisibility(value !== "all");
+
+        if (value === "all") {
+
+            activeFilters.violationAction = "all";
+            applyFilters({ fitBounds: true });
+
+        }
 
     }
 
@@ -88,6 +116,17 @@ function updateDashboardFilterState() {
         card.classList.toggle("border", isActive);
         card.classList.toggle("border-primary", isActive);
         card.classList.toggle("border-3", isActive);
+        card.setAttribute("aria-pressed", String(isActive));
+
+    });
+
+    violationStatCards.forEach(card => {
+
+        const isActive =
+            activeFilters.violationAction ===
+            card.dataset.violationActionFilter;
+
+        card.classList.toggle("active", isActive);
         card.setAttribute("aria-pressed", String(isActive));
 
     });
@@ -156,7 +195,7 @@ function updateDashboard(facilities) {
 
     if (typeof getViolationActionStats === "function") {
 
-        const violationActionStats = getViolationActionStats();
+        const violationActionStats = getViolationActionStats(facilities);
 
         document.getElementById("violationActionsTotal").textContent =
             violationActionStats.total;
@@ -168,8 +207,6 @@ function updateDashboard(facilities) {
             violationActionStats.corrected;
         document.getElementById("violationActionsResolutionRate").textContent =
             `${violationActionStats.resolutionRate}%`;
-        document.getElementById("violationActionsAverageDays").textContent =
-            violationActionStats.averageResolutionDays;
 
     }
 

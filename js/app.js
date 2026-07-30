@@ -810,8 +810,38 @@ function initializeCustomFacilitiesPanel() {
     const form = document.getElementById("customFacilityForm");
     const cancelButton = document.getElementById("cancelCustomFacilityEdit");
     const activityStatus = document.getElementById("customFacilityActivityStatus");
+    const archiveToggle = document.getElementById(
+        "toggleCancelledFacilitiesArchive"
+    );
+    const archiveList = document.getElementById("cancelledFacilitiesList");
 
     if (!showFormButton || !form || !isAdminUser()) return;
+
+    if (
+        archiveToggle &&
+        archiveList &&
+        archiveToggle.dataset.initialized !== "true"
+    ) {
+
+        archiveToggle.dataset.initialized = "true";
+        archiveToggle.addEventListener("click", () => {
+
+            const shouldExpand =
+                archiveToggle.getAttribute("aria-expanded") !== "true";
+
+            archiveToggle.setAttribute(
+                "aria-expanded",
+                String(shouldExpand)
+            );
+            archiveList.classList.toggle("d-none", !shouldExpand);
+            archiveList.setAttribute(
+                "aria-hidden",
+                String(!shouldExpand)
+            );
+
+        });
+
+    }
 
     if (activityStatus) {
 
