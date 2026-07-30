@@ -380,16 +380,20 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 
 .committee-cards {
     display: grid;
-    grid-template-columns: repeat(4, minmax(180px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(4, minmax(210px, 1fr));
+    gap: 14px;
 }
 
 .committee-card {
-    padding: 14px;
+    position: relative;
+    padding: 16px;
+    overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 14px;
-    background: #fff;
-    box-shadow: var(--shadow);
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at 0 0, rgba(216, 179, 106, .12), transparent 35%),
+        #fff;
+    box-shadow: 0 8px 24px rgba(0, 61, 47, .07);
     cursor: pointer;
     transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
@@ -406,18 +410,42 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
     transform: translateY(-2px);
 }
 
+.committee-card-identity {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.committee-card-icon {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    color: var(--primary);
+    background: rgba(0, 107, 74, .1);
+}
+
 .committee-card h6 {
     margin: 0;
+    overflow: hidden;
     color: var(--primary-dark);
+    font-size: 13px;
     font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .committee-card-header small {
     color: var(--muted);
+    font-size: 10px;
 }
 
 .committee-card-counts {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
     margin-top: 14px;
     color: var(--muted);
@@ -425,18 +453,50 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 }
 
 .committee-card-counts span {
-    flex: 1 1 40%;
+    min-width: 0;
+    padding: 8px 5px;
+    border: 1px solid #edf1ef;
+    border-radius: 10px;
+    background: rgba(248, 250, 249, .85);
+    text-align: center;
+}
+
+.committee-card-counts small {
+    display: block;
+    overflow: hidden;
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .committee-card-counts strong {
     display: block;
+    margin-top: 2px;
     color: var(--primary);
     font-size: 18px;
 }
 
+.committee-card-counts .is-completed strong { color: #198754; }
+.committee-card-counts .is-remaining strong { color: #a86f18; }
+.committee-card-counts .is-violation strong { color: var(--danger); }
+
+.committee-card-progress-row {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.committee-card-progress-row strong {
+    color: var(--primary-dark);
+    font-size: 12px;
+}
+
 .committee-card-progress {
-    height: 6px;
-    margin-top: 10px;
+    height: 7px;
+    margin-top: 5px;
     overflow: hidden;
     border-radius: 999px;
     background: #edf1ef;
@@ -578,6 +638,54 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 .violation-action-statistics {
     border-color: rgba(201, 74, 74, .22);
     background: linear-gradient(135deg, #fff, #fff8f7);
+}
+
+.violation-action-statistics .violation-stat-card,
+.violation-action-statistics .violation-resolution-rate {
+    min-width: 0;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 2px 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    color: inherit;
+    text-align: right;
+}
+
+.violation-action-statistics .violation-stat-card {
+    cursor: pointer;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.violation-action-statistics .violation-stat-card:hover,
+.violation-action-statistics .violation-stat-card:focus-visible,
+.violation-action-statistics .violation-stat-card.active {
+    border-color: var(--danger);
+    box-shadow: 0 8px 22px rgba(201, 74, 74, .12);
+    outline: none;
+    transform: translateY(-2px);
+}
+
+.violation-action-statistics .violation-stat-card.active {
+    background: #fff6f5;
+}
+
+.violation-action-statistics small {
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.violation-action-notes {
+    margin-top: 3px;
+    padding: 6px 8px;
+    border-right: 3px solid var(--primary);
+    border-radius: 6px;
+    background: rgba(0, 107, 74, .07);
+    color: var(--primary-dark);
 }
 
 .violation-follow-up {
@@ -796,24 +904,46 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 
 .search-control {
     min-width: 0;
+    padding-top: 15px;
+}
+
+.search-eyebrow {
+    position: absolute;
+    top: 0;
+    right: 12px;
+    z-index: 3;
+    padding: 0 6px;
+    color: var(--primary);
+    background: #fff;
+    font-size: 9px;
+    font-weight: 800;
 }
 
 .search-icon {
     position: absolute;
-    top: 16px;
+    top: 30px;
     right: 15px;
     color: var(--primary);
     z-index: 2;
 }
 
 #searchBox {
+    min-height: 50px;
     padding-right: 42px;
     padding-left: 38px;
+    border-color: rgba(0, 107, 74, .28);
+    background: linear-gradient(90deg, #fff, #fbfdfc);
+    font-weight: 600;
+}
+
+#searchBox::placeholder {
+    color: #8b9691;
+    font-weight: 400;
 }
 
 .clear-search {
     position: absolute;
-    top: 8px;
+    top: 21px;
     left: 7px;
     color: var(--muted);
     z-index: 3;
@@ -827,8 +957,66 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
     max-height: 420px;
     overflow-y: auto;
     border-radius: 13px;
-    box-shadow: var(--shadow);
+    border: 1px solid rgba(0, 107, 74, .16);
+    background: #fff;
+    box-shadow: 0 18px 45px rgba(0, 61, 47, .17);
     z-index: 1200;
+}
+
+.search-results-heading {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 9px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #fff;
+    background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.search-results-heading strong {
+    min-width: 25px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .17);
+    text-align: center;
+}
+
+.search-result-card {
+    padding: 11px 13px;
+    border-width: 0 0 1px;
+}
+
+.search-result-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--primary-dark);
+}
+
+.search-result-card-header .fw-bold {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.search-result-meta {
+    margin-top: 7px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 12px;
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.search-result-meta i {
+    width: 13px;
+    color: var(--primary);
+    text-align: center;
 }
 
 .form-control,
@@ -1983,8 +2171,51 @@ body.role-committee .main-grid {
     }
 }
 .facility-archive-list {
+    margin-top: 0.7rem;
     display: grid;
     gap: 0.65rem;
+}
+
+.facility-archive-toggle {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 13px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid #dfe6e3;
+    border-radius: 12px;
+    color: var(--primary-dark);
+    background: #f8faf9;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: right;
+}
+
+.facility-archive-toggle > span,
+.facility-archive-toggle-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.facility-archive-toggle > span > i:first-child {
+    color: var(--muted);
+}
+
+.facility-archive-toggle-meta > i {
+    color: var(--muted);
+    transition: transform .2s ease;
+}
+
+.facility-archive-toggle[aria-expanded="true"] {
+    border-color: rgba(0, 107, 74, .35);
+    background: #f3faf7;
+}
+
+.facility-archive-toggle[aria-expanded="true"] .facility-archive-toggle-meta > i {
+    transform: rotate(180deg);
 }
 
 .facility-archive-item {

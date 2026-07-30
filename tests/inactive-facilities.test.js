@@ -101,9 +101,21 @@ test("activity controls, archive, visibility filtering, and assignment guards ar
     assert.match(html, /id="cancelledFacilitiesList"/);
     assert.match(
         html,
+        /id="toggleCancelledFacilitiesArchive"[\s\S]*?aria-expanded="false"/
+    );
+    assert.match(
+        html,
+        /id="cancelledFacilitiesList"[\s\S]*?d-none[\s\S]*?aria-hidden="true"/
+    );
+    assert.match(
+        html,
         /js\/facility-activity\.js[\s\S]*js\/users\.js[\s\S]*js\/app\.js/
     );
     assert.match(appSource, /mergedFacilities\.filter\(isFacilityActive\)/);
+    assert.match(
+        appSource,
+        /toggleCancelledFacilitiesArchive[\s\S]*?classList\.toggle\("d-none", !shouldExpand\)/
+    );
     assert.match(appSource, /status:\s*"cancelled"[\s\S]*إلغاء نشاط المنشأة/);
     assert.match(
         usersSource,

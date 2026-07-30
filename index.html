@@ -167,12 +167,43 @@
                      class="visit-statistics violation-action-statistics management-read-only d-none"
                      aria-label="متابعة إجراءات المخالفات"
                      aria-hidden="true">
-                <div><span>إجمالي المخالفات</span><strong id="violationActionsTotal">0</strong></div>
-                <div><span>قيد المتابعة</span><strong id="violationActionsFollowUp">0</strong></div>
-                <div><span>أُحيلت للجنة المخالفات</span><strong id="violationActionsReferred">0</strong></div>
-                <div><span>تم تلافي الملاحظة</span><strong id="violationActionsCorrected">0</strong></div>
-                <div><span>نسبة المعالجة</span><strong id="violationActionsResolutionRate">0%</strong></div>
-                <div><span>متوسط أيام المعالجة</span><strong id="violationActionsAverageDays">0</strong></div>
+                <button type="button"
+                        class="violation-stat-card"
+                        data-violation-action-filter="all"
+                        aria-pressed="true">
+                    <span>إجمالي المخالفات</span>
+                    <strong id="violationActionsTotal">0</strong>
+                    <small>عرض جميع المنشآت</small>
+                </button>
+                <button type="button"
+                        class="violation-stat-card"
+                        data-violation-action-filter="follow_up"
+                        aria-pressed="false">
+                    <span>قيد المتابعة</span>
+                    <strong id="violationActionsFollowUp">0</strong>
+                    <small>عرض المنشآت</small>
+                </button>
+                <button type="button"
+                        class="violation-stat-card"
+                        data-violation-action-filter="referred"
+                        aria-pressed="false">
+                    <span>أُحيلت للجنة المخالفات</span>
+                    <strong id="violationActionsReferred">0</strong>
+                    <small>عرض المنشآت</small>
+                </button>
+                <button type="button"
+                        class="violation-stat-card"
+                        data-violation-action-filter="corrected"
+                        aria-pressed="false">
+                    <span>تم تلافي الملاحظة</span>
+                    <strong id="violationActionsCorrected">0</strong>
+                    <small>عرض المنشآت</small>
+                </button>
+                <div class="violation-resolution-rate">
+                    <span>نسبة المعالجة</span>
+                    <strong id="violationActionsResolutionRate">0%</strong>
+                    <small>من إجمالي المخالفات</small>
+                </div>
             </section>
 
             <section id="externalMissionStatistics" class="visit-statistics management-read-only d-none" aria-label="إحصاءات المهام خارج الخطة">
@@ -193,8 +224,14 @@
 
             <section class="filter-toolbar">
                 <div class="search-control position-relative">
+                    <span class="search-eyebrow">بحث سريع</span>
                     <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                    <input id="searchBox" class="form-control" placeholder="ابحث باسم المنشأة أو رقم الترخيص">
+                    <input id="searchBox"
+                           class="form-control"
+                           type="search"
+                           aria-label="البحث عن منشأة"
+                           autocomplete="off"
+                           placeholder="اسم المنشأة، رقم الترخيص، الحي أو النوع">
                     <button id="clearSearch" type="button"
                             class="btn btn-sm clear-search d-none" aria-label="مسح البحث">✕</button>
                     <div id="searchResults" class="list-group"></div>
@@ -658,11 +695,25 @@
                     </form>
 
                     <div class="facility-archive mt-4">
-                        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                            <h6 class="mb-0">المنشآت الملغى نشاطها</h6>
-                            <span id="cancelledFacilitiesCount" class="badge text-bg-secondary">0</span>
-                        </div>
-                        <div id="cancelledFacilitiesList" class="facility-archive-list">
+                        <button id="toggleCancelledFacilitiesArchive"
+                                type="button"
+                                class="facility-archive-toggle"
+                                aria-controls="cancelledFacilitiesList"
+                                aria-expanded="false">
+                            <span>
+                                <i class="fa-solid fa-box-archive"></i>
+                                المنشآت الملغى نشاطها
+                            </span>
+                            <span class="facility-archive-toggle-meta">
+                                <span id="cancelledFacilitiesCount"
+                                      class="badge text-bg-secondary">0</span>
+                                <i class="fa-solid fa-chevron-down"
+                                   aria-hidden="true"></i>
+                            </span>
+                        </button>
+                        <div id="cancelledFacilitiesList"
+                             class="facility-archive-list d-none"
+                             aria-hidden="true">
                             <div class="text-muted small">لا توجد منشآت ملغى نشاطها.</div>
                         </div>
                     </div>
@@ -946,8 +997,10 @@
                    value="لجنة المخالفات">
         </div>
 
-        <label for="violationActionNotes" class="form-label">
-            ملخص ما تم
+        <label id="violationActionNotesLabel"
+               for="violationActionNotes"
+               class="form-label">
+            <span id="violationActionNotesLabelText">ملخص المتابعة</span>
             <span id="violationNotesRequiredHint" class="text-danger">*</span>
         </label>
         <textarea id="violationActionNotes"

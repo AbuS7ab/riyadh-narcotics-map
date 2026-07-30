@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.13.0] - 2026-07-30
+
+- Made violation follow-up cards interactive with facility drilldowns.
+- Required and clearly displayed the correction reason in the action timeline.
+- Removed the average processing-days indicator.
+- Collapsed the cancelled-facility archive by default without deleting records.
+- Refined committee cards and facility search presentation.
+
 ## [v0.11.0] - 2026-07-29
 
 - Added date-range export of field visits into the official `نموذج ب` Excel template.

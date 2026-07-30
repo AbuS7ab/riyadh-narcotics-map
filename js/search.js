@@ -110,10 +110,11 @@ if (query.length > 0) {
         }
 
         resultsBox.innerHTML = `
-<div class="list-group-item active">
-منشآت الخطة (${results.length})
-</div>
-`;
+            <div class="search-results-heading">
+                <span>منشآت الخطة</span>
+                <strong>${results.length}</strong>
+            </div>
+        `;
 
         if (results.length === 0 && externalResults.length === 0) {
 
@@ -132,23 +133,42 @@ if (query.length > 0) {
     const item = document.createElement("button");
     const displayLicense = getFacilityDisplayLicense(facility);
 
-    item.className = "list-group-item list-group-item-action";
+    const state = getFacilityStatus(facility.license);
+    const statusLabel = state.visitStatus === "visited"
+        ? "تمت الزيارة"
+        : state.visitStatus === "partial"
+            ? "غير مكتملة"
+            : "قيد الانتظار";
+    const statusClass = state.visitStatus === "visited"
+        ? "success"
+        : state.visitStatus === "partial"
+            ? "warning"
+            : "secondary";
+
+    item.className = "list-group-item list-group-item-action search-result-card";
 
     item.innerHTML = `
-        <div class="fw-bold">
-            ${facility.name}
+        <div class="search-result-card-header">
+            <div class="fw-bold">
+                ${escapeHtml(facility.name)}
+            </div>
+            <span class="badge bg-${statusClass}">
+                ${statusLabel}
+            </span>
         </div>
-
-        <div class="text-muted small">
-            📄 رقم الترخيص: ${displayLicense}
-        </div>
-
-        <div class="text-muted small">
-            📍 الحي: ${facility.district}
-        </div>
-
-        <div class="text-muted small">
-            🏥 النوع: ${facility.type}
+        <div class="search-result-meta">
+            <span>
+                <i class="fa-regular fa-file-lines"></i>
+                ${escapeHtml(displayLicense)}
+            </span>
+            <span>
+                <i class="fa-solid fa-location-dot"></i>
+                ${escapeHtml(facility.district || "-")}
+            </span>
+            <span>
+                <i class="fa-regular fa-building"></i>
+                ${escapeHtml(facility.type || "-")}
+            </span>
         </div>
     `;
 
@@ -169,8 +189,9 @@ if (query.length > 0) {
         if (externalResults.length > 0) {
 
             resultsBox.innerHTML += `
-                <div class="list-group-item active">
-                    المهام خارج الخطة
+                <div class="search-results-heading">
+                    <span>المهام خارج الخطة</span>
+                    <strong>${externalResults.length}</strong>
                 </div>
             `;
 

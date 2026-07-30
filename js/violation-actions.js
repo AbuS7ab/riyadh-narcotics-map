@@ -107,10 +107,23 @@ function canViewViolationActions() {
 }
 
 
-function getViolationRecords() {
+function getViolationRecords(facilities = null) {
+
+    const visibleLicenses = Array.isArray(facilities)
+        ? new Set(facilities.map(facility => String(facility.license)))
+        : null;
 
     return Object.entries(facilityStatus || {}).flatMap(
         ([facilityLicense, status]) => {
+
+            if (
+                visibleLicenses &&
+                !visibleLicenses.has(String(facilityLicense))
+            ) {
+
+                return [];
+
+            }
 
             const visits = status && Array.isArray(status.visits)
                 ? status.visits
@@ -127,9 +140,9 @@ function getViolationRecords() {
 }
 
 
-function getViolationActionStats() {
+function getViolationActionStats(facilities = null) {
 
-    const records = getViolationRecords();
+    const records = getViolationRecords(facilities);
     const referred = records.filter(({ visit }) => {
 
         return getViolationActions(visit).some(action => action.type === "referred");
@@ -145,28 +158,6 @@ function getViolationActionStats() {
         return getViolationActionState(visit) === "follow_up";
 
     });
-    const resolutionDays = corrected.map(({ visit }) => {
-
-        const correction = getViolationActions(visit)
-            .filter(action => action.type === "corrected")
-            .sort((first, second) => {
-
-                return new Date(first.effectiveDate || first.createdAt || 0) -
-                    new Date(second.effectiveDate || second.createdAt || 0);
-
-            })[0];
-        const visitDate = new Date(visit.date || visit.createdAt || 0);
-        const correctionDate = new Date(
-            correction.effectiveDate || correction.createdAt || 0
-        );
-        const elapsed = Math.ceil(
-            (correctionDate - visitDate) / (1000 * 60 * 60 * 24)
-        );
-
-        return Number.isFinite(elapsed) ? Math.max(0, elapsed) : null;
-
-    }).filter(days => days !== null);
-
     return {
         total: records.length,
         underFollowUp: underFollowUp.length,
@@ -174,14 +165,61 @@ function getViolationActionStats() {
         corrected: corrected.length,
         resolutionRate: records.length > 0
             ? Math.round((corrected.length / records.length) * 100)
-            : 0,
-        averageResolutionDays: resolutionDays.length > 0
-            ? Math.round(
-                resolutionDays.reduce((sum, days) => sum + days, 0) /
-                resolutionDays.length
-            )
             : 0
     };
+
+}
+
+
+function violationVisitMatchesActionFilter(visit, filter) {
+
+    if (!visitIndicatesViolation(visit)) return false;
+
+    if (filter === "follow_up") {
+
+        return getViolationActionState(visit) === "follow_up";
+
+    }
+
+    if (filter === "referred" || filter === "corrected") {
+
+        return getViolationActions(visit).some(action => {
+
+            return action.type === filter;
+
+        });
+
+    }
+
+    return true;
+
+}
+
+
+function facilityMatchesViolationActionFilter(license, filter) {
+
+    const status = typeof getFacilityStatus === "function"
+        ? getFacilityStatus(license)
+        : null;
+    const visits = status && Array.isArray(status.visits)
+        ? status.visits
+        : [];
+
+    return visits.some(visit => {
+
+        return violationVisitMatchesActionFilter(visit, filter);
+
+    });
+
+}
+
+
+function getViolationActionNotesLabel(type) {
+
+    if (type === "corrected") return "سبب التلافي";
+    if (type === "referred") return "ملاحظات الإحالة";
+
+    return "ملخص المتابعة";
 
 }
 
@@ -222,9 +260,13 @@ async function addViolationAction(facilityLicense, visitId, input) {
 
     }
 
-    if (type === "follow_up" && !notes) {
+    if (["follow_up", "corrected"].includes(type) && !notes) {
 
-        throw new Error("Follow-up notes are required.");
+        throw new Error(
+            type === "corrected"
+                ? "Correction reason is required."
+                : "Follow-up notes are required."
+        );
 
     }
 
@@ -319,8 +361,11 @@ function renderViolationActionTimeline(visit, facilityLicense = "") {
                                     — ${escapeHtml(action.destination || "لجنة المخالفات")}
                                 </small>
                             ` : ""}
-                            ${action.notes ? `
-                                <small>${escapeHtml(action.notes)}</small>
+                            ${action.notes || action.type === "corrected" ? `
+                                <small class="violation-action-notes">
+                                    <strong>${getViolationActionNotesLabel(action.type)}:</strong>
+                                    ${escapeHtml(action.notes || "لم يُسجل")}
+                                </small>
                             ` : ""}
                             <small class="text-muted">
                                 بواسطة ${escapeHtml(getViolationActionActorLabel(action))}
@@ -359,18 +404,33 @@ function updateViolationActionFormVisibility() {
     const notesRequiredHint = document.getElementById(
         "violationNotesRequiredHint"
     );
+    const notesLabelText = document.getElementById(
+        "violationActionNotesLabelText"
+    );
 
     if (!type || !referralFields || !notes) return;
 
     const isReferral = type.value === "referred";
-    const isFollowUp = type.value === "follow_up";
+    const notesRequired = ["follow_up", "corrected"].includes(type.value);
 
     referralFields.classList.toggle("d-none", !isReferral);
-    notes.required = isFollowUp;
+    notes.required = notesRequired;
+    notes.placeholder = type.value === "corrected"
+        ? "اكتب سبب التلافي وما تم تصحيحه"
+        : type.value === "referred"
+            ? "أضف ملاحظة على الإحالة عند الحاجة"
+            : "اكتب إجراء المتابعة باختصار";
 
     if (notesRequiredHint) {
 
-        notesRequiredHint.classList.toggle("d-none", !isFollowUp);
+        notesRequiredHint.classList.toggle("d-none", !notesRequired);
+
+    }
+
+    if (notesLabelText) {
+
+        notesLabelText.textContent =
+            getViolationActionNotesLabel(type.value);
 
     }
 
@@ -464,6 +524,8 @@ async function saveViolationActionFromDialog(event) {
             ? "لا يمكن تسجيل إجراء بتاريخ مستقبلي."
             : type === "referred" && !input.transactionNumber.trim()
                 ? "رقم المعاملة إلزامي عند إحالة المخالفة."
+                : type === "corrected" && !input.notes.trim()
+                    ? "سبب التلافي إلزامي عند تسجيل معالجة المخالفة."
                 : type === "follow_up" && !input.notes.trim()
                     ? "اكتب ملخص إجراء المتابعة."
                     : "تعذر حفظ الإجراء بسبب مشكلة مزامنة. لم يُعرض كعملية ناجحة.";

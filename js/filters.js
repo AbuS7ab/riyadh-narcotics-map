@@ -9,6 +9,8 @@ const activeFilters = {
 
     violation: "all",
 
+    violationAction: "all",
+
     assigned: "all",
 
     district: "all",
@@ -356,6 +358,19 @@ function applyFilters(options = {}) {
         if (
             activeFilters.violation !== "all" &&
             String(state.violation) !== String(activeFilters.violation)
+        ) {
+            return false;
+        }
+
+        if (
+            activeFilters.violationAction !== "all" &&
+            (
+                typeof facilityMatchesViolationActionFilter !== "function" ||
+                !facilityMatchesViolationActionFilter(
+                    facility.license,
+                    activeFilters.violationAction
+                )
+            )
         ) {
             return false;
         }

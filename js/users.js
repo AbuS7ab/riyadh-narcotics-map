@@ -2276,23 +2276,35 @@ function renderCommitteeAssignmentCards() {
                      role="button" tabindex="0"
                      aria-pressed="${selectedCommitteeUsername === committee.username}">
                 <div class="committee-card-header">
-                    <div>
-                        <h6>${escapeHtml(committee.committeeName)}</h6>
-                        <small>${committee.username}</small>
+                    <div class="committee-card-identity">
+                        <span class="committee-card-icon">
+                            <i class="fa-solid fa-people-group"></i>
+                        </span>
+                        <div>
+                            <h6>${escapeHtml(committee.committeeName)}</h6>
+                            <small>${escapeHtml(committee.username)}</small>
+                        </div>
                     </div>
                     <span class="badge ${committee.active ? "text-bg-success" : "text-bg-secondary"}">
                         ${committee.active ? "نشطة" : "غير نشطة"}
                     </span>
                 </div>
                 <div class="committee-card-counts">
-                    <span>المسندة <strong>${kpis.assignedCount}</strong></span>
-                    <span>المنجزة <strong>${kpis.completedCount}</strong></span>
-                    <span>المتبقي <strong>${kpis.remainingCount}</strong></span>
-                    <span>المخالفات <strong>${kpis.violatingFacilityCount}</strong></span>
-                    <span>نسبة الإنجاز <strong>${kpis.completionRate}%</strong></span>
+                    <span><small>المسندة</small><strong>${kpis.assignedCount}</strong></span>
+                    <span class="is-completed"><small>المنجزة</small><strong>${kpis.completedCount}</strong></span>
+                    <span class="is-remaining"><small>المتبقي</small><strong>${kpis.remainingCount}</strong></span>
+                    <span class="is-violation"><small>المخالفات</small><strong>${kpis.violatingFacilityCount}</strong></span>
+                </div>
+                <div class="committee-card-progress-row">
+                    <span>نسبة الإنجاز</span>
+                    <strong>${kpis.completionRate}%</strong>
                 </div>
                 <div class="committee-card-progress"
-                     aria-label="نسبة الإنجاز ${kpis.completionRate}%">
+                     role="progressbar"
+                     aria-label="نسبة الإنجاز"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     aria-valuenow="${kpis.completionRate}">
                     <div class="committee-card-progress-bar ${progressClass}"
                          style="width: ${kpis.completionRate}%"></div>
                 </div>
