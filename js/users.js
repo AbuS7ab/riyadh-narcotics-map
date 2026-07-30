@@ -1299,6 +1299,97 @@ function createAssignmentBatchId(committeeUsername) {
 }
 
 
+async function createCommitteeComplaintAssignment(facilityLicense) {
+
+    if (!isCommitteeUser()) return false;
+
+    const normalizedLicense = String(facilityLicense || "");
+    const committeeUsername = String(currentUser.username || "");
+    const committee = users[committeeUsername];
+
+    if (!normalizedLicense ||
+        !committee ||
+        committee.role !== "committee" ||
+        !committee.active ||
+        !isFacilityEligibleForAssignment(normalizedLicense)) {
+
+        return false;
+
+    }
+
+    const existingAssignment = getFacilityAssignment(normalizedLicense);
+
+    if (isActiveAssignment(existingAssignment)) {
+
+        const isOwnedComplaintAssignment =
+            existingAssignment.committeeUsername === committeeUsername &&
+            existingAssignment.visitType === "reactive" &&
+            existingAssignment.visitReason === "شكوى";
+
+        return isOwnedComplaintAssignment ? existingAssignment : false;
+
+    }
+
+    const assignedAt = new Date().toISOString();
+    const nextAssignment = {
+        id: createAssignmentId(normalizedLicense),
+        facilityLicense: normalizedLicense,
+        committeeUsername,
+        assignedAt,
+        assignmentBatchId: createAssignmentBatchId(committeeUsername),
+        status: "assigned",
+        teamSnapshot: createTeamSnapshot(committee),
+        visitType: "reactive",
+        visitReason: "شكوى",
+        visitCycleId: null,
+        visitCycleNumber: null,
+        assignmentSource: "committee_complaint"
+    };
+
+    if (existingAssignment) {
+
+        const nextAssignments = {
+            ...facilityAssignments,
+            [normalizedLicense]: nextAssignment
+        };
+
+        await persistAssignmentReplacement(
+            facilityAssignments,
+            nextAssignments,
+            [existingAssignment],
+            "committee_reactive_complaint"
+        );
+
+    } else {
+
+        facilityAssignments = await mutateCloudObject(
+            assignmentsStorageKey,
+            nextAssignments => {
+
+                const remoteAssignment = nextAssignments[normalizedLicense];
+
+                if (isActiveAssignment(remoteAssignment)) {
+
+                    throw new Error("المنشأة أُسندت إلى لجنة أخرى أثناء العملية.");
+
+                }
+
+                nextAssignments[normalizedLicense] = nextAssignment;
+
+                return nextAssignments;
+
+            }
+        );
+
+    }
+
+    refreshAssignmentViews(committeeUsername);
+
+    return getFacilityAssignment(normalizedLicense);
+
+}
+
+
 function isFacilityEligibleForAssignment(facilityOrLicense) {
 
     if (typeof isFacilityActive !== "function") return true;

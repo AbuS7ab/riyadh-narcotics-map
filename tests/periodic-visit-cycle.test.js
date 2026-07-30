@@ -404,6 +404,87 @@ test("a complaint transfers an open assignment while preserving its visits and a
 });
 
 
+test("a committee can open only a reactive complaint assignment after a completed visit", async () => {
+
+    const completedAssignment = createCompletedAssignment("100");
+    const completedStatus = createFacilityStatus("100", "2026-07-11");
+    const { context, supabase } = await createCycleRuntime({
+        currentUser: "committee4",
+        statuses: { 100: completedStatus },
+        assignments: { 100: completedAssignment }
+    });
+    const visitsBefore = structuredClone(
+        supabase.rows.get("facilityStatus").value["100"].visits
+    );
+
+    const complaintAssignment =
+        await context.createCommitteeComplaintAssignment("100");
+    const currentAssignment =
+        supabase.rows.get("facilityAssignments").value["100"];
+    const archivedAssignment =
+        supabase.rows.get("facilityAssignmentHistory").value[
+            completedAssignment.id
+        ];
+
+    assert.equal(complaintAssignment.committeeUsername, "committee4");
+    assert.equal(currentAssignment.status, "assigned");
+    assert.equal(currentAssignment.visitType, "reactive");
+    assert.equal(currentAssignment.visitReason, "شكوى");
+    assert.equal(currentAssignment.visitCycleId, null);
+    assert.equal(currentAssignment.visitCycleNumber, null);
+    assert.equal(
+        currentAssignment.assignmentSource,
+        "committee_complaint"
+    );
+    assert.equal(archivedAssignment.status, "completed");
+    assert.equal(
+        archivedAssignment.archiveReason,
+        "committee_reactive_complaint"
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityStatus").value["100"].visits,
+        visitsBefore
+    );
+
+});
+
+
+test("a committee cannot replace another committee's active assignment", async () => {
+
+    const otherCommitteeAssignment = {
+        ...createCompletedAssignment("100"),
+        committeeUsername: "committee5",
+        status: "in_progress"
+    };
+    const { context, supabase } = await createCycleRuntime({
+        currentUser: "committee4",
+        assignments: { 100: otherCommitteeAssignment },
+        users: {
+            committee5: {
+                ...createCommittee(),
+                username: "committee5",
+                displayName: "لجنة 5",
+                committeeName: "لجنة 5"
+            }
+        }
+    });
+
+    assert.equal(
+        await context.createCommitteeComplaintAssignment("100"),
+        false
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityAssignments").value["100"],
+        otherCommitteeAssignment
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityAssignmentHistory").value,
+        {}
+    );
+
+});
+
+
 test("failed reassignment rolls back the archive and preserves the current assignment", async () => {
 
     const oldAssignment = createCompletedAssignment("100");
@@ -526,5 +607,27 @@ test("the Admin cycle controls explain that historical records are preserved", (
     assert.match(html, /id="periodicVisitIntervalDays"[\s\S]*value="75"/);
     assert.match(html, /id="startPeriodicVisitCycle"/);
     assert.match(html, /دون تعديل الزيارات السابقة/);
+
+});
+
+
+test("the committee complaint visit form exposes no periodic choice", () => {
+
+    assert.match(
+        sidebar,
+        /canStartComplaintVisit[\s\S]*تسجيل زيارة تفاعلية بسبب شكوى/
+    );
+    assert.match(
+        sidebar,
+        /id="committeeComplaintReason"[\s\S]*<option value="شكوى" selected>شكوى<\/option>/
+    );
+    assert.match(
+        sidebar,
+        /createCommitteeComplaintAssignment\(facility\.license\)/
+    );
+    assert.doesNotMatch(
+        sidebar,
+        /id="committeeComplaintReason"[\s\S]{0,300}value="periodic"/
+    );
 
 });
