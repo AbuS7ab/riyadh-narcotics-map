@@ -481,6 +481,14 @@ function getEmployeeProfile(employeeId) {
     if (!employee) return null;
 
     const visits = getEmployeeVisitRecords(employeeId);
+    const reactiveVisits = new Set(
+        visits
+            .filter(visit => visit.visitType === "reactive")
+            .map(visit => getPerformanceVisitIdentity(
+                visit,
+                visit.facilityLicense
+            ))
+    ).size;
     const missions = getEmployeeExternalMissions(employee);
     const activityDates = [
         ...visits.map(visit => visit.createdAt || visit.date),
@@ -496,6 +504,7 @@ function getEmployeeProfile(employeeId) {
         }),
         lastActivity: activityDates[0] || "",
         completedFacilities: new Set(visits.map(visit => String(visit.facilityLicense))).size,
+        reactiveVisits,
         violations: new Set(
             visits.filter(visit => visit.violation || visit.result === "violation")
                 .map(visit => String(visit.facilityLicense))
@@ -684,6 +693,7 @@ function showEmployeeDetails(employeeId) {
         <p><strong>اللجان الحالية:</strong> ${escapeHtml(profile.currentCommittees.map(item => item.committeeName).join("، ") || "-")}</p>
         <p><strong>آخر نشاط:</strong> ${escapeHtml(profile.lastActivity || "-")}</p>
         <p><strong>المنشآت المكتملة المسجلة:</strong> ${profile.completedFacilities}</p>
+        <p><strong>الزيارات التفاعلية المكتملة:</strong> ${profile.reactiveVisits}</p>
         <p><strong>المخالفات المسجلة:</strong> ${profile.violations}</p>
         <p><strong>المهام خارج الخطة:</strong> ${profile.externalMissions}</p>
         <div class="table-responsive mt-3 employee-achievement-table-wrap">
@@ -947,6 +957,23 @@ function getHistoricalVisitAssignment(visit, facilityLicense) {
 }
 
 
+function getPerformanceVisitIdentity(visit, facilityLicense = "") {
+
+    if (visit.id) return `id:${String(visit.id)}`;
+
+    return [
+        "legacy",
+        String(visit.facilityLicense || facilityLicense || ""),
+        String(visit.date || ""),
+        String(visit.createdAt || ""),
+        String(visit.committeeUsername || ""),
+        String(visit.visitType || "periodic"),
+        String(visit.visitReason || "")
+    ].join("|");
+
+}
+
+
 function getPerformanceEventEmployeeIds(visit, facilityLicense = "") {
 
     if (visit.committeeUsername === "committee1") return [];
@@ -1016,11 +1043,15 @@ function buildEmployeePerformanceCache() {
 
             const facility = facilityByLicense.get(String(visit.facilityLicense || license)) || {};
             const event = {
-                id: visit.id,
+                id: getPerformanceVisitIdentity(
+                    visit,
+                    visit.facilityLicense || license
+                ),
                 date: visit.date || visit.createdAt || "",
                 facilityLicense: String(visit.facilityLicense || license),
                 facilityType: getPerformanceFacilityCategory(facility.type),
                 committeeUsername: visit.committeeUsername || "",
+                visitType: visit.visitType || "periodic",
                 violation: Boolean(visit.violation || visit.result === "violation")
             };
 
@@ -1191,6 +1222,11 @@ function calculateEmployeePerformanceRows(filters) {
         const lastActivity = activityDates[0] || "";
         const daysSinceLastActivity = getDaysSincePerformanceActivity(lastActivity);
         const completedFacilityIds = [...new Set(plannedEvents.map(event => event.facilityLicense))];
+        const reactiveVisitIds = [...new Set(
+            plannedEvents
+                .filter(event => event.visitType === "reactive")
+                .map(event => event.id)
+        )];
         const violationFacilityIds = [...new Set(
             plannedEvents.filter(event => event.violation).map(event => event.facilityLicense)
         )];
@@ -1203,9 +1239,11 @@ function calculateEmployeePerformanceRows(filters) {
             currentCommittees: committees,
             committeeNames: committees.map(item => item.committeeName).join("، "),
             completedFacilities: completedFacilityIds.length,
+            reactiveVisits: reactiveVisitIds.length,
             violations: violationFacilityIds.length,
             externalMissions: externalMissionIds.length,
             completedFacilityIds,
+            reactiveVisitIds,
             violationFacilityIds,
             externalMissionIds,
             lastActivity,
@@ -1311,7 +1349,7 @@ function renderEmployeePerformanceDashboard(resetPage = false) {
             </td>
             <td>${escapeHtml(row.employeeNumber || "-")}</td>
             <td>${escapeHtml(row.committeeNames || "-")}</td>
-            <td>${row.completedFacilities}</td><td>${row.violations}</td><td>${row.externalMissions}</td>
+            <td>${row.completedFacilities}</td><td>${row.reactiveVisits}</td><td>${row.violations}</td><td>${row.externalMissions}</td>
             <td class="${row.daysSinceLastActivity !== null && row.daysSinceLastActivity > 14 ? "activity-warning" : ""}">${getPerformanceActivityLabel(row.daysSinceLastActivity)}</td>
             <td class="${row.daysSinceLastActivity !== null && row.daysSinceLastActivity > 14 ? "activity-warning" : ""}">${row.daysSinceLastActivity === null ? "-" : row.daysSinceLastActivity}</td>
             <td><span class="badge ${row.isActive ? "text-bg-success" : "text-bg-secondary"}">${row.isActive ? "نشط" : "غير نشط"}</span></td>
@@ -1356,6 +1394,7 @@ function getEmployeePerformanceExportRows(rows = employeePerformanceVisibleRows)
         "الرقم الوظيفي": row.employeeNumber,
         "اللجان الحالية": row.currentCommittees.map(item => item.committeeName).join("، "),
         "المنشآت المنجزة": row.completedFacilities,
+        "الزيارات التفاعلية": row.reactiveVisits,
         "المخالفات": row.violations,
         "المهام خارج الخطة": row.externalMissions,
         "آخر نشاط": getPerformanceActivityLabel(row.daysSinceLastActivity),
