@@ -1318,7 +1318,29 @@ function isFacilityEligibleForAssignment(facilityOrLicense) {
 }
 
 
-function isFacilityAssignableForVisit(facilityOrLicense, visitType = "periodic") {
+function isComplaintReassignmentAllowed(
+    assignment,
+    committeeUsername,
+    visitType,
+    visitReason
+) {
+
+    return Boolean(
+        isActiveAssignment(assignment) &&
+        visitType === "reactive" &&
+        String(visitReason || "").trim() === "شكوى" &&
+        committeeUsername &&
+        assignment.committeeUsername !== committeeUsername
+    );
+
+}
+
+
+function isFacilityAssignableForVisit(
+    facilityOrLicense,
+    visitType = "periodic",
+    options = {}
+) {
 
     if (!isFacilityEligibleForAssignment(facilityOrLicense)) return false;
 
@@ -1328,7 +1350,18 @@ function isFacilityAssignableForVisit(facilityOrLicense, visitType = "periodic")
             : facilityOrLicense
     );
 
-    if (isActiveAssignment(getFacilityAssignment(license))) return false;
+    const assignment = getFacilityAssignment(license);
+
+    if (isActiveAssignment(assignment)) {
+
+        return isComplaintReassignmentAllowed(
+            assignment,
+            String(options.committeeUsername || ""),
+            visitType,
+            options.visitReason
+        );
+
+    }
 
     if (visitType === "reactive") return true;
 
@@ -1349,6 +1382,24 @@ function createArchivedAssignment(assignment, reason) {
 }
 
 
+function createComplaintTransferSnapshot(assignment, committeeUsername) {
+
+    const transferredAt = new Date().toISOString();
+
+    return {
+        ...assignment,
+        statusBeforeArchive: assignment.status,
+        status: "cancelled",
+        cancelledAt: transferredAt,
+        cancelledBy: currentUser && currentUser.username || "",
+        cancellationReason: "إعادة إسناد بسبب شكوى",
+        transferredAt,
+        transferredToCommitteeUsername: committeeUsername
+    };
+
+}
+
+
 async function persistAssignmentReplacement(
     previousAssignments,
     nextAssignments,
@@ -1362,9 +1413,13 @@ async function persistAssignmentReplacement(
 
         if (!assignment || !assignment.id) return;
 
+        const archiveReason = typeof reason === "function"
+            ? reason(assignment)
+            : reason;
+
         nextHistory[String(assignment.id)] = createArchivedAssignment(
             assignment,
-            reason
+            archiveReason
         );
 
     });
@@ -1675,13 +1730,38 @@ async function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, 
     const uniqueLicenses = [...new Set(facilityLicenses.map(license => String(license)))]
         .filter(license => {
 
-            return isFacilityAssignableForVisit(license, metadata.visitType);
+            return isFacilityAssignableForVisit(license, metadata.visitType, {
+                committeeUsername,
+                visitReason: metadata.visitReason
+            });
 
         });
     let assignedCount = 0;
     const assignmentsToArchive = uniqueLicenses
-        .map(license => facilityAssignments[license])
-        .filter(assignment => assignment && !isActiveAssignment(assignment));
+        .map(license => {
+
+            const assignment = facilityAssignments[license];
+
+            if (!assignment) return null;
+
+            if (isComplaintReassignmentAllowed(
+                assignment,
+                committeeUsername,
+                metadata.visitType,
+                metadata.visitReason
+            )) {
+
+                return createComplaintTransferSnapshot(
+                    assignment,
+                    committeeUsername
+                );
+
+            }
+
+            return !isActiveAssignment(assignment) ? assignment : null;
+
+        })
+        .filter(Boolean);
 
     if (assignmentsToArchive.length > 0) {
 
@@ -1714,9 +1794,19 @@ async function assignFacilitiesToCommittee(facilityLicenses, committeeUsername, 
             facilityAssignments,
             nextAssignments,
             assignmentsToArchive,
-            metadata.visitCycleId
-                ? `periodic_cycle_${metadata.visitCycleNumber}`
-                : `${metadata.visitType}_reassignment`
+            assignment => {
+
+                if (assignment.statusBeforeArchive) {
+
+                    return "reactive_complaint_transfer";
+
+                }
+
+                return metadata.visitCycleId
+                    ? `periodic_cycle_${metadata.visitCycleNumber}`
+                    : `${metadata.visitType}_reassignment`;
+
+            }
         );
 
         assignedCount = uniqueLicenses.length;
@@ -2359,11 +2449,11 @@ function renderCommitteeAssignmentCards() {
 }
 
 
-function getUnassignedFacilities(facilities, visitType = "periodic") {
+function getUnassignedFacilities(facilities, visitType = "periodic", options = {}) {
 
     return facilities.filter(facility => {
 
-        return isFacilityAssignableForVisit(facility, visitType);
+        return isFacilityAssignableForVisit(facility, visitType, options);
 
     });
 
@@ -2585,7 +2675,11 @@ function renderAssignmentBoard(facilities) {
     const query = searchInput.value.trim().toLowerCase();
     const unassignedFacilities = getUnassignedFacilities(
         facilities,
-        selectedVisitType
+        selectedVisitType,
+        {
+            committeeUsername: selectedCommittee,
+            visitReason: visitReasonSelect.value
+        }
     ).filter(facility => {
 
         return [
@@ -2615,6 +2709,13 @@ function renderAssignmentBoard(facilities) {
 
     list.innerHTML = unassignedFacilities.map(facility => {
         const displayLicense = getFacilityDisplayLicense(facility);
+        const activeAssignment = getFacilityAssignment(facility.license);
+        const isComplaintTransfer = isComplaintReassignmentAllowed(
+            activeAssignment,
+            selectedCommittee,
+            selectedVisitType,
+            visitReasonSelect.value
+        );
 
         return `
         <label class="assignment-facility-item">
@@ -2624,6 +2725,13 @@ function renderAssignmentBoard(facilities) {
                 <strong>${escapeHtml(facility.name)}</strong>
                 <small>الترخيص: ${escapeHtml(displayLicense)}</small>
                 <small>${escapeHtml(facility.district)} · ${escapeHtml(facility.type)}</small>
+                ${isComplaintTransfer ? `
+                    <small class="text-danger">
+                        مسندة حاليًا إلى ${escapeHtml(
+                            activeAssignment.committeeUsername
+                        )} — سيُنقل الإسناد مع حفظ السجل السابق
+                    </small>
+                ` : ""}
             </span>
         </label>
     `;
@@ -2773,6 +2881,16 @@ function initializeAssignmentBoard() {
         renderAssignmentBoard(allFacilities);
 
     });
+    visitReasonSelect.addEventListener("change", () => {
+
+        renderAssignmentBoard(allFacilities);
+
+    });
+    committeeSelect.addEventListener("change", () => {
+
+        renderAssignmentBoard(allFacilities);
+
+    });
 
     syncVisitReasonVisibility();
 
@@ -2818,6 +2936,29 @@ function initializeAssignmentBoard() {
             message.className = "small text-danger";
 
             return;
+
+        }
+
+        const complaintTransferCount = selectedFacilities.filter(license => {
+
+            return isComplaintReassignmentAllowed(
+                getFacilityAssignment(license),
+                committeeSelect.value,
+                assignmentMetadata.visitType,
+                assignmentMetadata.visitReason
+            );
+
+        }).length;
+
+        if (complaintTransferCount > 0) {
+
+            const confirmed = window.confirm(
+                `سيتم نقل إسناد ${complaintTransferCount} منشأة من لجنتها الحالية ` +
+                "إلى اللجنة المختارة بسبب شكوى.\n" +
+                "ستُحفظ الزيارات والإسنادات السابقة كاملة في السجل. هل تريد المتابعة؟"
+            );
+
+            if (!confirmed) return;
 
         }
 

@@ -123,7 +123,7 @@ test("activity controls, archive, visibility filtering, and assignment guards ar
     );
     assert.match(
         usersSource,
-        /function isFacilityAssignableForVisit[\s\S]*!isFacilityEligibleForAssignment\(facilityOrLicense\)[\s\S]*isActiveAssignment\(getFacilityAssignment\(license\)\)/
+        /function isFacilityAssignableForVisit[\s\S]*!isFacilityEligibleForAssignment\(facilityOrLicense\)[\s\S]*const assignment = getFacilityAssignment\(license\)[\s\S]*isActiveAssignment\(assignment\)/
     );
 
 });

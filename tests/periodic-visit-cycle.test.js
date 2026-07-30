@@ -113,7 +113,8 @@ async function createCycleRuntime(overrides = {}) {
         users: {
             value: {
                 admin: createAdmin(),
-                committee4: createCommittee()
+                committee4: createCommittee(),
+                ...(overrides.users || {})
             }
         },
         facilityAssignments: {
@@ -298,6 +299,102 @@ test("reassignment archives the completed assignment and leaves prior visits unc
     assert.equal(
         history[oldAssignment.id].archiveReason,
         "periodic_cycle_1"
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityStatus").value["100"].visits,
+        visitsBefore
+    );
+
+});
+
+
+test("a complaint transfers an open assignment while preserving its visits and audit history", async () => {
+
+    const openAssignment = {
+        ...createCompletedAssignment("100"),
+        status: "in_progress"
+    };
+    const oldStatus = createFacilityStatus("100", "2026-07-25", {
+        result: "incomplete",
+        visitStatus: "partial"
+    });
+    const { context, supabase } = await createCycleRuntime({
+        statuses: { 100: oldStatus },
+        assignments: { 100: openAssignment },
+        users: {
+            committee5: {
+                ...createCommittee(),
+                username: "committee5",
+                displayName: "لجنة 5",
+                committeeName: "لجنة 5"
+            }
+        }
+    });
+    const visitsBefore = structuredClone(
+        supabase.rows.get("facilityStatus").value["100"].visits
+    );
+
+    assert.equal(
+        context.isFacilityAssignableForVisit(
+            { license: "100" },
+            "reactive",
+            {
+                committeeUsername: "committee5",
+                visitReason: "شكوى"
+            }
+        ),
+        true
+    );
+    assert.equal(
+        context.isFacilityAssignableForVisit(
+            { license: "100" },
+            "periodic",
+            { committeeUsername: "committee5" }
+        ),
+        false
+    );
+    assert.equal(
+        context.isFacilityAssignableForVisit(
+            { license: "100" },
+            "reactive",
+            {
+                committeeUsername: "committee5",
+                visitReason: "بلاغ"
+            }
+        ),
+        false
+    );
+
+    const assignedCount = await context.assignFacilitiesToCommittee(
+        ["100"],
+        "committee5",
+        {
+            visitType: "reactive",
+            visitReason: "شكوى"
+        }
+    );
+    const currentAssignment =
+        supabase.rows.get("facilityAssignments").value["100"];
+    const archivedAssignment =
+        supabase.rows.get("facilityAssignmentHistory").value[
+            openAssignment.id
+        ];
+
+    assert.equal(assignedCount, 1);
+    assert.equal(currentAssignment.committeeUsername, "committee5");
+    assert.equal(currentAssignment.status, "assigned");
+    assert.equal(currentAssignment.visitType, "reactive");
+    assert.equal(currentAssignment.visitReason, "شكوى");
+    assert.equal(archivedAssignment.committeeUsername, "committee4");
+    assert.equal(archivedAssignment.statusBeforeArchive, "in_progress");
+    assert.equal(archivedAssignment.status, "cancelled");
+    assert.equal(
+        archivedAssignment.transferredToCommitteeUsername,
+        "committee5"
+    );
+    assert.equal(
+        archivedAssignment.archiveReason,
+        "reactive_complaint_transfer"
     );
     assert.deepEqual(
         supabase.rows.get("facilityStatus").value["100"].visits,
