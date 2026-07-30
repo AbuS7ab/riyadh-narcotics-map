@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.14.0] - 2026-07-30
+
+- Allowed a committee to open a new reactive visit after a completed assignment.
+- Restricted committee-initiated visits to the complaint reason only.
+- Preserved the completed assignment and all prior visits in history.
+- Prevented a committee from replacing another committee's active assignment.
+
 ## [v0.13.0] - 2026-07-30
 
 - Made violation follow-up cards interactive with facility drilldowns.

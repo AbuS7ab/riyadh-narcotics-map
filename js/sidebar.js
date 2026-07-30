@@ -875,6 +875,12 @@ function showFacilityDetails(facility) {
         isActiveAssignment(storedAssignment) &&
         storedAssignment.committeeUsername === currentUser.username
     );
+    const canStartComplaintVisit = Boolean(
+        isCommitteeUser() &&
+        !isActiveAssignment(storedAssignment) &&
+        isFacilityEligibleForAssignment(facility)
+    );
+    const canOpenVisitForm = canRecordVisit || canStartComplaintVisit;
 
     const statusDisplay = getVisitStatusDisplay(state);
     const displayLicense = getFacilityDisplayLicense(facility);
@@ -926,13 +932,28 @@ function showFacilityDetails(facility) {
 
         <hr>
 
-        ${canRecordVisit ? `
+        ${canOpenVisitForm ? `
         <button id="newVisit" class="btn btn-outline-success w-100 mb-3 committee-only">
-            + زيارة جديدة
+            ${canRecordVisit ? "+ زيارة جديدة" : "+ تسجيل زيارة تفاعلية بسبب شكوى"}
         </button>
 
         <div id="visitForm" class="d-none committee-only">
             <h6 class="mb-3">نتيجة الزيارة</h6>
+
+            ${canStartComplaintVisit ? `
+            <div class="alert alert-info border mb-3">
+                <div><strong>نوع الزيارة:</strong> تفاعلية</div>
+                <label for="committeeComplaintReason" class="form-label mt-2 mb-1">
+                    سبب الزيارة
+                </label>
+                <select id="committeeComplaintReason" class="form-select">
+                    <option value="شكوى" selected>شكوى</option>
+                </select>
+                <div class="form-text">
+                    لا يمكن للجنة إنشاء زيارة دورية من هذا المسار.
+                </div>
+            </div>
+            ` : ""}
 
             <label for="visitDate" class="form-label">تاريخ الزيارة</label>
             <input id="visitDate" class="form-control mb-3" type="date">
@@ -966,7 +987,7 @@ function showFacilityDetails(facility) {
         </div>
         ` : isCommitteeUser() ? `
             <div class="alert alert-light border small">
-                هذا الإسناد غير مفتوح لإضافة زيارة جديدة.
+                هذه المنشأة مسندة إلى لجنة أخرى، ولا يمكن إضافة زيارة جديدة من هذا الحساب.
             </div>
         ` : ""}
 
@@ -1133,11 +1154,58 @@ function showFacilityDetails(facility) {
 
         }
 
-        const storedCurrentAssignment = getFacilityAssignment(facility.license);
-        const currentAssignment = isActiveAssignment(storedCurrentAssignment) &&
+        let storedCurrentAssignment = getFacilityAssignment(facility.license);
+        let currentAssignment = isActiveAssignment(storedCurrentAssignment) &&
             storedCurrentAssignment.committeeUsername === currentUser.username
             ? storedCurrentAssignment
             : null;
+
+        if (!currentAssignment && canStartComplaintVisit) {
+
+            const complaintReason =
+                document.getElementById("committeeComplaintReason");
+
+            if (!complaintReason || complaintReason.value !== "شكوى") {
+
+                visitSaveMessage.textContent =
+                    "الزيارة التفاعلية المتاحة للجنة يجب أن يكون سببها شكوى.";
+                visitSaveMessage.className = "small text-danger mb-2";
+
+                return;
+
+            }
+
+            saveVisit.disabled = true;
+            visitSaveMessage.textContent =
+                "جاري فتح زيارة تفاعلية بسبب شكوى...";
+            visitSaveMessage.className = "small text-muted mb-2";
+
+            try {
+
+                await createCommitteeComplaintAssignment(facility.license);
+                storedCurrentAssignment =
+                    getFacilityAssignment(facility.license);
+                currentAssignment =
+                    isActiveAssignment(storedCurrentAssignment) &&
+                    storedCurrentAssignment.committeeUsername ===
+                        currentUser.username &&
+                    storedCurrentAssignment.visitType === "reactive" &&
+                    storedCurrentAssignment.visitReason === "شكوى"
+                        ? storedCurrentAssignment
+                        : null;
+
+            } catch (error) {
+
+                visitSaveMessage.textContent =
+                    "تعذر فتح الزيارة التفاعلية؛ قد تكون المنشأة أُسندت إلى لجنة أخرى.";
+                visitSaveMessage.className = "small text-danger mb-2";
+                saveVisit.disabled = false;
+
+                return;
+
+            }
+
+        }
 
         if (!currentAssignment) {
 
