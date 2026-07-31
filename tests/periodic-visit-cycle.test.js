@@ -572,7 +572,71 @@ test("an old completed visit does not complete the new assignment or inflate its
     assert.equal(kpis.assignedCount, 1);
     assert.equal(kpis.remainingCount, 1);
     assert.equal(kpis.completionRate, 0);
-    assert.equal(kpis.completedCount, 1);
+    assert.equal(kpis.completedCount, 0);
+
+});
+
+
+test("committee KPIs count completions only from the current assignment workload", async () => {
+
+    const assignments = {};
+    const statuses = {};
+    const assignmentHistory = {};
+
+    for (let index = 1; index <= 7; index += 1) {
+
+        const license = `old-${index}`;
+        const assignment = {
+            ...createCompletedAssignment(license),
+            assignedAt: `2026-06-01T08:${String(index).padStart(2, "0")}:00.000Z`
+        };
+
+        assignmentHistory[assignment.id] = assignment;
+        statuses[license] = createFacilityStatus(license, "2026-06-02");
+
+    }
+
+    for (let index = 1; index <= 20; index += 1) {
+
+        const license = `current-${index}`;
+        const isFirstBatch = index <= 10;
+        const assignmentId = `current-assignment-${index}`;
+
+        assignments[license] = {
+            id: assignmentId,
+            facilityLicense: license,
+            committeeUsername: "committee4",
+            assignedAt: isFirstBatch
+                ? `2026-07-01T08:${String(index).padStart(2, "0")}:00.000Z`
+                : `2026-07-03T08:${String(index - 10).padStart(2, "0")}:00.000Z`,
+            status: index <= 8 ? "completed" : "assigned",
+            visitType: "periodic",
+            visitReason: "الخطة الدورية"
+        };
+
+        if (index <= 8) {
+
+            statuses[license] = createFacilityStatus(
+                license,
+                "2026-07-02",
+                { assignmentId }
+            );
+
+        }
+
+    }
+
+    const { context } = await createCycleRuntime({
+        assignments,
+        assignmentHistory,
+        statuses
+    });
+    const kpis = context.getCommitteeKpis("committee4");
+
+    assert.equal(kpis.assignedCount, 20);
+    assert.equal(kpis.completedCount, 8);
+    assert.equal(kpis.remainingCount, 12);
+    assert.equal(kpis.completionRate, 40);
 
 });
 
