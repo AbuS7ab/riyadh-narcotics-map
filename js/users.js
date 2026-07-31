@@ -1169,17 +1169,12 @@ function getCommitteeKpis(username) {
         activeAssignments
     );
     const cycleTotal = currentCycleAssignments.length;
-    const completedCount = activeAssignments.filter(assignment => {
+    const completedCount = currentCycleAssignments.filter(assignment => {
 
         return Boolean(getAssignmentCompletionTime(assignment));
 
     }).length;
-    const cycleCompletedCount = currentCycleAssignments.filter(assignment => {
-
-        return Boolean(getAssignmentCompletionTime(assignment));
-
-    }).length;
-    const remainingCount = Math.max(cycleTotal - cycleCompletedCount, 0);
+    const remainingCount = Math.max(cycleTotal - completedCount, 0);
     const assignedCount = remainingCount === 0 ? 0 : cycleTotal;
     const violatingFacilities = new Set();
 
@@ -1196,8 +1191,8 @@ function getCommitteeKpis(username) {
     });
 
     const completionRate = cycleTotal === 0
-        ? (completedCount > 0 ? 100 : 0)
-        : Math.round(((cycleTotal - remainingCount) / cycleTotal) * 100);
+        ? 0
+        : Math.round((completedCount / cycleTotal) * 100);
 
     return {
         assignedCount,
