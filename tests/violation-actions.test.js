@@ -149,6 +149,24 @@ test("Violation action statistics are hidden until the violation KPI is selected
 });
 
 
+test("operational KPI cards keep only one dashboard filter active", () => {
+
+    assert.match(
+        dashboard,
+        /const wasActive =\s*String\(activeFilters\[filterName\]\) === filterValue;[\s\S]*?resetOperationalKpiFilters\(\);[\s\S]*?const value = wasActive \? "all" : filterValue;/
+    );
+    assert.match(
+        dashboard,
+        /function resetOperationalKpiFilters\(\)[\s\S]*?activeFilters\[card\.dataset\.filterName\] = "all";[\s\S]*?activeFilters\.violationAction = "all";/
+    );
+    assert.match(
+        dashboard,
+        /resetOperationalKpiFilters\(\)[\s\S]*?visitStatusFilter\.value = "all";[\s\S]*?setViolationActionStatisticsVisibility\(false\);/
+    );
+
+});
+
+
 test("referral and correction remain in the same immutable timeline", async () => {
 
     const { context } = await createViolationRuntime();
