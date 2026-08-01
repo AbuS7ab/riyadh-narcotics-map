@@ -404,7 +404,7 @@ test("a complaint transfers an open assignment while preserving its visits and a
 });
 
 
-test("a committee can open only a reactive complaint assignment after a completed visit", async () => {
+test("a committee can open a reactive complaint assignment after a completed visit", async () => {
 
     const completedAssignment = createCompletedAssignment("100");
     const completedStatus = createFacilityStatus("100", "2026-07-11");
@@ -445,6 +445,69 @@ test("a committee can open only a reactive complaint assignment after a complete
         supabase.rows.get("facilityStatus").value["100"].visits,
         visitsBefore
     );
+
+});
+
+
+test("a committee can open reactive report and verification assignments", async () => {
+
+    for (const reason of ["بلاغ", "تحقق"]) {
+
+        const completedAssignment = createCompletedAssignment("100");
+        const { context, supabase } = await createCycleRuntime({
+            currentUser: "committee4",
+            assignments: { 100: completedAssignment }
+        });
+        const assignment = await context.createCommitteeReactiveAssignment(
+            "100",
+            reason
+        );
+
+        assert.equal(assignment.visitType, "reactive");
+        assert.equal(assignment.visitReason, reason);
+        assert.equal(assignment.assignmentSource, "committee_reactive");
+        assert.equal(
+            supabase.rows.get("facilityAssignmentHistory").value[
+                completedAssignment.id
+            ].archiveReason,
+            "committee_reactive_visit"
+        );
+
+    }
+
+});
+
+
+test("reactive assignments reject reasons outside the approved list", async () => {
+
+    const completedAssignment = createCompletedAssignment("100");
+    const { context, supabase } = await createCycleRuntime({
+        currentUser: "committee4",
+        assignments: { 100: completedAssignment }
+    });
+
+    assert.equal(
+        await context.createCommitteeReactiveAssignment("100", "أخرى"),
+        false
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityAssignments").value["100"],
+        completedAssignment
+    );
+
+});
+
+
+test("visit records preserve a trimmed transaction number", async () => {
+
+    const { context } = await createCycleRuntime();
+    const visit = context.createVisitRecord({
+        facilityLicense: "100",
+        transactionNumber: "  12345/2026  ",
+        result: "no_violation"
+    });
+
+    assert.equal(visit.transactionNumber, "12345/2026");
 
 });
 
@@ -679,19 +742,34 @@ test("the committee complaint visit form exposes no periodic choice", () => {
 
     assert.match(
         sidebar,
-        /canStartComplaintVisit[\s\S]*تسجيل زيارة تفاعلية بسبب شكوى/
+        /canStartReactiveVisit[\s\S]*تسجيل زيارة تفاعلية/
     );
     assert.match(
         sidebar,
-        /id="committeeComplaintReason"[\s\S]*<option value="شكوى" selected>شكوى<\/option>/
+        /id="committeeReactiveReason"[\s\S]*<option value="شكوى" selected>شكوى<\/option>[\s\S]*<option value="بلاغ">بلاغ<\/option>[\s\S]*<option value="تحقق">تحقق<\/option>/
     );
     assert.match(
         sidebar,
-        /createCommitteeComplaintAssignment\(facility\.license\)/
+        /createCommitteeReactiveAssignment\([\s\S]*facility\.license,[\s\S]*selectedReactiveReason/
     );
     assert.doesNotMatch(
         sidebar,
-        /id="committeeComplaintReason"[\s\S]{0,300}value="periodic"/
+        /id="committeeReactiveReason"[\s\S]{0,400}value="periodic"/
+    );
+
+});
+
+
+test("the visit form stores a manual transaction number above notes", () => {
+
+    assert.match(sidebar, /id="visitTransactionNumber"[\s\S]*id="visitNotes"/);
+    assert.match(
+        sidebar,
+        /transactionNumber:\s*visitTransactionNumber\.value\.trim\(\)/
+    );
+    assert.match(
+        sidebar,
+        /رقم المعاملة:<\/strong>[\s\S]*visit\.transactionNumber/
     );
 
 });

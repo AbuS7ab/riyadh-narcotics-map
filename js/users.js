@@ -1294,15 +1294,26 @@ function createAssignmentBatchId(committeeUsername) {
 }
 
 
-async function createCommitteeComplaintAssignment(facilityLicense) {
+function normalizeCommitteeReactiveVisitReason(value) {
+
+    const reason = String(value || "").trim();
+
+    return ["شكوى", "بلاغ", "تحقق"].includes(reason) ? reason : "";
+
+}
+
+
+async function createCommitteeReactiveAssignment(facilityLicense, visitReason) {
 
     if (!isCommitteeUser()) return false;
 
     const normalizedLicense = String(facilityLicense || "");
+    const normalizedReason = normalizeCommitteeReactiveVisitReason(visitReason);
     const committeeUsername = String(currentUser.username || "");
     const committee = users[committeeUsername];
 
     if (!normalizedLicense ||
+        !normalizedReason ||
         !committee ||
         committee.role !== "committee" ||
         !committee.active ||
@@ -1316,12 +1327,12 @@ async function createCommitteeComplaintAssignment(facilityLicense) {
 
     if (isActiveAssignment(existingAssignment)) {
 
-        const isOwnedComplaintAssignment =
+        const isOwnedReactiveAssignment =
             existingAssignment.committeeUsername === committeeUsername &&
             existingAssignment.visitType === "reactive" &&
-            existingAssignment.visitReason === "شكوى";
+            existingAssignment.visitReason === normalizedReason;
 
-        return isOwnedComplaintAssignment ? existingAssignment : false;
+        return isOwnedReactiveAssignment ? existingAssignment : false;
 
     }
 
@@ -1335,10 +1346,12 @@ async function createCommitteeComplaintAssignment(facilityLicense) {
         status: "assigned",
         teamSnapshot: createTeamSnapshot(committee),
         visitType: "reactive",
-        visitReason: "شكوى",
+        visitReason: normalizedReason,
         visitCycleId: null,
         visitCycleNumber: null,
-        assignmentSource: "committee_complaint"
+        assignmentSource: normalizedReason === "شكوى"
+            ? "committee_complaint"
+            : "committee_reactive"
     };
 
     if (existingAssignment) {
@@ -1352,7 +1365,9 @@ async function createCommitteeComplaintAssignment(facilityLicense) {
             facilityAssignments,
             nextAssignments,
             [existingAssignment],
-            "committee_reactive_complaint"
+            normalizedReason === "شكوى"
+                ? "committee_reactive_complaint"
+                : "committee_reactive_visit"
         );
 
     } else {
@@ -1381,6 +1396,13 @@ async function createCommitteeComplaintAssignment(facilityLicense) {
     refreshAssignmentViews(committeeUsername);
 
     return getFacilityAssignment(normalizedLicense);
+
+}
+
+
+async function createCommitteeComplaintAssignment(facilityLicense) {
+
+    return createCommitteeReactiveAssignment(facilityLicense, "شكوى");
 
 }
 

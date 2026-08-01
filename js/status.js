@@ -160,6 +160,7 @@ function createVisitRecord(visit) {
         visitCycleNumber: Number(visit.visitCycleNumber) || null,
         result,
         incompleteReason: visit.incompleteReason || "",
+        transactionNumber: String(visit.transactionNumber || "").trim(),
         visitStatus,
         violation: result === "violation" || Boolean(visit.violation),
         notes: visit.notes || "",
