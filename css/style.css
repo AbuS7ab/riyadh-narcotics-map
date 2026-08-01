@@ -774,12 +774,22 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
     margin: 4px 2px 18px;
     padding: 13px;
     display: grid;
-    grid-template-columns: minmax(260px, 1.8fr) repeat(3, minmax(145px, .7fr));
+    grid-template-columns: minmax(380px, 1fr) repeat(3, minmax(180px, 340px));
     gap: 10px;
+    align-items: end;
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 16px;
     box-shadow: 0 7px 20px rgba(0, 61, 47, .05);
+}
+
+.filter-toolbar > .btn,
+.filter-toolbar > .form-control,
+.filter-toolbar > .form-select {
+    width: 100%;
+    height: 50px;
+    min-height: 50px;
+    align-self: end;
 }
 
 .visit-date-range-filter {
@@ -846,8 +856,11 @@ body:not(.role-admin):not(.role-committee) .external-visit-action {
 
 .model-b-export-message {
     grid-column: 1 / -1;
-    min-height: 16px;
     font-size: 11px;
+}
+
+.model-b-export-message:empty {
+    display: none;
 }
 
 .visit-date-range-filter [aria-invalid="true"] {
@@ -1771,6 +1784,16 @@ body.role-committee .main-grid {
         grid-template-columns: 220px minmax(0, 1fr);
     }
 
+    .filter-toolbar,
+    body.role-committee .filter-toolbar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .search-control,
+    .visit-date-range-filter {
+        grid-column: 1 / -1;
+    }
+
     .main-grid {
         grid-template-columns: minmax(200px, 225px) minmax(390px, 1fr);
         grid-template-areas:
@@ -1914,7 +1937,8 @@ body.role-committee .main-grid {
         grid-template-columns: repeat(2, minmax(180px, 1fr));
     }
 
-    .filter-toolbar {
+    .filter-toolbar,
+    body.role-committee .filter-toolbar {
         grid-template-columns: 1fr 1fr;
     }
 
@@ -2093,7 +2117,8 @@ body.role-committee .main-grid {
         grid-template-columns: 1fr;
     }
 
-    .filter-toolbar {
+    .filter-toolbar,
+    body.role-committee .filter-toolbar {
         grid-template-columns: 1fr;
         margin-bottom: 12px;
         padding: 10px;
