@@ -884,6 +884,14 @@ function showFacilityDetails(facility) {
         isFacilityEligibleForAssignment(facility)
     );
     const canOpenVisitForm = canRecordVisit || canStartReactiveVisit;
+    const adminCommitteeUsername = isAdminUser() &&
+        selectedCommitteeUsername &&
+        users[selectedCommitteeUsername]
+        ? selectedCommitteeUsername
+        : null;
+    const canReturnToAssignedFacilities = Boolean(
+        isCommitteeUser() || adminCommitteeUsername
+    );
 
     const statusDisplay = getVisitStatusDisplay(state);
     const displayLicense = getFacilityDisplayLicense(facility);
@@ -924,7 +932,7 @@ function showFacilityDetails(facility) {
 
         ${renderAssignmentControl(facility)}
 
-        ${isCommitteeUser() ? `
+        ${canReturnToAssignedFacilities ? `
             <button id="backToAssignedFacilities"
                     class="btn btn-outline-secondary w-100 mt-3">
                 العودة إلى المنشآت المسندة
@@ -1060,6 +1068,20 @@ function showFacilityDetails(facility) {
     if (backToAssignedFacilities) {
 
         backToAssignedFacilities.addEventListener("click", function () {
+
+            if (adminCommitteeUsername) {
+
+                showCommitteeFacilityList(
+                    users[adminCommitteeUsername],
+                    getFacilitiesForCurrentAssignmentCycle(
+                        adminCommitteeUsername,
+                        allFacilities
+                    )
+                );
+
+                return;
+
+            }
 
             showFacilityList(
                 getAssignedFacilitiesForCurrentUser(allFacilities),
