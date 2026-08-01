@@ -53,9 +53,12 @@ function toggleDashboardFilter(card) {
     const filterName = card.dataset.filterName;
     const filterValue = card.dataset.filterValue;
 
-    const value = String(activeFilters[filterName]) === filterValue
-        ? "all"
-        : filterValue;
+    const wasActive =
+        String(activeFilters[filterName]) === filterValue;
+
+    resetOperationalKpiFilters();
+
+    const value = wasActive ? "all" : filterValue;
 
     setFilter(filterName, value);
 
@@ -81,6 +84,30 @@ function toggleDashboardFilter(card) {
         showFacilityList(filteredFacilities);
 
     }
+
+}
+
+
+function resetOperationalKpiFilters() {
+
+    operationalKpiCards.forEach(card => {
+
+        activeFilters[card.dataset.filterName] = "all";
+
+    });
+
+    activeFilters.violationAction = "all";
+
+    const visitStatusFilter =
+        document.getElementById("visitStatusFilter");
+
+    if (visitStatusFilter) {
+
+        visitStatusFilter.value = "all";
+
+    }
+
+    setViolationActionStatisticsVisibility(false);
 
 }
 
