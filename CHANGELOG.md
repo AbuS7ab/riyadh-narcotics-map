@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.14.6] - 2026-08-01
+
+- Added an Admin return button from facility details to the selected
+  committee's assigned-facility list.
+- Preserved the selected committee and its active assigned-list filter when
+  returning from a facility drilldown.
+
 ## [v0.14.5] - 2026-08-01
 
 - Defaulted employee performance to the current year so a new calendar month
