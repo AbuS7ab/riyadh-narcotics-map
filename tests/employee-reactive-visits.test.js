@@ -6,6 +6,7 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "js/employees.js"), "utf8");
+const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 
 
 function createRuntime() {
@@ -126,5 +127,16 @@ test("employee performance export includes the reactive visit count", () => {
     }]);
 
     assert.equal(exported[0]["الزيارات التفاعلية"], 2);
+
+});
+
+
+test("employee performance defaults to the current year instead of an empty new month", () => {
+
+    assert.match(html, /<option value="month">هذا الشهر<\/option>/);
+    assert.match(
+        html,
+        /<option value="year" selected>هذه السنة<\/option>/
+    );
 
 });

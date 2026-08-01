@@ -761,6 +761,9 @@ function renderVisitHistory(visits, facilityLicense = "") {
                 ${visit.incompleteReason
                     ? `<div class="small"><strong>سبب عدم الاكتمال:</strong> ${escapeHtml(visit.incompleteReason)}</div>`
                     : ""}
+                ${visit.transactionNumber
+                    ? `<div class="small"><strong>رقم المعاملة:</strong> ${escapeHtml(visit.transactionNumber)}</div>`
+                    : ""}
                 ${visit.notes
                     ? `<div class="small mt-2"><strong>الملاحظات:</strong> ${escapeHtml(visit.notes)}</div>`
                     : ''}
@@ -875,12 +878,12 @@ function showFacilityDetails(facility) {
         isActiveAssignment(storedAssignment) &&
         storedAssignment.committeeUsername === currentUser.username
     );
-    const canStartComplaintVisit = Boolean(
+    const canStartReactiveVisit = Boolean(
         isCommitteeUser() &&
         !isActiveAssignment(storedAssignment) &&
         isFacilityEligibleForAssignment(facility)
     );
-    const canOpenVisitForm = canRecordVisit || canStartComplaintVisit;
+    const canOpenVisitForm = canRecordVisit || canStartReactiveVisit;
 
     const statusDisplay = getVisitStatusDisplay(state);
     const displayLicense = getFacilityDisplayLicense(facility);
@@ -934,20 +937,22 @@ function showFacilityDetails(facility) {
 
         ${canOpenVisitForm ? `
         <button id="newVisit" class="btn btn-outline-success w-100 mb-3 committee-only">
-            ${canRecordVisit ? "+ زيارة جديدة" : "+ تسجيل زيارة تفاعلية بسبب شكوى"}
+            ${canRecordVisit ? "+ زيارة جديدة" : "+ تسجيل زيارة تفاعلية"}
         </button>
 
         <div id="visitForm" class="d-none committee-only">
             <h6 class="mb-3">نتيجة الزيارة</h6>
 
-            ${canStartComplaintVisit ? `
+            ${canStartReactiveVisit ? `
             <div class="alert alert-info border mb-3">
                 <div><strong>نوع الزيارة:</strong> تفاعلية</div>
-                <label for="committeeComplaintReason" class="form-label mt-2 mb-1">
+                <label for="committeeReactiveReason" class="form-label mt-2 mb-1">
                     سبب الزيارة
                 </label>
-                <select id="committeeComplaintReason" class="form-select">
+                <select id="committeeReactiveReason" class="form-select">
                     <option value="شكوى" selected>شكوى</option>
+                    <option value="بلاغ">بلاغ</option>
+                    <option value="تحقق">تحقق</option>
                 </select>
                 <div class="form-text">
                     لا يمكن للجنة إنشاء زيارة دورية من هذا المسار.
@@ -975,6 +980,10 @@ function showFacilityDetails(facility) {
                     <option value="أخرى">أخرى</option>
                 </select>
             </div>
+
+            <label for="visitTransactionNumber" class="form-label">رقم المعاملة</label>
+            <input id="visitTransactionNumber" class="form-control mb-3"
+                   type="text" autocomplete="off">
 
             <label for="visitNotes" class="form-label">ملاحظات</label>
             <textarea id="visitNotes" class="form-control mb-3" rows="3"></textarea>
@@ -1005,6 +1014,7 @@ function showFacilityDetails(facility) {
     const visitResult = document.getElementById("visitResult");
     const incompleteReasonGroup = document.getElementById("incompleteReasonGroup");
     const incompleteReason = document.getElementById("incompleteReason");
+    const visitTransactionNumber = document.getElementById("visitTransactionNumber");
     const visitNotes = document.getElementById("visitNotes");
     const visitSaveMessage = document.getElementById("visitSaveMessage");
     const saveVisit = document.getElementById("saveVisit");
@@ -1160,15 +1170,19 @@ function showFacilityDetails(facility) {
             ? storedCurrentAssignment
             : null;
 
-        if (!currentAssignment && canStartComplaintVisit) {
+        if (!currentAssignment && canStartReactiveVisit) {
 
-            const complaintReason =
-                document.getElementById("committeeComplaintReason");
+            const reactiveReason =
+                document.getElementById("committeeReactiveReason");
 
-            if (!complaintReason || complaintReason.value !== "شكوى") {
+            const selectedReactiveReason = reactiveReason
+                ? reactiveReason.value
+                : "";
+
+            if (!["شكوى", "بلاغ", "تحقق"].includes(selectedReactiveReason)) {
 
                 visitSaveMessage.textContent =
-                    "الزيارة التفاعلية المتاحة للجنة يجب أن يكون سببها شكوى.";
+                    "اختر سبب الزيارة التفاعلية.";
                 visitSaveMessage.className = "small text-danger mb-2";
 
                 return;
@@ -1177,12 +1191,15 @@ function showFacilityDetails(facility) {
 
             saveVisit.disabled = true;
             visitSaveMessage.textContent =
-                "جاري فتح زيارة تفاعلية بسبب شكوى...";
+                "جاري فتح الزيارة التفاعلية...";
             visitSaveMessage.className = "small text-muted mb-2";
 
             try {
 
-                await createCommitteeComplaintAssignment(facility.license);
+                await createCommitteeReactiveAssignment(
+                    facility.license,
+                    selectedReactiveReason
+                );
                 storedCurrentAssignment =
                     getFacilityAssignment(facility.license);
                 currentAssignment =
@@ -1190,7 +1207,7 @@ function showFacilityDetails(facility) {
                     storedCurrentAssignment.committeeUsername ===
                         currentUser.username &&
                     storedCurrentAssignment.visitType === "reactive" &&
-                    storedCurrentAssignment.visitReason === "شكوى"
+                    storedCurrentAssignment.visitReason === selectedReactiveReason
                         ? storedCurrentAssignment
                         : null;
 
@@ -1261,6 +1278,7 @@ function showFacilityDetails(facility) {
                     : null,
                 result,
                 incompleteReason: result === "incomplete" ? incompleteReason.value : "",
+                transactionNumber: visitTransactionNumber.value.trim(),
                 visitStatus,
                 violation: result === "violation",
                 notes: visitNotes.value,

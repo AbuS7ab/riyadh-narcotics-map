@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.14.5] - 2026-08-01
+
+- Defaulted employee performance to the current year so a new calendar month
+  does not make historical activity appear to be lost.
+- Renamed the committee action to `تسجيل زيارة تفاعلية` and added complaint,
+  report, and verification reasons.
+- Added an optional manual transaction number to visit records and history.
+
 ## [v0.14.0] - 2026-07-30
 
 - Allowed a committee to open a new reactive visit after a completed assignment.
