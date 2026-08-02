@@ -283,6 +283,12 @@ function initializeVisitDateFilter() {
 
     }
 
+    if (typeof initializeViolationReportExport === "function") {
+
+        initializeViolationReportExport();
+
+    }
+
 }
 
 

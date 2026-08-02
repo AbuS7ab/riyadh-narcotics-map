@@ -204,6 +204,17 @@
                     <strong id="violationActionsResolutionRate">0%</strong>
                     <small>من إجمالي المخالفات</small>
                 </div>
+                <div class="violation-report-export">
+                    <button id="exportViolationReport"
+                            type="button"
+                            class="btn btn-outline-success">
+                        <i class="fa-solid fa-file-excel"></i>
+                        تصدير تقرير المخالفات
+                    </button>
+                    <small id="violationReportExportMessage"
+                           role="status"
+                           aria-live="polite"></small>
+                </div>
             </section>
 
             <section id="externalMissionStatistics" class="visit-statistics management-read-only d-none" aria-label="إحصاءات المهام خارج الخطة">
@@ -1046,6 +1057,8 @@ href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.c
 <script src="js/status.js"></script>
 
 <script src="js/violation-actions.js"></script>
+
+<script src="js/violation-report-export.js"></script>
 
 <script src="js/sync-audit.js"></script>
 

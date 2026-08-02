@@ -14,7 +14,7 @@ var CONFIG = {
 },
 
     app: {
-    version: "v0.14.6"
+    version: "v0.14.7"
 }
 };
 
