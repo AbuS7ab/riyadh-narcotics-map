@@ -247,6 +247,60 @@ test("correction survives a later facility mutation and normalization", async ()
 });
 
 
+test("durable ledger preserves a correction when the legacy mirror fails", async () => {
+
+    const { context, supabase } = await createViolationRuntime();
+
+    supabase.failNextWrite("facilityStatus");
+
+    await context.addViolationAction("100", "violation-1", {
+        type: "corrected",
+        effectiveDate: "2026-07-23",
+        notes: "تم تلافي الملاحظة"
+    });
+
+    const ledger = supabase.rows.get("violationActionLedger").value;
+    const ledgerRecord = ledger["100::violation-1"];
+    const visit = context.getFacilityVisits("100")[0];
+
+    assert.equal(ledgerRecord.actions.length, 1);
+    assert.equal(ledgerRecord.actions[0].type, "corrected");
+
+    visit.violationActions = [];
+    context.mergeViolationActionLedgerIntoFacilityStatus();
+
+    assert.equal(visit.violationActions.length, 1);
+    assert.equal(context.getViolationActionState(visit), "corrected");
+
+});
+
+
+test("existing embedded actions migrate once into the durable ledger", async () => {
+
+    const { context, supabase } = await createViolationRuntime();
+    const visit = context.getFacilityVisits("100")[0];
+
+    visit.violationActions = [];
+    visit.violationActions.push({
+        id: "existing-correction",
+        type: "corrected",
+        effectiveDate: "2026-07-23",
+        notes: "إجراء محفوظ سابقًا"
+    });
+
+    await context.initializeViolationActionState();
+    await context.initializeViolationActionState();
+
+    const ledger = supabase.rows.get("violationActionLedger").value;
+    const actions = ledger["100::violation-1"].actions;
+
+    assert.equal(actions.length, 1);
+    assert.equal(actions[0].id, "existing-correction");
+    assert.equal(supabase.writeCount("violationActionLedger"), 1);
+
+});
+
+
 test("historical violations remain discoverable after a later clean visit", async () => {
 
     const { context } = await createViolationRuntime();
@@ -264,6 +318,29 @@ test("historical violations remain discoverable after a later clean visit", asyn
     assert.equal(
         context.facilityMatchesViolationActionFilter("100", "all"),
         true
+    );
+
+    context.visitMatchesDateRange = (visit, from, to) => {
+
+        return (!from || visit.date >= from) && (!to || visit.date <= to);
+
+    };
+
+    assert.equal(
+        context.facilityHasViolationRecord(
+            "100",
+            "2026-07-25",
+            "2026-07-25"
+        ),
+        false
+    );
+    assert.equal(
+        context.getViolationActionStats(
+            [{ license: "100" }],
+            "2026-07-25",
+            "2026-07-25"
+        ).total,
+        0
     );
 
 });
@@ -333,7 +410,7 @@ test("dashboard statistics exclude facilities hidden from the active workspace",
     );
     assert.match(
         dashboard,
-        /getViolationActionStats\(facilities\)/
+        /getViolationActionStats\(\s*facilities,\s*dateFrom,\s*dateTo\s*\)/
     );
 
 });

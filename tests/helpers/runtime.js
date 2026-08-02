@@ -239,6 +239,7 @@ function createInitialRows(overrides = {}) {
         "facilityAssignments",
         "facilityAssignmentHistory",
         "facilityStatus",
+        "violationActionLedger",
         "appSettings",
         "customFacilities",
         "facilityOverrides",

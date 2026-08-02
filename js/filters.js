@@ -365,7 +365,11 @@ function applyFilters(options = {}) {
 
             const matchesViolation = activeFilters.violation === "true" &&
                 typeof facilityHasViolationRecord === "function"
-                ? facilityHasViolationRecord(facility.license)
+                ? facilityHasViolationRecord(
+                    facility.license,
+                    dateFrom,
+                    dateTo
+                )
                 : String(state.violation) ===
                     String(activeFilters.violation);
 
@@ -379,7 +383,9 @@ function applyFilters(options = {}) {
                 typeof facilityMatchesViolationActionFilter !== "function" ||
                 !facilityMatchesViolationActionFilter(
                     facility.license,
-                    activeFilters.violationAction
+                    activeFilters.violationAction,
+                    dateFrom,
+                    dateTo
                 )
             )
         ) {

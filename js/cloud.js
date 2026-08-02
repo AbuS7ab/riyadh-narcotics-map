@@ -10,6 +10,7 @@ const cloudStorageKeys = {
     assignments: "facilityAssignments",
     assignmentHistory: "facilityAssignmentHistory",
     facilityStatus: "facilityStatus",
+    violationActions: "violationActionLedger",
     appSettings: "appSettings",
     customFacilities: "customFacilities",
     facilityOverrides: "facilityOverrides",
@@ -37,6 +38,11 @@ const cloudDataSets = {
         cloudKey: cloudStorageKeys.facilityStatus,
         localKey: "facilityStatus",
         label: "facilityStatus"
+    },
+    violationActions: {
+        cloudKey: cloudStorageKeys.violationActions,
+        localKey: "violationActionLedger",
+        label: "violation actions"
     },
     appSettings: {
         cloudKey: cloudStorageKeys.appSettings,
@@ -1105,6 +1111,26 @@ function saveFacilityStatus(facilityStatus, options) {
 }
 
 
+function loadViolationActionLedger() {
+
+    return isPortableDataObject(cloudCache[cloudStorageKeys.violationActions])
+        ? cloneCloudValue(cloudCache[cloudStorageKeys.violationActions])
+        : {};
+
+}
+
+
+function saveViolationActionLedger(ledger, options) {
+
+    return writeCloudObject(
+        cloudStorageKeys.violationActions,
+        ledger,
+        options
+    );
+
+}
+
+
 function loadAppSettings() {
 
     return isPortableDataObject(cloudCache[cloudStorageKeys.appSettings])
@@ -1250,6 +1276,8 @@ window.cloudDebug = {
     saveAssignments,
     loadFacilityStatus,
     saveFacilityStatus,
+    loadViolationActionLedger,
+    saveViolationActionLedger,
     loadCustomFacilities,
     saveCustomFacilities,
     loadFacilityOverrides,

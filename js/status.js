@@ -302,6 +302,17 @@ function getFacilityStatus(license) {
 }
 
 
+function restoreDurableViolationActions() {
+
+    if (typeof mergeViolationActionLedgerIntoFacilityStatus === "function") {
+
+        mergeViolationActionLedgerIntoFacilityStatus();
+
+    }
+
+}
+
+
 async function addVisit(license, visit) {
 
     if (typeof isCommitteeUser === "function" && !isCommitteeUser()) return;
@@ -363,6 +374,7 @@ async function addVisit(license, visit) {
             return nextStatus;
 
         });
+        restoreDurableViolationActions();
 
     } catch (error) {
 
@@ -432,6 +444,7 @@ async function rollbackVisitAfterAssignmentFailure(license, visitId) {
         return nextStatus;
 
     });
+    restoreDurableViolationActions();
 
     if (typeof invalidateEmployeePerformanceCache === "function") {
 
@@ -497,6 +510,7 @@ async function mutateFacilityRecord(license, mutation) {
         return nextStatus;
 
     });
+    restoreDurableViolationActions();
 
     if (typeof invalidateEmployeePerformanceCache === "function") {
 

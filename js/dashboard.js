@@ -196,22 +196,45 @@ function updateDashboard(facilities) {
     document.getElementById("otherCount").textContent = others;
 
     const states = facilities.map(f => getFacilityStatus(f.license));
-    const plannedVisitTotal = states.reduce((total, state) => {
+    const dateFrom = typeof getNormalizedVisitDate === "function"
+        ? getNormalizedVisitDate(activeFilters.visitDateFrom)
+        : "";
+    const dateTo = typeof getNormalizedVisitDate === "function"
+        ? getNormalizedVisitDate(activeFilters.visitDateTo)
+        : "";
+    const hasDateFilter = Boolean(dateFrom || dateTo);
+    const plannedVisits = states.flatMap(state => {
 
-        return total + (Array.isArray(state.visits) ? state.visits.length : 0);
+        return Array.isArray(state.visits) ? state.visits : [];
 
-    }, 0);
-    const plannedViolationTotal = facilities.filter(facility => {
+    }).filter(visit => {
 
-        if (typeof facilityHasViolationRecord === "function") {
+        return !hasDateFilter || (
+            typeof visitMatchesDateRange === "function" &&
+            visitMatchesDateRange(visit, dateFrom, dateTo)
+        );
 
-            return facilityHasViolationRecord(facility.license);
+    });
+    const plannedVisitTotal = plannedVisits.length;
+    const plannedViolationTotal = hasDateFilter
+        ? plannedVisits.filter(visit => {
 
-        }
+            return typeof visitIndicatesViolation === "function"
+                ? visitIndicatesViolation(visit)
+                : Boolean(visit.violation);
 
-        return getFacilityStatus(facility.license).violation === true;
+        }).length
+        : facilities.filter(facility => {
 
-    }).length;
+            if (typeof facilityHasViolationRecord === "function") {
+
+                return facilityHasViolationRecord(facility.license);
+
+            }
+
+            return getFacilityStatus(facility.license).violation === true;
+
+        }).length;
     const externalStats = typeof getExternalVisitStats === "function"
         ? getExternalVisitStats()
         : { total: 0, violations: 0, completed: 0, inProgress: 0, cancelled: 0 };
@@ -220,10 +243,14 @@ function updateDashboard(facilities) {
         states.filter(state => state.visitStatus === "visited").length;
 
     document.getElementById("visitedCount").textContent = plannedVisitTotal;
-    document.getElementById("visitPlanBreakdown").textContent = "زيارات الخطة";
+    document.getElementById("visitPlanBreakdown").textContent = hasDateFilter
+        ? "زيارات الفترة المحددة"
+        : "زيارات الخطة";
 
     document.getElementById("violationCount").textContent = plannedViolationTotal;
-    document.getElementById("violationPlanBreakdown").textContent = "مخالفات الخطة";
+    document.getElementById("violationPlanBreakdown").textContent = hasDateFilter
+        ? "مخالفات الفترة المحددة"
+        : "مخالفات الخطة";
     document.getElementById("externalMissionsTotal").textContent = externalStats.total;
     document.getElementById("externalMissionsCompleted").textContent = externalStats.completed;
     document.getElementById("externalMissionsInProgress").textContent = externalStats.inProgress;
@@ -232,7 +259,11 @@ function updateDashboard(facilities) {
 
     if (typeof getViolationActionStats === "function") {
 
-        const violationActionStats = getViolationActionStats(facilities);
+        const violationActionStats = getViolationActionStats(
+            facilities,
+            dateFrom,
+            dateTo
+        );
 
         document.getElementById("violationActionsTotal").textContent =
             violationActionStats.total;

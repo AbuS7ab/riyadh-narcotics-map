@@ -25,6 +25,7 @@ async function initializeApp() {
     await initializeFacilityStatusState();
 
     await initializeUserState();
+    await initializeViolationActionState();
     await initializeEmployeesState();
 
     seedCloudKey("appSettings", loadAppSettings());
@@ -333,6 +334,21 @@ function applyRemoteCloudData(event) {
             invalidateEmployeePerformanceCache();
 
         }
+
+    }
+
+    if (changedKeys.includes("violationActionLedger")) {
+
+        violationActionLedger = loadViolationActionLedger();
+
+    }
+
+    if (
+        changedKeys.includes("facilityStatus") ||
+        changedKeys.includes("violationActionLedger")
+    ) {
+
+        mergeViolationActionLedgerIntoFacilityStatus();
 
     }
 

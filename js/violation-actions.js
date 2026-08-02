@@ -4,6 +4,176 @@
 
 const violationActionTypes = ["follow_up", "referred", "corrected"];
 let activeViolationActionContext = null;
+let violationActionLedger = {};
+
+
+function getViolationActionLedgerKey(facilityLicense, visitId) {
+
+    return `${String(facilityLicense)}::${String(visitId)}`;
+
+}
+
+
+function normalizeViolationActionLedgerRecord(record, facilityLicense, visitId) {
+
+    return {
+        facilityLicense: String(
+            record && record.facilityLicense || facilityLicense || ""
+        ),
+        visitId: String(record && record.visitId || visitId || ""),
+        actions: Array.isArray(record && record.actions)
+            ? record.actions.map(normalizeViolationActionRecord)
+            : []
+    };
+
+}
+
+
+function mergeViolationActionLedgerIntoFacilityStatus() {
+
+    Object.entries(violationActionLedger || {}).forEach(([key, record]) => {
+
+        const separatorIndex = key.indexOf("::");
+        const fallbackLicense = separatorIndex >= 0
+            ? key.slice(0, separatorIndex)
+            : "";
+        const fallbackVisitId = separatorIndex >= 0
+            ? key.slice(separatorIndex + 2)
+            : "";
+        const normalized = normalizeViolationActionLedgerRecord(
+            record,
+            fallbackLicense,
+            fallbackVisitId
+        );
+        const status = facilityStatus[normalized.facilityLicense];
+        const visit = status && Array.isArray(status.visits)
+            ? status.visits.find(candidate => {
+
+                return String(candidate.id) === normalized.visitId;
+
+            })
+            : null;
+
+        if (!visit) return;
+
+        const actionsById = new Map(
+            (Array.isArray(visit.violationActions)
+                ? visit.violationActions
+                : []
+            ).map(action => [String(action.id), action])
+        );
+
+        normalized.actions.forEach(action => {
+
+            actionsById.set(String(action.id), action);
+
+        });
+
+        visit.violationActions = [...actionsById.values()]
+            .map(normalizeViolationActionRecord);
+
+    });
+
+}
+
+
+async function migrateEmbeddedViolationActionsToLedger() {
+
+    if (typeof isAdminUser !== "function" || !isAdminUser()) return;
+
+    const embeddedRecords = [];
+
+    Object.entries(facilityStatus || {}).forEach(([facilityLicense, status]) => {
+
+        const visits = status && Array.isArray(status.visits)
+            ? status.visits
+            : [];
+
+        visits.forEach(visit => {
+
+            if (!Array.isArray(visit.violationActions) ||
+                visit.violationActions.length === 0) return;
+
+            embeddedRecords.push({ facilityLicense, visit });
+
+        });
+
+    });
+
+    if (embeddedRecords.length === 0) return;
+
+    const hasUnprotectedActions = embeddedRecords.some(({
+        facilityLicense,
+        visit
+    }) => {
+
+        const key = getViolationActionLedgerKey(facilityLicense, visit.id);
+        const protectedIds = new Set(
+            normalizeViolationActionLedgerRecord(
+                violationActionLedger[key],
+                facilityLicense,
+                visit.id
+            ).actions.map(action => String(action.id))
+        );
+
+        return visit.violationActions.some(action => {
+
+            return !protectedIds.has(String(action.id));
+
+        });
+
+    });
+
+    if (!hasUnprotectedActions) return;
+
+    violationActionLedger = await mutateCloudObject(
+        "violationActionLedger",
+        nextLedger => {
+
+            embeddedRecords.forEach(({ facilityLicense, visit }) => {
+
+                const key = getViolationActionLedgerKey(
+                    facilityLicense,
+                    visit.id
+                );
+                const record = normalizeViolationActionLedgerRecord(
+                    nextLedger[key],
+                    facilityLicense,
+                    visit.id
+                );
+                const actionsById = new Map(
+                    record.actions.map(action => [String(action.id), action])
+                );
+
+                visit.violationActions.forEach(action => {
+
+                    const normalized = normalizeViolationActionRecord(action);
+
+                    actionsById.set(String(normalized.id), normalized);
+
+                });
+
+                record.actions = [...actionsById.values()];
+                nextLedger[key] = record;
+
+            });
+
+            return nextLedger;
+
+        }
+    );
+
+}
+
+
+async function initializeViolationActionState() {
+
+    violationActionLedger = loadViolationActionLedger();
+    mergeViolationActionLedgerIntoFacilityStatus();
+    await migrateEmbeddedViolationActionsToLedger();
+    mergeViolationActionLedgerIntoFacilityStatus();
+
+}
 
 
 function visitIndicatesViolation(visit) {
@@ -107,7 +277,17 @@ function canViewViolationActions() {
 }
 
 
-function getViolationRecords(facilities = null) {
+function violationVisitMatchesDateRange(visit, dateFrom = "", dateTo = "") {
+
+    if (!dateFrom && !dateTo) return true;
+
+    return typeof visitMatchesDateRange === "function" &&
+        visitMatchesDateRange(visit, dateFrom, dateTo);
+
+}
+
+
+function getViolationRecords(facilities = null, dateFrom = "", dateTo = "") {
 
     const visibleLicenses = Array.isArray(facilities)
         ? new Set(facilities.map(facility => String(facility.license)))
@@ -129,10 +309,12 @@ function getViolationRecords(facilities = null) {
                 ? status.visits
                 : [];
 
-            return visits.filter(visitIndicatesViolation).map(visit => ({
-                facilityLicense,
-                visit
-            }));
+            return visits.filter(visit => {
+
+                return visitIndicatesViolation(visit) &&
+                    violationVisitMatchesDateRange(visit, dateFrom, dateTo);
+
+            }).map(visit => ({ facilityLicense, visit }));
 
         }
     );
@@ -140,7 +322,11 @@ function getViolationRecords(facilities = null) {
 }
 
 
-function facilityHasViolationRecord(facilityLicense) {
+function facilityHasViolationRecord(
+    facilityLicense,
+    dateFrom = "",
+    dateTo = ""
+) {
 
     const normalizedLicense = String(facilityLicense || "");
     const status = facilityStatus && facilityStatus[normalizedLicense];
@@ -148,14 +334,19 @@ function facilityHasViolationRecord(facilityLicense) {
         ? status.visits
         : [];
 
-    return visits.some(visitIndicatesViolation);
+    return visits.some(visit => {
+
+        return visitIndicatesViolation(visit) &&
+            violationVisitMatchesDateRange(visit, dateFrom, dateTo);
+
+    });
 
 }
 
 
-function getViolationActionStats(facilities = null) {
+function getViolationActionStats(facilities = null, dateFrom = "", dateTo = "") {
 
-    const records = getViolationRecords(facilities);
+    const records = getViolationRecords(facilities, dateFrom, dateTo);
     const referred = records.filter(({ visit }) => {
 
         return getViolationActions(visit).some(action => action.type === "referred");
@@ -209,7 +400,12 @@ function violationVisitMatchesActionFilter(visit, filter) {
 }
 
 
-function facilityMatchesViolationActionFilter(license, filter) {
+function facilityMatchesViolationActionFilter(
+    license,
+    filter,
+    dateFrom = "",
+    dateTo = ""
+) {
 
     const status = typeof getFacilityStatus === "function"
         ? getFacilityStatus(license)
@@ -220,7 +416,8 @@ function facilityMatchesViolationActionFilter(license, filter) {
 
     return visits.some(visit => {
 
-        return violationVisitMatchesActionFilter(visit, filter);
+        return violationVisitMatchesActionFilter(visit, filter) &&
+            violationVisitMatchesDateRange(visit, dateFrom, dateTo);
 
     });
 
@@ -295,35 +492,98 @@ async function addViolationAction(facilityLicense, visitId, input) {
         createdBy: currentUser.username,
         createdAt: new Date().toISOString()
     });
-    await mutateFacilityRecord(facilityLicense, facility => {
+    const normalizedFacilityLicense = String(facilityLicense);
+    const normalizedVisitId = String(visitId);
+    const currentStatus = getFacilityStatus(normalizedFacilityLicense);
+    const currentVisit = currentStatus && Array.isArray(currentStatus.visits)
+        ? currentStatus.visits.find(candidate => {
 
-        const visit = facility.visits.find(candidate => {
+            return String(candidate.id) === normalizedVisitId;
 
-            return String(candidate.id) === String(visitId);
+        })
+        : null;
+
+    if (!currentVisit || !visitIndicatesViolation(currentVisit)) {
+
+        throw new Error("The violating visit could not be found.");
+
+    }
+
+    const ledgerKey = getViolationActionLedgerKey(
+        normalizedFacilityLicense,
+        normalizedVisitId
+    );
+
+    violationActionLedger = await mutateCloudObject(
+        "violationActionLedger",
+        nextLedger => {
+
+            const record = normalizeViolationActionLedgerRecord(
+                nextLedger[ledgerKey],
+                normalizedFacilityLicense,
+                normalizedVisitId
+            );
+
+            if (!record.actions.some(existing => {
+
+                return String(existing.id) === String(action.id);
+
+            })) {
+
+                record.actions.push(action);
+
+            }
+
+            nextLedger[ledgerKey] = record;
+
+            return nextLedger;
+
+        }
+    );
+
+    mergeViolationActionLedgerIntoFacilityStatus();
+
+    try {
+
+        await mutateFacilityRecord(normalizedFacilityLicense, facility => {
+
+            const visit = facility.visits.find(candidate => {
+
+                return String(candidate.id) === normalizedVisitId;
+
+            });
+
+            if (!visit || !visitIndicatesViolation(visit)) {
+
+                throw new Error("The violating visit could not be found.");
+
+            }
+
+            visit.violationActions = Array.isArray(visit.violationActions)
+                ? visit.violationActions
+                : [];
+
+            if (!visit.violationActions.some(existing => {
+
+                return String(existing.id) === String(action.id);
+
+            })) {
+
+                visit.violationActions.push(action);
+
+            }
 
         });
 
-        if (!visit || !visitIndicatesViolation(visit)) {
+    } catch (error) {
 
-            throw new Error("The violating visit could not be found.");
+        console.warn(
+            "[ViolationAction] action is safe in the durable ledger; " +
+            "the legacy visit mirror could not be updated.",
+            error
+        );
 
-        }
-
-        visit.violationActions = Array.isArray(visit.violationActions)
-            ? visit.violationActions
-            : [];
-
-        if (!visit.violationActions.some(existing => {
-
-            return String(existing.id) === String(action.id);
-
-        })) {
-
-            visit.violationActions.push(action);
-
-        }
-
-    });
+    }
 
     return action;
 
