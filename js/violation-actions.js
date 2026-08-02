@@ -140,6 +140,19 @@ function getViolationRecords(facilities = null) {
 }
 
 
+function facilityHasViolationRecord(facilityLicense) {
+
+    const normalizedLicense = String(facilityLicense || "");
+    const status = facilityStatus && facilityStatus[normalizedLicense];
+    const visits = status && Array.isArray(status.visits)
+        ? status.visits
+        : [];
+
+    return visits.some(visitIndicatesViolation);
+
+}
+
+
 function getViolationActionStats(facilities = null) {
 
     const records = getViolationRecords(facilities);

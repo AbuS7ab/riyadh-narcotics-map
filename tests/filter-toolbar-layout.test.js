@@ -33,3 +33,20 @@ test("filter toolbar has deliberate tablet and mobile layouts", () => {
 test("empty export status does not reserve toolbar height", () => {
     assert.match(css, /\.model-b-export-message:empty\s*\{\s*display:\s*none;/);
 });
+
+test("search field stays vertically aligned without a floating label", () => {
+    const html = fs.readFileSync(
+        path.join(__dirname, "..", "index.html"),
+        "utf8"
+    );
+
+    assert.doesNotMatch(html, /class="search-eyebrow"/);
+    assert.match(
+        css,
+        /\.search-icon\s*\{[\s\S]*?top:\s*50%;[\s\S]*?transform:\s*translateY\(-50%\);/
+    );
+    assert.match(
+        css,
+        /\.clear-search\s*\{[\s\S]*?top:\s*50%;[\s\S]*?transform:\s*translateY\(-50%\);/
+    );
+});

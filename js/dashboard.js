@@ -201,7 +201,17 @@ function updateDashboard(facilities) {
         return total + (Array.isArray(state.visits) ? state.visits.length : 0);
 
     }, 0);
-    const plannedViolationTotal = states.filter(state => state.violation === true).length;
+    const plannedViolationTotal = facilities.filter(facility => {
+
+        if (typeof facilityHasViolationRecord === "function") {
+
+            return facilityHasViolationRecord(facility.license);
+
+        }
+
+        return getFacilityStatus(facility.license).violation === true;
+
+    }).length;
     const externalStats = typeof getExternalVisitStats === "function"
         ? getExternalVisitStats()
         : { total: 0, violations: 0, completed: 0, inProgress: 0, cancelled: 0 };

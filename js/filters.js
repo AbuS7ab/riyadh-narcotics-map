@@ -361,11 +361,16 @@ function applyFilters(options = {}) {
             return false;
         }
 
-        if (
-            activeFilters.violation !== "all" &&
-            String(state.violation) !== String(activeFilters.violation)
-        ) {
-            return false;
+        if (activeFilters.violation !== "all") {
+
+            const matchesViolation = activeFilters.violation === "true" &&
+                typeof facilityHasViolationRecord === "function"
+                ? facilityHasViolationRecord(facility.license)
+                : String(state.violation) ===
+                    String(activeFilters.violation);
+
+            if (!matchesViolation) return false;
+
         }
 
         if (

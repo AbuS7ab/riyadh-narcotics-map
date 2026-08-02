@@ -224,6 +224,51 @@ test("correction reason is required and shown with an explicit label", async () 
 });
 
 
+test("correction survives a later facility mutation and normalization", async () => {
+
+    const { context, supabase } = await createViolationRuntime();
+
+    await context.addViolationAction("100", "violation-1", {
+        type: "corrected",
+        effectiveDate: "2026-07-23",
+        notes: "تم تلافي الملاحظة"
+    });
+    await context.setNotes("100", "تحديث لاحق لا علاقة له بالمخالفة");
+
+    const remoteVisit =
+        supabase.rows.get("facilityStatus").value["100"].visits[0];
+    const localVisit = context.getFacilityVisits("100")[0];
+
+    assert.equal(remoteVisit.violationActions.length, 1);
+    assert.equal(remoteVisit.violationActions[0].type, "corrected");
+    assert.equal(localVisit.violationActions.length, 1);
+    assert.equal(context.getViolationActionState(localVisit), "corrected");
+
+});
+
+
+test("historical violations remain discoverable after a later clean visit", async () => {
+
+    const { context } = await createViolationRuntime();
+    const status = context.getFacilityStatus("100");
+
+    status.visits.push(context.createVisitRecord({
+        id: "clean-visit",
+        facilityLicense: "100",
+        date: "2026-07-25",
+        result: "no_violation",
+        visitStatus: "visited"
+    }));
+
+    assert.equal(context.facilityHasViolationRecord("100"), true);
+    assert.equal(
+        context.facilityMatchesViolationActionFilter("100", "all"),
+        true
+    );
+
+});
+
+
 test("violation action statistic cards filter matching facilities", async () => {
 
     const { context } = await createViolationRuntime();
