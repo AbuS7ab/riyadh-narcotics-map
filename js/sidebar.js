@@ -188,15 +188,22 @@ function getCommitteeFacilityListSummary(committeeUsername, facilities) {
 
 function getCompletedFacilitiesForCommittee(committeeUsername, facilities) {
 
-    const completedLicenses = new Set(
-        getActiveAssignmentsForCommittee(committeeUsername)
-            .filter(assignment => {
+    const activeAssignments = getActiveAssignmentsForCommittee(committeeUsername);
+    const completedLicenses = activeAssignments.length === 0
+        ? getCommitteeHistoricalFacilitySummary(
+            committeeUsername,
+            activeAssignments,
+            facilities
+        ).completedLicenses
+        : new Set(
+            activeAssignments
+                .filter(assignment => {
 
-                return Boolean(getAssignmentCompletionTime(assignment));
+                    return Boolean(getAssignmentCompletionTime(assignment));
 
-            })
-            .map(assignment => String(assignment.facilityLicense))
-    );
+                })
+                .map(assignment => String(assignment.facilityLicense))
+        );
 
     return facilities.filter(facility => {
 

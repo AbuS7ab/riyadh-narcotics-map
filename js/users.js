@@ -742,6 +742,76 @@ function facilityHasCompletedVisit(license) {
 }
 
 
+function getCommitteeHistoricalFacilitySummary(
+    username,
+    assignmentsSnapshot = null,
+    facilitiesSnapshot = null
+) {
+
+    const normalizedUsername = String(username || "");
+    const assignments = Array.isArray(assignmentsSnapshot)
+        ? assignmentsSnapshot
+        : getActiveAssignmentsForCommittee(username);
+    const facilities = Array.isArray(facilitiesSnapshot)
+        ? facilitiesSnapshot
+        : typeof allFacilities !== "undefined" && Array.isArray(allFacilities)
+            ? allFacilities
+            : [];
+    const completedLicenses = new Set();
+    const violatingLicenses = new Set();
+
+    assignments.forEach(assignment => {
+
+        const license = String(assignment.facilityLicense);
+
+        if (Boolean(getAssignmentCompletionTime(assignment))) {
+
+            completedLicenses.add(license);
+
+        }
+
+        if (facilityHasViolation(license)) {
+
+            violatingLicenses.add(license);
+
+        }
+
+    });
+
+    facilities.forEach(facility => {
+
+        const license = String(facility.license);
+        const status = getFacilityStatus(license);
+        const committeeVisits = status && Array.isArray(status.visits)
+            ? status.visits.filter(visit => {
+
+                return String(visit.committeeUsername || "") === normalizedUsername;
+
+            })
+            : [];
+
+        if (committeeVisits.some(visitIndicatesCompletion)) {
+
+            completedLicenses.add(license);
+
+        }
+
+        if (committeeVisits.some(visitIndicatesViolation)) {
+
+            violatingLicenses.add(license);
+
+        }
+
+    });
+
+    return {
+        completedLicenses,
+        violatingLicenses
+    };
+
+}
+
+
 function getCompletedFacilityVisits(license) {
 
     const visits = typeof getFacilityVisits === "function"
@@ -1169,12 +1239,19 @@ function getCommitteeKpis(username) {
         activeAssignments
     );
     const cycleTotal = currentCycleAssignments.length;
-    const completedCount = currentCycleAssignments.filter(assignment => {
+    const currentCycleCompletedCount = currentCycleAssignments.filter(assignment => {
 
         return Boolean(getAssignmentCompletionTime(assignment));
 
     }).length;
-    const remainingCount = Math.max(cycleTotal - completedCount, 0);
+    const usesHistoricalVisitFallback = activeAssignments.length === 0;
+    const historicalSummary = usesHistoricalVisitFallback
+        ? getCommitteeHistoricalFacilitySummary(username, activeAssignments)
+        : null;
+    const completedCount = historicalSummary
+        ? historicalSummary.completedLicenses.size
+        : currentCycleCompletedCount;
+    const remainingCount = Math.max(cycleTotal - currentCycleCompletedCount, 0);
     const assignedCount = remainingCount === 0 ? 0 : cycleTotal;
     const violatingFacilities = new Set();
 
@@ -1191,14 +1268,16 @@ function getCommitteeKpis(username) {
     });
 
     const completionRate = cycleTotal === 0
-        ? 0
-        : Math.round((completedCount / cycleTotal) * 100);
+        ? (completedCount > 0 ? 100 : 0)
+        : Math.round((currentCycleCompletedCount / cycleTotal) * 100);
 
     return {
         assignedCount,
         completedCount,
         remainingCount,
-        violatingFacilityCount: violatingFacilities.size,
+        violatingFacilityCount: historicalSummary
+            ? historicalSummary.violatingLicenses.size
+            : violatingFacilities.size,
         completionRate
     };
 

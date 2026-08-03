@@ -74,6 +74,9 @@ async function createKpiRuntime(assignments, facilityStatuses = {}) {
             visits: []
         }
     );
+    runtime.context.allFacilities = Object.keys(facilityStatuses).map(license => ({
+        license
+    }));
     runtime.loadScript("users");
     await runtime.context.initializeUserState();
 
@@ -453,6 +456,49 @@ test("violations remain cumulative across old and current batches", async () => 
     assert.equal(kpis.completedCount, 0);
     assert.equal(kpis.violatingFacilityCount, 1);
     assert.equal(kpis.completionRate, 0);
+
+});
+
+
+test("historical committee visits count without assignment records", async () => {
+
+    const facilityStatuses = {};
+
+    for (let index = 0; index < 115; index += 1) {
+
+        const license = `historical-${index}`;
+
+        facilityStatuses[license] = {
+            visitStatus: "visited",
+            visits: [{
+                committeeUsername: "committee4",
+                result: index === 0 ? "violation" : "no_violation",
+                visitStatus: "visited",
+                violation: index === 0
+            }]
+        };
+
+    }
+
+    const { context } = await createKpiRuntime({}, facilityStatuses);
+    const kpis = context.getCommitteeKpis("committee4");
+    const sidebarSource = require("node:fs").readFileSync(
+        require("node:path").join(__dirname, "..", "js", "sidebar.js"),
+        "utf8"
+    );
+
+    require("node:vm").runInContext(sidebarSource, context);
+    const completedFacilities = context.getCompletedFacilitiesForCommittee(
+        "committee4",
+        context.allFacilities
+    );
+
+    assert.equal(kpis.assignedCount, 0);
+    assert.equal(kpis.completedCount, 115);
+    assert.equal(kpis.remainingCount, 0);
+    assert.equal(kpis.violatingFacilityCount, 1);
+    assert.equal(kpis.completionRate, 100);
+    assert.equal(completedFacilities.length, 115);
 
 });
 
