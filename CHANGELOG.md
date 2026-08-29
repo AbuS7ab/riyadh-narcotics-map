@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.14.12] - 2026-08-29
+
+- Added read-only year and periodic-cycle selectors above the operational KPIs.
+- Preserved the existing cumulative dashboard as the default view with its
+  original calculations unchanged.
+- Scoped pending, visited, incomplete, violation, completion-rate, map, and
+  facility-list filters to the selected cycle using saved cycle identifiers.
+- Exposed legacy periodic visits without a cycle identifier as a separate
+  historical baseline instead of rewriting or guessing their cycle.
+
 ## [v0.14.11] - 2026-08-29
 
 - Kept the periodic-cycle action clickable so an administrator receives the

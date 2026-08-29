@@ -108,6 +108,37 @@
         </header>
 
         <main class="workspace">
+            <section id="dashboardPeriodControls"
+                     class="dashboard-period-controls management-read-only"
+                     aria-label="تحديد سنة ودورة الإحصائيات">
+                <div class="dashboard-period-heading">
+                    <span><i class="fa-solid fa-calendar-check"></i> نطاق الإحصائيات</span>
+                    <small id="dashboardPeriodDescription">
+                        تعرض البطاقات نفس الإحصائيات التراكمية الحالية دون تغيير.
+                    </small>
+                </div>
+                <div class="dashboard-period-selectors">
+                    <label for="dashboardYearSelect">
+                        <span>السنة</span>
+                        <select id="dashboardYearSelect" class="form-select">
+                            <option value="">الإجمالي الحالي — تراكمي</option>
+                        </select>
+                    </label>
+                    <label for="dashboardCycleSelect">
+                        <span>الدورة</span>
+                        <select id="dashboardCycleSelect"
+                                class="form-select"
+                                disabled>
+                            <option value="">جميع البيانات الحالية</option>
+                        </select>
+                    </label>
+                </div>
+                <span id="dashboardPeriodBadge"
+                      class="dashboard-period-badge is-cumulative">
+                    تراكمي
+                </span>
+            </section>
+
             <section id="dashboardSection" class="kpi-row management-read-only" aria-label="مؤشرات الأداء">
                 <div class="dashboard-card kpi-total">
                     <div class="kpi-icon"><i class="fa-solid fa-hospital"></i></div>

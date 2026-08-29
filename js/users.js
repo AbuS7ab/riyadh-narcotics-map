@@ -3079,6 +3079,12 @@ function initializeAssignmentBoard() {
 
             renderAssignmentBoard(allFacilities);
 
+            if (typeof initializeDashboardCycleSelectors === "function") {
+
+                initializeDashboardCycleSelectors(allFacilities);
+
+            }
+
             const refreshedMessage =
                 document.getElementById("periodicVisitCycleMessage");
 
@@ -3146,6 +3152,12 @@ function initializeAssignmentBoard() {
             );
 
             renderAssignmentBoard(allFacilities);
+
+            if (typeof initializeDashboardCycleSelectors === "function") {
+
+                initializeDashboardCycleSelectors(allFacilities);
+
+            }
 
             const refreshedMessage =
                 document.getElementById("periodicVisitCycleMessage");

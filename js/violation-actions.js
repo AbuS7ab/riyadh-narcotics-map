@@ -287,7 +287,12 @@ function violationVisitMatchesDateRange(visit, dateFrom = "", dateTo = "") {
 }
 
 
-function getViolationRecords(facilities = null, dateFrom = "", dateTo = "") {
+function getViolationRecords(
+    facilities = null,
+    dateFrom = "",
+    dateTo = "",
+    visitPredicate = null
+) {
 
     const visibleLicenses = Array.isArray(facilities)
         ? new Set(facilities.map(facility => String(facility.license)))
@@ -312,7 +317,11 @@ function getViolationRecords(facilities = null, dateFrom = "", dateTo = "") {
             return visits.filter(visit => {
 
                 return visitIndicatesViolation(visit) &&
-                    violationVisitMatchesDateRange(visit, dateFrom, dateTo);
+                    violationVisitMatchesDateRange(visit, dateFrom, dateTo) &&
+                    (
+                        typeof visitPredicate !== "function" ||
+                        visitPredicate(visit)
+                    );
 
             }).map(visit => ({ facilityLicense, visit }));
 
@@ -344,9 +353,19 @@ function facilityHasViolationRecord(
 }
 
 
-function getViolationActionStats(facilities = null, dateFrom = "", dateTo = "") {
+function getViolationActionStats(
+    facilities = null,
+    dateFrom = "",
+    dateTo = "",
+    visitPredicate = null
+) {
 
-    const records = getViolationRecords(facilities, dateFrom, dateTo);
+    const records = getViolationRecords(
+        facilities,
+        dateFrom,
+        dateTo,
+        visitPredicate
+    );
     const referred = records.filter(({ visit }) => {
 
         return getViolationActions(visit).some(action => action.type === "referred");
@@ -404,7 +423,8 @@ function facilityMatchesViolationActionFilter(
     license,
     filter,
     dateFrom = "",
-    dateTo = ""
+    dateTo = "",
+    visitPredicate = null
 ) {
 
     const status = typeof getFacilityStatus === "function"
@@ -417,7 +437,11 @@ function facilityMatchesViolationActionFilter(
     return visits.some(visit => {
 
         return violationVisitMatchesActionFilter(visit, filter) &&
-            violationVisitMatchesDateRange(visit, dateFrom, dateTo);
+            violationVisitMatchesDateRange(visit, dateFrom, dateTo) &&
+            (
+                typeof visitPredicate !== "function" ||
+                visitPredicate(visit)
+            );
 
     });
 

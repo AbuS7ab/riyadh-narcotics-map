@@ -343,6 +343,13 @@ function applyFilters(options = {}) {
     const dateTo = getNormalizedVisitDate(activeFilters.visitDateTo);
     const hasDateFilter = Boolean(dateFrom || dateTo);
     const hasInvalidDateRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+    const dashboardCycleScope =
+        typeof getSelectedDashboardCycleScope === "function"
+            ? getSelectedDashboardCycleScope()
+            : null;
+    const dashboardScopeLicenses = dashboardCycleScope
+        ? getDashboardScopeFacilityLicenses(allFacilities, dashboardCycleScope)
+        : null;
 
     filteredFacilities = allFacilities.filter(facility => {
 
@@ -352,7 +359,19 @@ function applyFilters(options = {}) {
 
         }
 
-        const state = getFacilityStatus(facility.license);
+        if (dashboardScopeLicenses &&
+            !dashboardScopeLicenses.has(String(facility.license))) {
+
+            return false;
+
+        }
+
+        const state = dashboardCycleScope
+            ? getDashboardFacilityCycleState(
+                facility.license,
+                dashboardCycleScope
+            )
+            : getFacilityStatus(facility.license);
 
         if (
             activeFilters.visitStatus !== "all" &&
@@ -363,15 +382,32 @@ function applyFilters(options = {}) {
 
         if (activeFilters.violation !== "all") {
 
-            const matchesViolation = activeFilters.violation === "true" &&
-                typeof facilityHasViolationRecord === "function"
-                ? facilityHasViolationRecord(
-                    facility.license,
-                    dateFrom,
-                    dateTo
-                )
-                : String(state.violation) ===
-                    String(activeFilters.violation);
+            const matchesViolation = dashboardCycleScope
+                ? String(state.visits.some(visit => {
+
+                    const isViolation =
+                        typeof visitIndicatesViolation === "function"
+                            ? visitIndicatesViolation(visit)
+                            : visit && (
+                                visit.result === "violation" ||
+                                visit.violation === true
+                            );
+
+                    return isViolation && (
+                        !hasDateFilter ||
+                        visitMatchesDateRange(visit, dateFrom, dateTo)
+                    );
+
+                })) === String(activeFilters.violation)
+                : activeFilters.violation === "true" &&
+                    typeof facilityHasViolationRecord === "function"
+                    ? facilityHasViolationRecord(
+                        facility.license,
+                        dateFrom,
+                        dateTo
+                    )
+                    : String(state.violation) ===
+                        String(activeFilters.violation);
 
             if (!matchesViolation) return false;
 
@@ -385,7 +421,13 @@ function applyFilters(options = {}) {
                     facility.license,
                     activeFilters.violationAction,
                     dateFrom,
-                    dateTo
+                    dateTo,
+                    dashboardCycleScope
+                        ? visit => dashboardVisitMatchesCycleScope(
+                            visit,
+                            dashboardCycleScope
+                        )
+                        : null
                 )
             )
         ) {
@@ -417,7 +459,19 @@ function applyFilters(options = {}) {
 
         if (
             hasDateFilter &&
-            !facilityHasVisitInDateRange(facility.license, dateFrom, dateTo)
+            (
+                dashboardCycleScope
+                    ? !state.visits.some(visit => {
+
+                        return visitMatchesDateRange(visit, dateFrom, dateTo);
+
+                    })
+                    : !facilityHasVisitInDateRange(
+                        facility.license,
+                        dateFrom,
+                        dateTo
+                    )
+            )
         ) {
 
             return false;
