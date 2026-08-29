@@ -1429,6 +1429,12 @@ body.role-committee .main-grid {
     gap: 8px;
 }
 
+.periodic-cycle-action-note {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
 .periodic-cycle-panel > [role="status"] {
     grid-column: 1 / -1;
 }

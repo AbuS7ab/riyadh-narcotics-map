@@ -877,6 +877,15 @@ function getActivePeriodicVisitCycle(settings = loadAppSettings()) {
 }
 
 
+function getPeriodicVisitCycleAvailabilityMode(cycle) {
+
+    return cycle && cycle.availabilityMode === "all"
+        ? "all"
+        : "due";
+
+}
+
+
 function hasFacilityCompletedPeriodicCycle(license, cycleId) {
 
     if (!cycleId) return false;
@@ -977,6 +986,17 @@ function getPeriodicAssignmentEligibility(
     if (hasFacilityCompletedPeriodicCycle(license, cycle.id)) {
 
         return { eligible: false, reason: "completed_cycle" };
+
+    }
+
+    if (getPeriodicVisitCycleAvailabilityMode(cycle) === "all") {
+
+        return {
+            eligible: true,
+            reason: "available_by_admin",
+            daysUntilDue: 0,
+            dueDate: today
+        };
 
     }
 
@@ -1122,10 +1142,18 @@ function createPeriodicVisitCycleId(sequence) {
 
 async function startPeriodicVisitCycle(
     facilities,
-    minimumIntervalDays = defaultPeriodicVisitIntervalDays
+    minimumIntervalDays = defaultPeriodicVisitIntervalDays,
+    options = {}
 ) {
 
     if (!isAdminUser()) return null;
+
+    const availabilityMode = options.availabilityMode === "all"
+        ? "all"
+        : "due";
+    const replaceActiveCycle = options.replaceActiveCycle === true;
+    const requireBaselineCoverage =
+        options.requireBaselineCoverage !== false;
 
     const activeFacilities = facilities.filter(facility => {
 
@@ -1138,7 +1166,7 @@ async function startPeriodicVisitCycle(
 
     });
 
-    if (uncoveredFacilities.length > 0) {
+    if (requireBaselineCoverage && uncoveredFacilities.length > 0) {
 
         const error = new Error(
             `لا يمكن بدء الدورة قبل إكمال التغطية الأولى لـ ${uncoveredFacilities.length} منشأة.`
@@ -1167,8 +1195,11 @@ async function startPeriodicVisitCycle(
 
         const plan = getPeriodicVisitPlan(settings);
         const activeCycle = getActivePeriodicVisitCycle(settings);
+        const activeCycleComplete = activeCycle
+            ? isPeriodicVisitCycleComplete(activeCycle, activeFacilities)
+            : false;
 
-        if (activeCycle && !isPeriodicVisitCycleComplete(activeCycle, activeFacilities)) {
+        if (activeCycle && !activeCycleComplete && !replaceActiveCycle) {
 
             const error = new Error("توجد دورة زيارات دورية نشطة لم تكتمل.");
 
@@ -1178,14 +1209,27 @@ async function startPeriodicVisitCycle(
 
         }
 
+        const cycleClosedAt = new Date().toISOString();
         const cycles = plan.cycles.map(cycle => {
 
             if (!activeCycle || cycle.id !== activeCycle.id) return cycle;
 
+            if (!activeCycleComplete) {
+
+                return {
+                    ...cycle,
+                    status: "closed",
+                    closedAt: cycleClosedAt,
+                    closedBy: currentUser.username,
+                    closeReason: "admin_opened_all_facilities"
+                };
+
+            }
+
             return {
                 ...cycle,
                 status: "completed",
-                completedAt: new Date().toISOString()
+                completedAt: cycleClosedAt
             };
 
         });
@@ -1203,6 +1247,7 @@ async function startPeriodicVisitCycle(
             startedAt,
             startedBy: currentUser.username,
             minimumIntervalDays: intervalDays,
+            availabilityMode,
             facilityLicenses: activeFacilities.map(facility => {
 
                 return String(facility.license);
@@ -1227,6 +1272,20 @@ async function startPeriodicVisitCycle(
     }
 
     return startedCycle;
+
+}
+
+
+async function openAllFacilitiesForPeriodicAssignment(
+    facilities,
+    minimumIntervalDays = defaultPeriodicVisitIntervalDays
+) {
+
+    return startPeriodicVisitCycle(facilities, minimumIntervalDays, {
+        availabilityMode: "all",
+        replaceActiveCycle: true,
+        requireBaselineCoverage: false
+    });
 
 }
 
@@ -2672,13 +2731,17 @@ function renderPeriodicVisitCyclePanel(facilities) {
     const metrics = document.getElementById("periodicVisitCycleMetrics");
     const intervalInput = document.getElementById("periodicVisitIntervalDays");
     const startButton = document.getElementById("startPeriodicVisitCycle");
+    const openAllButton = document.getElementById(
+        "openAllFacilitiesForPeriodicAssignment"
+    );
     const assignmentSearchLabel = document.getElementById("assignmentSearchLabel");
 
     if (!title ||
         !description ||
         !metrics ||
         !intervalInput ||
-        !startButton) return;
+        !startButton ||
+        !openAllButton) return;
 
     const cycle = getActivePeriodicVisitCycle();
     const activeFacilities = facilities.filter(isFacilityEligibleForAssignment);
@@ -2711,8 +2774,10 @@ function renderPeriodicVisitCyclePanel(facilities) {
             </div>
         `;
         startButton.textContent = "بدء دورة الزيارات الدورية";
-        startButton.disabled = uncoveredCount > 0;
-        intervalInput.disabled = uncoveredCount > 0;
+        startButton.disabled = false;
+        openAllButton.textContent = "إتاحة جميع المنشآت للإسناد الآن";
+        openAllButton.disabled = false;
+        intervalInput.disabled = false;
 
         if (assignmentSearchLabel) {
 
@@ -2726,10 +2791,12 @@ function renderPeriodicVisitCyclePanel(facilities) {
 
     const summary = getPeriodicVisitCycleSummary(activeFacilities, { cycle });
     const isComplete = summary.total > 0 && summary.completed === summary.total;
+    const availabilityMode = getPeriodicVisitCycleAvailabilityMode(cycle);
 
     title.textContent = `دورة الزيارات الدورية ${cycle.sequence}`;
-    description.textContent =
-        `فتحت لجميع المنشآت النشطة؛ الإسناد متاح بعد مرور ${cycle.minimumIntervalDays} يومًا من آخر زيارة.`;
+    description.textContent = availabilityMode === "all"
+        ? "جميع المنشآت النشطة غير المسندة متاحة للإسناد فورًا بقرار إداري."
+        : `فتحت لجميع المنشآت النشطة؛ الإسناد متاح بعد مرور ${cycle.minimumIntervalDays} يومًا من آخر زيارة.`;
     metrics.innerHTML = `
         <div class="periodic-cycle-metric">
             <span>مستحقة الآن</span>
@@ -2759,11 +2826,13 @@ function renderPeriodicVisitCyclePanel(facilities) {
     intervalInput.value = String(
         cycle.minimumIntervalDays || defaultPeriodicVisitIntervalDays
     );
-    intervalInput.disabled = !isComplete;
+    intervalInput.disabled = false;
     startButton.textContent = isComplete
         ? "بدء الدورة التالية"
-        : `الدورة ${cycle.sequence} نشطة`;
-    startButton.disabled = !isComplete;
+        : "بدء دورة دورية جديدة";
+    startButton.disabled = false;
+    openAllButton.textContent = "إتاحة جميع المنشآت من جديد";
+    openAllButton.disabled = false;
 
     if (assignmentSearchLabel) {
 
@@ -2947,6 +3016,9 @@ function initializeAssignmentBoard() {
         document.getElementById("periodicVisitIntervalDays");
     const startPeriodicCycleButton =
         document.getElementById("startPeriodicVisitCycle");
+    const openAllFacilitiesButton = document.getElementById(
+        "openAllFacilitiesForPeriodicAssignment"
+    );
     const periodicCycleMessage =
         document.getElementById("periodicVisitCycleMessage");
 
@@ -2962,6 +3034,7 @@ function initializeAssignmentBoard() {
         !smartAssignButton ||
         !periodicIntervalInput ||
         !startPeriodicCycleButton ||
+        !openAllFacilitiesButton ||
         !periodicCycleMessage ||
         !isAdminUser()) return;
 
@@ -2993,6 +3066,7 @@ function initializeAssignmentBoard() {
         if (!confirmed) return;
 
         startPeriodicCycleButton.disabled = true;
+        openAllFacilitiesButton.disabled = true;
         periodicCycleMessage.textContent = "جاري بدء الدورة ومزامنتها...";
         periodicCycleMessage.className = "small text-muted";
 
@@ -3017,6 +3091,77 @@ function initializeAssignmentBoard() {
             periodicCycleMessage.textContent = error && error.message
                 ? error.message
                 : "تعذر بدء دورة الزيارات الدورية.";
+            periodicCycleMessage.className = "small text-danger";
+            renderPeriodicVisitCyclePanel(allFacilities);
+
+        }
+
+    });
+
+    openAllFacilitiesButton.addEventListener("click", async () => {
+
+        const intervalDays = Math.floor(Number(periodicIntervalInput.value));
+
+        if (!Number.isInteger(intervalDays) ||
+            intervalDays < 1 ||
+            intervalDays > 365) {
+
+            periodicCycleMessage.textContent =
+                "أدخل مدة صحيحة بين 1 و365 يومًا.";
+            periodicCycleMessage.className = "small text-danger";
+
+            return;
+
+        }
+
+        const activeCycle = getActivePeriodicVisitCycle();
+        const actionLabel = activeCycle
+            ? "إغلاق الدورة الحالية إداريًا وبدء دورة جديدة"
+            : "بدء دورة جديدة";
+        const confirmed = window.confirm(
+            `${actionLabel} تتيح جميع المنشآت النشطة غير المسندة فورًا؟\n` +
+            "لن تُلغى الإسنادات المفتوحة، ولن تُحذف أو تُعدّل أي زيارة أو إسناد سابق."
+        );
+
+        if (!confirmed) return;
+
+        startPeriodicCycleButton.disabled = true;
+        openAllFacilitiesButton.disabled = true;
+        periodicCycleMessage.textContent =
+            "جاري إتاحة المنشآت ومزامنة الدورة...";
+        periodicCycleMessage.className = "small text-muted";
+
+        try {
+
+            const cycle = await openAllFacilitiesForPeriodicAssignment(
+                allFacilities,
+                intervalDays
+            );
+            const activeFacilities = allFacilities.filter(
+                isFacilityEligibleForAssignment
+            );
+            const summary = getPeriodicVisitCycleSummary(
+                activeFacilities,
+                { cycle }
+            );
+
+            renderAssignmentBoard(allFacilities);
+
+            const refreshedMessage =
+                document.getElementById("periodicVisitCycleMessage");
+            const assignedMessage = summary.assigned > 0
+                ? ` وبقيت ${summary.assigned} منشأة مسندة حاليًا دون تغيير.`
+                : ".";
+
+            refreshedMessage.textContent =
+                `تم بدء الدورة ${cycle.sequence} وإتاحة ${summary.eligible} منشأة للإسناد فورًا${assignedMessage}`;
+            refreshedMessage.className = "small text-success";
+
+        } catch (error) {
+
+            periodicCycleMessage.textContent = error && error.message
+                ? error.message
+                : "تعذر إتاحة جميع المنشآت للإسناد.";
             periodicCycleMessage.className = "small text-danger";
             renderPeriodicVisitCyclePanel(allFacilities);
 

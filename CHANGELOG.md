@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.14.11] - 2026-08-29
+
+- Kept the periodic-cycle action clickable so an administrator receives the
+  exact blocking reason instead of a silent disabled control.
+- Added an explicit Admin override that starts a new cycle and makes every
+  active, currently unassigned facility immediately available while preserving
+  visits, open assignments, and assignment history.
+- Recorded an administratively replaced incomplete cycle as closed rather than
+  falsely marking it completed.
+
 ## [v0.14.6] - 2026-08-01
 
 - Added an Admin return button from facility details to the selected

@@ -11,6 +11,7 @@ const {
 const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const sidebar = fs.readFileSync(path.join(root, "js/sidebar.js"), "utf8");
+const usersScript = fs.readFileSync(path.join(root, "js/users.js"), "utf8");
 
 
 function createAdmin() {
@@ -214,6 +215,102 @@ test("opening a cycle snapshots facilities without changing visits or assignment
     assert.deepEqual(
         Array.from(cycle.facilityLicenses),
         ["100", "101"]
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityStatus").value,
+        statusesBefore
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityAssignments").value,
+        assignmentsBefore
+    );
+
+});
+
+
+test("Admin can make every active unassigned facility immediately available", async () => {
+
+    const statuses = {
+        100: createFacilityStatus("100", "2026-07-20"),
+        101: {
+            visitStatus: "pending",
+            violation: false,
+            visitDate: null,
+            visits: []
+        },
+        102: createFacilityStatus("102", "2026-07-25")
+    };
+    const assignments = {
+        100: createCompletedAssignment("100"),
+        102: {
+            ...createCompletedAssignment("102"),
+            status: "assigned"
+        }
+    };
+    const { context, supabase } = await createCycleRuntime({
+        statuses,
+        assignments,
+        appSettings: {
+            periodicVisitPlan: createActiveCycle(["100", "101", "102"])
+        }
+    });
+    const statusesBefore = structuredClone(
+        supabase.rows.get("facilityStatus").value
+    );
+    const assignmentsBefore = structuredClone(
+        supabase.rows.get("facilityAssignments").value
+    );
+
+    const cycle = await context.openAllFacilitiesForPeriodicAssignment([
+        { license: "100" },
+        { license: "101" },
+        { license: "102" }
+    ], 75);
+    const plan = supabase.rows.get("appSettings").value.periodicVisitPlan;
+    const previousCycle = plan.cycles.find(item => item.id === "cycle-1");
+
+    assert.equal(cycle.sequence, 2);
+    assert.equal(cycle.availabilityMode, "all");
+    assert.equal(previousCycle.status, "closed");
+    assert.equal(previousCycle.closeReason, "admin_opened_all_facilities");
+    assert.equal(
+        context.getPeriodicAssignmentEligibility(
+            { license: "100" },
+            { today: "2026-07-28" }
+        ).reason,
+        "available_by_admin"
+    );
+    assert.equal(
+        context.getPeriodicAssignmentEligibility(
+            { license: "101" },
+            { today: "2026-07-28" }
+        ).eligible,
+        true
+    );
+    assert.equal(
+        context.getPeriodicAssignmentEligibility(
+            { license: "102" },
+            { today: "2026-07-28" }
+        ).reason,
+        "assignment"
+    );
+    const summary = context.getPeriodicVisitCycleSummary([
+        { license: "100" },
+        { license: "101" },
+        { license: "102" }
+    ], { cycle, today: "2026-07-28" });
+
+    assert.deepEqual(
+        { ...summary },
+        {
+            total: 3,
+            eligible: 2,
+            dueSoon: 0,
+            waiting: 0,
+            assigned: 1,
+            completed: 0,
+            unknownVisitDate: 0
+        }
     );
     assert.deepEqual(
         supabase.rows.get("facilityStatus").value,
@@ -733,7 +830,14 @@ test("the Admin cycle controls explain that historical records are preserved", (
     assert.match(html, /id="periodicVisitCyclePanel"/);
     assert.match(html, /id="periodicVisitIntervalDays"[\s\S]*value="75"/);
     assert.match(html, /id="startPeriodicVisitCycle"/);
+    assert.match(html, /id="openAllFacilitiesForPeriodicAssignment"/);
+    assert.match(html, /إتاحة جميع المنشآت للإسناد الآن/);
     assert.match(html, /دون تعديل الزيارات السابقة/);
+    assert.match(usersScript, /startButton\.disabled = false/);
+    assert.doesNotMatch(
+        usersScript,
+        /startButton\.disabled = uncoveredCount > 0/
+    );
 
 });
 
