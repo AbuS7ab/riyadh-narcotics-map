@@ -271,6 +271,10 @@ test("Admin can make every active unassigned facility immediately available", as
 
     assert.equal(cycle.sequence, 2);
     assert.equal(cycle.availabilityMode, "all");
+    assert.equal(
+        cycle.startedLocalDate,
+        context.getCurrentLocalDateValue()
+    );
     assert.equal(previousCycle.status, "closed");
     assert.equal(previousCycle.closeReason, "admin_opened_all_facilities");
     assert.equal(
@@ -319,6 +323,102 @@ test("Admin can make every active unassigned facility immediately available", as
     assert.deepEqual(
         supabase.rows.get("facilityAssignments").value,
         assignmentsBefore
+    );
+
+});
+
+
+test("visits from the active cycle start date move an older open assignment into the new cycle", async () => {
+
+    const assignment = {
+        id: "assignment-100",
+        facilityLicense: "100",
+        committeeUsername: "committee4",
+        assignedAt: "2026-09-01T08:00:00.000Z",
+        status: "assigned",
+        visitType: "periodic",
+        visitReason: "الخطة الدورية",
+        visitCycleId: "cycle-1",
+        visitCycleNumber: 1
+    };
+    const { context, supabase } = await createCycleRuntime({
+        currentUser: "committee4",
+        assignments: { 100: assignment },
+        statuses: {
+            100: createFacilityStatus("100", "2026-09-03", {
+                visitCycleId: "cycle-1",
+                visitCycleNumber: 1
+            })
+        },
+        appSettings: {
+            periodicVisitPlan: {
+                currentCycleId: "cycle-2",
+                cycles: [
+                    {
+                        id: "cycle-1",
+                        sequence: 1,
+                        status: "closed",
+                        startedAt: "2026-06-01T08:00:00.000Z",
+                        startedLocalDate: "2026-06-01",
+                        facilityLicenses: ["100"]
+                    },
+                    {
+                        id: "cycle-2",
+                        sequence: 2,
+                        status: "active",
+                        startedAt: "2026-09-04T05:00:00.000Z",
+                        facilityLicenses: ["100"]
+                    }
+                ]
+            }
+        }
+    });
+    const visitsBefore = structuredClone(
+        supabase.rows.get("facilityStatus").value["100"].visits
+    );
+    const priorMetadata = context.resolvePeriodicVisitCycleMetadata(
+        assignment,
+        "2026-09-03"
+    );
+    const currentMetadata = context.resolvePeriodicVisitCycleMetadata(
+        assignment,
+        "2026-09-04"
+    );
+
+    assert.deepEqual(
+        { ...priorMetadata },
+        { visitCycleId: "cycle-1", visitCycleNumber: 1 }
+    );
+    assert.deepEqual(
+        { ...currentMetadata },
+        { visitCycleId: "cycle-2", visitCycleNumber: 2 }
+    );
+
+    await context.updateAssignmentFromVisit(
+        "100",
+        "no_violation",
+        "visit-cycle-2",
+        "assignment-100",
+        currentMetadata
+    );
+
+    const savedAssignment =
+        supabase.rows.get("facilityAssignments").value["100"];
+
+    assert.equal(savedAssignment.status, "completed");
+    assert.equal(savedAssignment.visitCycleId, "cycle-2");
+    assert.equal(savedAssignment.visitCycleNumber, 2);
+    assert.deepEqual(
+        supabase.rows.get("facilityStatus").value["100"].visits,
+        visitsBefore
+    );
+    assert.match(
+        sidebar,
+        /resolvePeriodicVisitCycleMetadata[\s\S]*visitDate\.value/
+    );
+    assert.match(
+        sidebar,
+        /updateAssignmentFromVisit\([\s\S]*savedVisit\s*\)/
     );
 
 });

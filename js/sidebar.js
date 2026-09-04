@@ -1271,6 +1271,20 @@ function showFacilityDetails(facility) {
             typeof getActiveCommitteeEmployeeSnapshot !== "function"
             ? null
             : getActiveCommitteeEmployeeSnapshot(visitCommitteeUsername);
+        const visitCycleMetadata = currentAssignment &&
+            typeof resolvePeriodicVisitCycleMetadata === "function"
+            ? resolvePeriodicVisitCycleMetadata(
+                currentAssignment,
+                visitDate.value
+            )
+            : {
+                visitCycleId: currentAssignment
+                    ? currentAssignment.visitCycleId || null
+                    : null,
+                visitCycleNumber: currentAssignment
+                    ? currentAssignment.visitCycleNumber || null
+                    : null
+            };
 
         saveVisit.disabled = true;
         visitSaveMessage.textContent = "جاري حفظ الزيارة ومزامنتها...";
@@ -1299,12 +1313,8 @@ function showFacilityDetails(facility) {
                 visitReason: currentAssignment
                     ? currentAssignment.visitReason || "الخطة الدورية"
                     : "الخطة الدورية",
-                visitCycleId: currentAssignment
-                    ? currentAssignment.visitCycleId || null
-                    : null,
-                visitCycleNumber: currentAssignment
-                    ? currentAssignment.visitCycleNumber || null
-                    : null,
+                visitCycleId: visitCycleMetadata.visitCycleId,
+                visitCycleNumber: visitCycleMetadata.visitCycleNumber,
                 result,
                 incompleteReason: result === "incomplete" ? incompleteReason.value : "",
                 transactionNumber: visitTransactionNumber.value.trim(),
@@ -1320,7 +1330,8 @@ function showFacilityDetails(facility) {
                     facility.license,
                     result,
                     savedVisit ? savedVisit.id : "",
-                    currentAssignment ? currentAssignment.id || "" : ""
+                    currentAssignment ? currentAssignment.id || "" : "",
+                    savedVisit
                 );
 
             } catch (assignmentError) {

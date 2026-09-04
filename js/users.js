@@ -877,6 +877,73 @@ function getActivePeriodicVisitCycle(settings = loadAppSettings()) {
 }
 
 
+function getPeriodicVisitCycleStartDate(cycle) {
+
+    const storedDate = String(cycle && cycle.startedLocalDate || "")
+        .slice(0, 10);
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(storedDate)) return storedDate;
+
+    const startedAt = new Date(cycle && cycle.startedAt || "");
+
+    if (Number.isNaN(startedAt.getTime())) return "";
+
+    return typeof getCurrentLocalDateValue === "function"
+        ? getCurrentLocalDateValue(startedAt)
+        : startedAt.toISOString().slice(0, 10);
+
+}
+
+
+function resolvePeriodicVisitCycleMetadata(
+    assignment,
+    visitDate,
+    settings = loadAppSettings()
+) {
+
+    const fallback = {
+        visitCycleId: assignment && assignment.visitCycleId || null,
+        visitCycleNumber: Number(
+            assignment && assignment.visitCycleNumber
+        ) || null
+    };
+
+    if (!assignment || assignment.visitType === "reactive") return fallback;
+
+    const activeCycle = getActivePeriodicVisitCycle(settings);
+    const normalizedVisitDate = String(visitDate || "").slice(0, 10);
+    const cycleStartDate = getPeriodicVisitCycleStartDate(activeCycle);
+
+    if (!activeCycle ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(normalizedVisitDate) ||
+        !cycleStartDate ||
+        normalizedVisitDate < cycleStartDate) {
+
+        return fallback;
+
+    }
+
+    const facilityLicense = String(assignment.facilityLicense || "");
+    const cycleLicenses = new Set(
+        Array.isArray(activeCycle.facilityLicenses)
+            ? activeCycle.facilityLicenses.map(String)
+            : []
+    );
+
+    if (!facilityLicense || !cycleLicenses.has(facilityLicense)) {
+
+        return fallback;
+
+    }
+
+    return {
+        visitCycleId: String(activeCycle.id),
+        visitCycleNumber: Number(activeCycle.sequence) || null
+    };
+
+}
+
+
 function getPeriodicVisitCycleAvailabilityMode(cycle) {
 
     return cycle && cycle.availabilityMode === "all"
@@ -1239,12 +1306,16 @@ async function startPeriodicVisitCycle(
 
         }, 0) + 1;
         const startedAt = new Date().toISOString();
+        const startedLocalDate = typeof getCurrentLocalDateValue === "function"
+            ? getCurrentLocalDateValue()
+            : startedAt.slice(0, 10);
 
         startedCycle = {
             id: createPeriodicVisitCycleId(sequence),
             sequence,
             status: "active",
             startedAt,
+            startedLocalDate,
             startedBy: currentUser.username,
             minimumIntervalDays: intervalDays,
             availabilityMode,
@@ -1874,7 +1945,8 @@ async function updateAssignmentFromVisit(
     facilityLicense,
     result,
     visitId = "",
-    expectedAssignmentId = ""
+    expectedAssignmentId = "",
+    visitMetadata = null
 ) {
 
     if (!isCommitteeUser()) return;
@@ -1891,8 +1963,27 @@ async function updateAssignmentFromVisit(
         : ["incomplete", "partial"].includes(result)
             ? "in_progress"
             : null;
+    const assignmentVisitType = assignment.visitType === "reactive"
+        ? "reactive"
+        : "periodic";
+    const nextVisitCycleId = assignmentVisitType === "periodic" &&
+        visitMetadata && visitMetadata.visitCycleId
+        ? String(visitMetadata.visitCycleId)
+        : "";
+    const nextVisitCycleNumber = nextVisitCycleId
+        ? Number(visitMetadata.visitCycleNumber) || null
+        : null;
+    const cycleChanged = Boolean(nextVisitCycleId) && (
+        String(assignment.visitCycleId || "") !== nextVisitCycleId ||
+        Number(assignment.visitCycleNumber || 0) !==
+            Number(nextVisitCycleNumber || 0)
+    );
 
-    if (!status || assignment.status === status) return assignment;
+    if (!status || (assignment.status === status && !cycleChanged)) {
+
+        return assignment;
+
+    }
 
     const statusBefore = assignment.status;
 
@@ -1924,6 +2015,14 @@ async function updateAssignmentFromVisit(
                 }
 
                 nextAssignment.status = status;
+
+                if (nextAssignment.visitType !== "reactive" &&
+                    nextVisitCycleId) {
+
+                    nextAssignment.visitCycleId = nextVisitCycleId;
+                    nextAssignment.visitCycleNumber = nextVisitCycleNumber;
+
+                }
 
                 return nextAssignments;
 
@@ -3089,7 +3188,8 @@ function initializeAssignmentBoard() {
                 document.getElementById("periodicVisitCycleMessage");
 
             refreshedMessage.textContent =
-                `تم بدء الدورة ${cycle.sequence}. ستظهر المنشآت عند بلوغ الاستحقاق الزمني.`;
+                `تم بدء الدورة ${cycle.sequence} من تاريخ ${getPeriodicVisitCycleStartDate(cycle)}. ` +
+                "ستظهر المنشآت عند بلوغ الاستحقاق الزمني.";
             refreshedMessage.className = "small text-success";
 
         } catch (error) {
@@ -3166,7 +3266,8 @@ function initializeAssignmentBoard() {
                 : ".";
 
             refreshedMessage.textContent =
-                `تم بدء الدورة ${cycle.sequence} وإتاحة ${summary.eligible} منشأة للإسناد فورًا${assignedMessage}`;
+                `تم بدء الدورة ${cycle.sequence} من تاريخ ${getPeriodicVisitCycleStartDate(cycle)} ` +
+                `وإتاحة ${summary.eligible} منشأة للإسناد فورًا${assignedMessage}`;
             refreshedMessage.className = "small text-success";
 
         } catch (error) {

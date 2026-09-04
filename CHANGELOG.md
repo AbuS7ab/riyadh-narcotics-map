@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.14.13] - 2026-09-04
+
+- Anchored each new periodic cycle to its local start date.
+- Counted periodic visits dated on or after the active cycle start inside that
+  cycle, including visits completed from an older still-open assignment.
+- Updated the matching assignment cycle metadata only when its visit is saved,
+  while preserving all historical visits and reactive work unchanged.
+
 ## [v0.14.12] - 2026-08-29
 
 - Added read-only year and periodic-cycle selectors above the operational KPIs.
