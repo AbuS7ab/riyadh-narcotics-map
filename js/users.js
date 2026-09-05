@@ -2467,7 +2467,8 @@ async function smartAssignFacilities(
     facilities,
     committeeUsername,
     count,
-    startFacilityLicense = ""
+    startFacilityLicense = "",
+    district = ""
 ) {
 
     if (!isAdminUser()) return [];
@@ -2487,14 +2488,19 @@ async function smartAssignFacilities(
     console.log(`Smart assignment requested: ${requestedCount}`);
     console.log(`Smart assignment explicitStartFacility: ${startFacilityLicense || ""}`);
 
-    const selectedStartFacility = facilities.find(facility => {
+    const scopedFacilities = getFacilitiesInAssignmentDistrict(
+        facilities,
+        district
+    );
+
+    const selectedStartFacility = scopedFacilities.find(facility => {
 
         return String(facility.license) === String(startFacilityLicense);
 
     });
     const explicitStartSelected = Boolean(startFacilityLicense);
     const startDuplicateLicenses = new Set();
-    const startLicenseCount = facilities.filter(facility => {
+    const startLicenseCount = scopedFacilities.filter(facility => {
 
         return String(facility.license) === String(startFacilityLicense);
 
@@ -2530,12 +2536,12 @@ async function smartAssignFacilities(
 
     const referencePoint = explicitStartSelected
         ? selectedStartFacility
-        : getSmartAssignmentReferencePoint(committeeUsername, facilities);
+        : getSmartAssignmentReferencePoint(committeeUsername, scopedFacilities);
     const {
         candidates,
         excludedVisitedCount
     } = getSmartAssignmentCandidates(
-        facilities,
+        scopedFacilities,
         explicitStartSelected ? startFacilityLicense : ""
     );
     const startFacilities = explicitStartSelected ? [selectedStartFacility] : [];
@@ -2805,6 +2811,92 @@ function getUnassignedFacilities(facilities, visitType = "periodic", options = {
 }
 
 
+function normalizeAssignmentDistrict(value) {
+
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+        .replace(/[أإآ]/g, "ا")
+        .replace(/ى/g, "ي")
+        .replace(/ة/g, "ه")
+        .replace(/\s+/g, " ");
+
+}
+
+
+function getAssignmentDistrictOptions(facilities) {
+
+    const districtsByNormalizedName = new Map();
+
+    facilities
+        .filter(isFacilityEligibleForAssignment)
+        .map(facility => String(facility && facility.district || "").trim())
+        .filter(Boolean)
+        .forEach(district => {
+
+            const normalizedDistrict = normalizeAssignmentDistrict(district);
+
+            if (!districtsByNormalizedName.has(normalizedDistrict)) {
+
+                districtsByNormalizedName.set(normalizedDistrict, district);
+
+            }
+
+        });
+
+    return [...districtsByNormalizedName.values()]
+        .sort((first, second) => first.localeCompare(second, "ar"));
+
+}
+
+
+function getFacilitiesInAssignmentDistrict(facilities, district = "") {
+
+    const normalizedDistrict = normalizeAssignmentDistrict(district);
+
+    if (!normalizedDistrict) return facilities;
+
+    return facilities.filter(facility => {
+
+        return normalizeAssignmentDistrict(facility && facility.district) ===
+            normalizedDistrict;
+
+    });
+
+}
+
+
+function getAssignmentBoardFacilities(facilities, options = {}) {
+
+    const query = String(options.query || "").trim().toLowerCase();
+    const districtFacilities = getFacilitiesInAssignmentDistrict(
+        facilities,
+        options.district
+    );
+
+    return getUnassignedFacilities(
+        districtFacilities,
+        options.visitType,
+        {
+            committeeUsername: options.committeeUsername,
+            visitReason: options.visitReason
+        }
+    ).filter(facility => {
+
+        return [
+            facility.name,
+            facility.license,
+            getFacilityDisplayLicense(facility),
+            facility.district,
+            facility.type
+        ].some(value => String(value || "").toLowerCase().includes(query));
+
+    });
+
+}
+
+
 function syncSmartAssignmentStartFromChecked() {
 
     const startFacilitySelect =
@@ -2947,6 +3039,8 @@ function renderAssignmentBoard(facilities) {
     const list = document.getElementById("unassignedFacilitiesList");
     const committeeSelect = document.getElementById("assignmentCommittee");
     const searchInput = document.getElementById("assignmentSearch");
+    const districtFilter = document.getElementById("assignmentDistrictFilter");
+    const filterSummary = document.getElementById("assignmentFilterSummary");
     const visitTypeSelect = document.getElementById("assignmentVisitType");
     const visitReasonSelect = document.getElementById("assignmentVisitReason");
     const startFacilitySelect =
@@ -2955,6 +3049,8 @@ function renderAssignmentBoard(facilities) {
     if (!list ||
         !committeeSelect ||
         !searchInput ||
+        !districtFilter ||
+        !filterSummary ||
         !visitTypeSelect ||
         !visitReasonSelect ||
         !startFacilitySelect ||
@@ -2964,9 +3060,28 @@ function renderAssignmentBoard(facilities) {
 
     const selectedCommittee = committeeSelect.value;
     const selectedStartFacility = startFacilitySelect.value;
+    const selectedDistrict = districtFilter.value;
     const selectedVisitType = visitTypeSelect.value === "reactive"
         ? "reactive"
         : "periodic";
+
+    const districtOptions = getAssignmentDistrictOptions(facilities);
+    const preservedDistrict = districtOptions.find(district => {
+
+        return normalizeAssignmentDistrict(district) ===
+            normalizeAssignmentDistrict(selectedDistrict);
+
+    }) || "";
+
+    districtFilter.innerHTML = `
+        <option value="">كل الأحياء</option>
+        ${districtOptions.map(district => `
+            <option value="${escapeHtml(district)}">
+                ${escapeHtml(district)}
+            </option>
+        `).join("")}
+    `;
+    districtFilter.value = preservedDistrict;
 
     if (selectedVisitType === "reactive") {
 
@@ -2999,10 +3114,18 @@ function renderAssignmentBoard(facilities) {
 
     }
 
+    const districtFacilities = getFacilitiesInAssignmentDistrict(
+        facilities,
+        preservedDistrict
+    );
+    const smartStartFacilities = getUnassignedFacilities(
+        districtFacilities,
+        "periodic"
+    ).filter(hasValidCoordinates);
+
     startFacilitySelect.innerHTML = `
         <option value="">تحديد تلقائي لنقطة البداية</option>
-        ${getUnassignedFacilities(facilities, "periodic")
-            .filter(hasValidCoordinates)
+        ${smartStartFacilities
             .map(facility => {
                 const displayLicense = getFacilityDisplayLicense(facility);
 
@@ -3016,10 +3139,9 @@ function renderAssignmentBoard(facilities) {
             }).join("")}
     `;
 
-    if (facilities.some(facility => {
+    if (smartStartFacilities.some(facility => {
 
-        return String(facility.license) === selectedStartFacility &&
-            hasValidCoordinates(facility);
+        return String(facility.license) === selectedStartFacility;
 
     })) {
 
@@ -3027,26 +3149,21 @@ function renderAssignmentBoard(facilities) {
 
     }
 
-    const query = searchInput.value.trim().toLowerCase();
-    const unassignedFacilities = getUnassignedFacilities(
+    const unassignedFacilities = getAssignmentBoardFacilities(
         facilities,
-        selectedVisitType,
         {
+            district: preservedDistrict,
+            query: searchInput.value,
+            visitType: selectedVisitType,
             committeeUsername: selectedCommittee,
             visitReason: visitReasonSelect.value
         }
-    ).filter(facility => {
+    );
 
-        return [
-            facility.name,
-            facility.license,
-            getFacilityDisplayLicense(facility),
-            facility.district,
-            facility.type
-        ]
-            .some(value => String(value || "").toLowerCase().includes(query));
-
-    });
+    filterSummary.textContent = preservedDistrict
+        ? `يعرض ${unassignedFacilities.length} منشأة في ${preservedDistrict}. ` +
+            "الإسناد التلقائي سيبقى داخل هذا الحي."
+        : `يعرض ${unassignedFacilities.length} منشأة في جميع الأحياء.`;
 
     if (unassignedFacilities.length === 0) {
 
@@ -3100,6 +3217,7 @@ function renderAssignmentBoard(facilities) {
 function initializeAssignmentBoard() {
 
     const searchInput = document.getElementById("assignmentSearch");
+    const districtFilter = document.getElementById("assignmentDistrictFilter");
     const list = document.getElementById("unassignedFacilitiesList");
     const assignButton = document.getElementById("assignSelectedFacilities");
     const committeeSelect = document.getElementById("assignmentCommittee");
@@ -3122,6 +3240,7 @@ function initializeAssignmentBoard() {
         document.getElementById("periodicVisitCycleMessage");
 
     if (!searchInput ||
+        !districtFilter ||
         !list ||
         !assignButton ||
         !committeeSelect ||
@@ -3284,6 +3403,13 @@ function initializeAssignmentBoard() {
 
     searchInput.addEventListener("input", () => {
 
+        renderAssignmentBoard(allFacilities);
+
+    });
+
+    districtFilter.addEventListener("change", () => {
+
+        smartAssignmentStartMode = "auto";
         renderAssignmentBoard(allFacilities);
 
     });
@@ -3462,7 +3588,8 @@ function initializeAssignmentBoard() {
                 allFacilities,
                 committee.username,
                 count,
-                startFacilitySelect.value
+                startFacilitySelect.value,
+                districtFilter.value
             );
 
         } catch (error) {
@@ -3499,7 +3626,9 @@ function initializeAssignmentBoard() {
 
         renderAssignmentBoard(allFacilities);
 
-        message.textContent = `تم إسناد ${assignedFacilities.length} منشأة حسب الأقرب.`;
+        message.textContent = districtFilter.value
+            ? `تم إسناد ${assignedFacilities.length} منشأة حسب الأقرب داخل ${districtFilter.value}.`
+            : `تم إسناد ${assignedFacilities.length} منشأة حسب الأقرب.`;
         message.className = "small text-success";
 
     });

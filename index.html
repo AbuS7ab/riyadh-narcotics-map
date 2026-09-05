@@ -603,11 +603,25 @@
 
                 <div class="assignment-board-body">
                     <div>
-                        <label id="assignmentSearchLabel"
-                               for="assignmentSearch"
-                               class="form-label">المنشآت غير المسندة</label>
-                        <input id="assignmentSearch" class="form-control mb-3"
-                               placeholder="ابحث بالاسم أو الترخيص أو الحي أو النوع">
+                        <div class="assignment-list-filters">
+                            <div>
+                                <label for="assignmentDistrictFilter"
+                                       class="form-label">الحي</label>
+                                <select id="assignmentDistrictFilter"
+                                        class="form-select">
+                                    <option value="">كل الأحياء</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label id="assignmentSearchLabel"
+                                       for="assignmentSearch"
+                                       class="form-label">المنشآت غير المسندة</label>
+                                <input id="assignmentSearch" class="form-control"
+                                       placeholder="ابحث بالاسم أو الترخيص أو الحي أو النوع">
+                            </div>
+                        </div>
+                        <div id="assignmentFilterSummary"
+                             class="assignment-filter-summary small text-muted"></div>
                         <div id="unassignedFacilitiesList" class="assignment-facility-list"></div>
                     </div>
 

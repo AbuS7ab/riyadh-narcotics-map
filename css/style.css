@@ -1516,6 +1516,18 @@ body.role-committee .main-grid {
     gap: 20px;
 }
 
+.assignment-list-filters {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1.3fr);
+    gap: 12px;
+    align-items: end;
+}
+
+.assignment-filter-summary {
+    min-height: 20px;
+    margin: 8px 2px;
+}
+
 @media (max-width: 992px) {
     .periodic-cycle-panel {
         grid-template-columns: 1fr;
@@ -2053,6 +2065,10 @@ body.role-committee .main-grid {
     }
 
     .assignment-board-body {
+        grid-template-columns: 1fr;
+    }
+
+    .assignment-list-filters {
         grid-template-columns: 1fr;
     }
 

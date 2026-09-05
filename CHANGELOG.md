@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.14.14] - 2026-09-05
+
+- Added a district selector to the Admin facility-assignment board.
+- Combined district selection with the existing assignment search and visible
+  result count without changing stored facilities, visits, or statistics.
+- Restricted smart-assignment candidates and starting facilities to the
+  selected district while preserving the existing all-district behavior.
+
 ## [v0.14.13] - 2026-09-04
 
 - Anchored each new periodic cycle to its local start date.
