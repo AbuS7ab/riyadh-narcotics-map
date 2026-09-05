@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.14.15] - 2026-09-05
+
+- Replaced the assignment district select with a searchable district picker.
+- Populated the picker from the cleaned Riyadh district list while retaining
+  districts that already exist on active facility records.
+- Allowed partial district typing to narrow visible facilities, but required a
+  complete listed district before manual or smart assignment can be saved.
+- Preserved all existing visits, assignments, cycles, and dashboard statistics.
+
 ## [v0.14.14] - 2026-09-05
 
 - Added a district selector to the Admin facility-assignment board.

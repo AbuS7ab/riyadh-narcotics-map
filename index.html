@@ -606,11 +606,25 @@
                         <div class="assignment-list-filters">
                             <div>
                                 <label for="assignmentDistrictFilter"
-                                       class="form-label">الحي</label>
-                                <select id="assignmentDistrictFilter"
-                                        class="form-select">
-                                    <option value="">كل الأحياء</option>
-                                </select>
+                                       class="form-label">الحي — اختيار أو بحث</label>
+                                <div class="input-group assignment-district-control">
+                                    <input id="assignmentDistrictFilter"
+                                           class="form-control"
+                                           type="search"
+                                           list="assignmentDistrictOptions"
+                                           placeholder="كل الأحياء — اكتب للبحث"
+                                           autocomplete="off"
+                                           aria-label="اختيار حي الإسناد أو البحث باسمه">
+                                    <button id="openAssignmentDistrictPicker"
+                                            type="button"
+                                            class="btn btn-outline-secondary"
+                                            title="عرض قائمة الأحياء"
+                                            aria-label="عرض قائمة الأحياء">
+                                        <i class="fa-solid fa-chevron-down"
+                                           aria-hidden="true"></i>
+                                    </button>
+                                </div>
+                                <datalist id="assignmentDistrictOptions"></datalist>
                             </div>
                             <div>
                                 <label id="assignmentSearchLabel"

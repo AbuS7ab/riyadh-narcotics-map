@@ -2820,7 +2820,8 @@ function normalizeAssignmentDistrict(value) {
         .replace(/[أإآ]/g, "ا")
         .replace(/ى/g, "ي")
         .replace(/ة/g, "ه")
-        .replace(/\s+/g, " ");
+        .replace(/\s+/g, " ")
+        .replace(/^حي\s+/, "");
 
 }
 
@@ -2828,10 +2829,15 @@ function normalizeAssignmentDistrict(value) {
 function getAssignmentDistrictOptions(facilities) {
 
     const districtsByNormalizedName = new Map();
-
-    facilities
+    const configuredDistricts = Array.isArray(window.RIYADH_DISTRICTS)
+        ? window.RIYADH_DISTRICTS
+        : [];
+    const facilityDistricts = facilities
         .filter(isFacilityEligibleForAssignment)
-        .map(facility => String(facility && facility.district || "").trim())
+        .map(facility => facility && facility.district);
+
+    [...configuredDistricts, ...facilityDistricts]
+        .map(value => String(value || "").trim())
         .filter(Boolean)
         .forEach(district => {
 
@@ -2847,6 +2853,37 @@ function getAssignmentDistrictOptions(facilities) {
 
     return [...districtsByNormalizedName.values()]
         .sort((first, second) => first.localeCompare(second, "ar"));
+
+}
+
+
+function resolveAssignmentDistrictName(districts, value) {
+
+    const normalizedValue = normalizeAssignmentDistrict(value);
+
+    if (!normalizedValue) return "";
+
+    return districts.find(district => {
+
+        return normalizeAssignmentDistrict(district) === normalizedValue;
+
+    }) || "";
+
+}
+
+
+function getFacilitiesMatchingAssignmentDistrict(facilities, districtQuery = "") {
+
+    const normalizedQuery = normalizeAssignmentDistrict(districtQuery);
+
+    if (!normalizedQuery) return facilities;
+
+    return facilities.filter(facility => {
+
+        return normalizeAssignmentDistrict(facility && facility.district)
+            .includes(normalizedQuery);
+
+    });
 
 }
 
@@ -2870,7 +2907,7 @@ function getFacilitiesInAssignmentDistrict(facilities, district = "") {
 function getAssignmentBoardFacilities(facilities, options = {}) {
 
     const query = String(options.query || "").trim().toLowerCase();
-    const districtFacilities = getFacilitiesInAssignmentDistrict(
+    const districtFacilities = getFacilitiesMatchingAssignmentDistrict(
         facilities,
         options.district
     );
@@ -3040,6 +3077,8 @@ function renderAssignmentBoard(facilities) {
     const committeeSelect = document.getElementById("assignmentCommittee");
     const searchInput = document.getElementById("assignmentSearch");
     const districtFilter = document.getElementById("assignmentDistrictFilter");
+    const districtOptionsList =
+        document.getElementById("assignmentDistrictOptions");
     const filterSummary = document.getElementById("assignmentFilterSummary");
     const visitTypeSelect = document.getElementById("assignmentVisitType");
     const visitReasonSelect = document.getElementById("assignmentVisitReason");
@@ -3050,6 +3089,7 @@ function renderAssignmentBoard(facilities) {
         !committeeSelect ||
         !searchInput ||
         !districtFilter ||
+        !districtOptionsList ||
         !filterSummary ||
         !visitTypeSelect ||
         !visitReasonSelect ||
@@ -3060,28 +3100,22 @@ function renderAssignmentBoard(facilities) {
 
     const selectedCommittee = committeeSelect.value;
     const selectedStartFacility = startFacilitySelect.value;
-    const selectedDistrict = districtFilter.value;
+    const selectedDistrict = districtFilter.value.trim();
     const selectedVisitType = visitTypeSelect.value === "reactive"
         ? "reactive"
         : "periodic";
 
     const districtOptions = getAssignmentDistrictOptions(facilities);
-    const preservedDistrict = districtOptions.find(district => {
+    const resolvedDistrict = resolveAssignmentDistrictName(
+        districtOptions,
+        selectedDistrict
+    );
 
-        return normalizeAssignmentDistrict(district) ===
-            normalizeAssignmentDistrict(selectedDistrict);
-
-    }) || "";
-
-    districtFilter.innerHTML = `
-        <option value="">كل الأحياء</option>
+    districtOptionsList.innerHTML = `
         ${districtOptions.map(district => `
-            <option value="${escapeHtml(district)}">
-                ${escapeHtml(district)}
-            </option>
+            <option value="${escapeHtml(district)}"></option>
         `).join("")}
     `;
-    districtFilter.value = preservedDistrict;
 
     if (selectedVisitType === "reactive") {
 
@@ -3114,10 +3148,9 @@ function renderAssignmentBoard(facilities) {
 
     }
 
-    const districtFacilities = getFacilitiesInAssignmentDistrict(
-        facilities,
-        preservedDistrict
-    );
+    const districtFacilities = selectedDistrict && !resolvedDistrict
+        ? []
+        : getFacilitiesInAssignmentDistrict(facilities, resolvedDistrict);
     const smartStartFacilities = getUnassignedFacilities(
         districtFacilities,
         "periodic"
@@ -3152,7 +3185,7 @@ function renderAssignmentBoard(facilities) {
     const unassignedFacilities = getAssignmentBoardFacilities(
         facilities,
         {
-            district: preservedDistrict,
+            district: selectedDistrict,
             query: searchInput.value,
             visitType: selectedVisitType,
             committeeUsername: selectedCommittee,
@@ -3160,10 +3193,24 @@ function renderAssignmentBoard(facilities) {
         }
     );
 
-    filterSummary.textContent = preservedDistrict
-        ? `يعرض ${unassignedFacilities.length} منشأة في ${preservedDistrict}. ` +
-            "الإسناد التلقائي سيبقى داخل هذا الحي."
-        : `يعرض ${unassignedFacilities.length} منشأة في جميع الأحياء.`;
+    if (resolvedDistrict) {
+
+        filterSummary.textContent =
+            `يعرض ${unassignedFacilities.length} منشأة في ${resolvedDistrict}. ` +
+            "الإسناد التلقائي سيبقى داخل هذا الحي.";
+
+    } else if (selectedDistrict) {
+
+        filterSummary.textContent =
+            `يعرض ${unassignedFacilities.length} منشأة في الأحياء المطابقة لـ` +
+            ` «${selectedDistrict}». اختر اسم الحي من القائمة قبل الإسناد.`;
+
+    } else {
+
+        filterSummary.textContent =
+            `يعرض ${unassignedFacilities.length} منشأة في جميع الأحياء.`;
+
+    }
 
     if (unassignedFacilities.length === 0) {
 
@@ -3218,6 +3265,8 @@ function initializeAssignmentBoard() {
 
     const searchInput = document.getElementById("assignmentSearch");
     const districtFilter = document.getElementById("assignmentDistrictFilter");
+    const districtPickerButton =
+        document.getElementById("openAssignmentDistrictPicker");
     const list = document.getElementById("unassignedFacilitiesList");
     const assignButton = document.getElementById("assignSelectedFacilities");
     const committeeSelect = document.getElementById("assignmentCommittee");
@@ -3241,6 +3290,7 @@ function initializeAssignmentBoard() {
 
     if (!searchInput ||
         !districtFilter ||
+        !districtPickerButton ||
         !list ||
         !assignButton ||
         !committeeSelect ||
@@ -3407,10 +3457,28 @@ function initializeAssignmentBoard() {
 
     });
 
-    districtFilter.addEventListener("change", () => {
+    districtFilter.addEventListener("input", () => {
 
         smartAssignmentStartMode = "auto";
         renderAssignmentBoard(allFacilities);
+
+    });
+
+    districtPickerButton.addEventListener("click", () => {
+
+        districtFilter.focus();
+
+        if (typeof districtFilter.showPicker !== "function") return;
+
+        try {
+
+            districtFilter.showPicker();
+
+        } catch (error) {
+
+            console.warn("تعذر فتح قائمة الأحياء تلقائيًا.", error);
+
+        }
 
     });
 
@@ -3483,11 +3551,40 @@ function initializeAssignmentBoard() {
 
     };
 
+    const getValidatedAssignmentDistrict = () => {
+
+        const value = districtFilter.value.trim();
+
+        if (!value) return { valid: true, district: "" };
+
+        const district = resolveAssignmentDistrictName(
+            getAssignmentDistrictOptions(allFacilities),
+            value
+        );
+
+        return {
+            valid: Boolean(district),
+            district
+        };
+
+    };
+
     assignButton.addEventListener("click", async () => {
 
         const selectedFacilities = [...document.querySelectorAll(
             ".assignment-facility-checkbox:checked"
         )].map(checkbox => checkbox.value);
+        const districtSelection = getValidatedAssignmentDistrict();
+
+        if (!districtSelection.valid) {
+
+            message.textContent =
+                "اختر اسم الحي كاملًا من القائمة أو امسح بحث الحي.";
+            message.className = "small text-danger";
+
+            return;
+
+        }
 
         if (!committeeSelect.value || selectedFacilities.length === 0) {
 
@@ -3567,6 +3664,17 @@ function initializeAssignmentBoard() {
 
         const committee = users[committeeSelect.value];
         const count = Math.floor(Number(smartAssignmentCount.value));
+        const districtSelection = getValidatedAssignmentDistrict();
+
+        if (!districtSelection.valid) {
+
+            message.textContent =
+                "اختر اسم الحي كاملًا من القائمة أو امسح بحث الحي.";
+            message.className = "small text-danger";
+
+            return;
+
+        }
 
         if (!committee || !committee.active || count < 1) {
 
@@ -3589,7 +3697,7 @@ function initializeAssignmentBoard() {
                 committee.username,
                 count,
                 startFacilitySelect.value,
-                districtFilter.value
+                districtSelection.district
             );
 
         } catch (error) {
@@ -3626,8 +3734,8 @@ function initializeAssignmentBoard() {
 
         renderAssignmentBoard(allFacilities);
 
-        message.textContent = districtFilter.value
-            ? `تم إسناد ${assignedFacilities.length} منشأة حسب الأقرب داخل ${districtFilter.value}.`
+        message.textContent = districtSelection.district
+            ? `تم إسناد ${assignedFacilities.length} منشأة حسب الأقرب داخل ${districtSelection.district}.`
             : `تم إسناد ${assignedFacilities.length} منشأة حسب الأقرب.`;
         message.className = "small text-success";
 

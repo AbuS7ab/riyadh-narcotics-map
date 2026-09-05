@@ -57,6 +57,7 @@ async function createAdminRuntime() {
         localStorage: { currentUser: "admin" }
     });
 
+    runtime.loadScript("districts");
     runtime.loadScript("users");
     await runtime.context.initializeUserState();
 
@@ -97,11 +98,16 @@ function createFacilities() {
 }
 
 
-test("assignment board exposes a read-only district selector", () => {
+test("assignment board exposes a searchable district picker", () => {
 
-    assert.match(html, /id="assignmentDistrictFilter"/);
-    assert.match(html, /<option value="">كل الأحياء<\/option>/);
-    assert.match(usersSource, /districtFilter\.addEventListener\("change"/);
+    assert.match(
+        html,
+        /id="assignmentDistrictFilter"[\s\S]*?type="search"[\s\S]*?list="assignmentDistrictOptions"/
+    );
+    assert.match(html, /id="assignmentDistrictOptions"/);
+    assert.match(html, /id="openAssignmentDistrictPicker"/);
+    assert.match(usersSource, /districtFilter\.addEventListener\("input"/);
+    assert.match(usersSource, /districtFilter\.showPicker\(\)/);
 
 });
 
@@ -116,7 +122,7 @@ test("assignment district and text search compose inside the visible list", asyn
     const visibleFacilities = context.getAssignmentBoardFacilities(
         facilities,
         {
-            district: "حَيّ النرجس",
+            district: "النر",
             query: "صيدلية",
             visitType: "periodic"
         }
@@ -131,7 +137,38 @@ test("assignment district and text search compose inside the visible list", asyn
             ...facilities,
             { ...facilities[0], license: "102", district: "حي النرجِس" }
         ])).filter(district => district.includes("النرج")),
-        ["حي النرجس"]
+        ["النرجس"]
+    );
+
+    assert.equal(
+        context.resolveAssignmentDistrictName(
+            context.getAssignmentDistrictOptions(facilities),
+            "حَيّ النرجس"
+        ),
+        "النرجس"
+    );
+    assert.equal(
+        context.resolveAssignmentDistrictName(
+            context.getAssignmentDistrictOptions(facilities),
+            "النر"
+        ),
+        ""
+    );
+
+});
+
+
+test("assignment picker includes the cleaned Riyadh district list", async () => {
+
+    const { context } = await createAdminRuntime();
+    const districts = context.getAssignmentDistrictOptions([]);
+
+    assert.equal(districts.length, 171);
+    assert.ok(districts.includes("الملقا"));
+    assert.ok(districts.includes("خشم العان"));
+    assert.equal(
+        context.resolveAssignmentDistrictName(districts, "الخزامي"),
+        "الخزامى"
     );
 
 });

@@ -1528,6 +1528,10 @@ body.role-committee .main-grid {
     margin: 8px 2px;
 }
 
+.assignment-district-control .btn {
+    flex: 0 0 44px;
+}
+
 @media (max-width: 992px) {
     .periodic-cycle-panel {
         grid-template-columns: 1fr;
