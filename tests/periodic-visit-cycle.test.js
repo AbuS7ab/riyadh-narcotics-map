@@ -12,6 +12,7 @@ const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const sidebar = fs.readFileSync(path.join(root, "js/sidebar.js"), "utf8");
 const usersScript = fs.readFileSync(path.join(root, "js/users.js"), "utf8");
+const appScript = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
 
 
 function createAdmin() {
@@ -223,6 +224,95 @@ test("opening a cycle snapshots facilities without changing visits or assignment
     assert.deepEqual(
         supabase.rows.get("facilityAssignments").value,
         assignmentsBefore
+    );
+
+});
+
+
+test("a new active facility joins the current cycle without changing existing work", async () => {
+
+    const periodicVisitPlan = createActiveCycle(["100"]);
+
+    periodicVisitPlan.cycles[0].sequence = 2;
+    periodicVisitPlan.cycles[0].availabilityMode = "all";
+
+    const { context, supabase } = await createCycleRuntime({
+        appSettings: { periodicVisitPlan }
+    });
+    const assignmentsBefore = structuredClone(
+        supabase.rows.get("facilityAssignments").value
+    );
+    const statusesBefore = structuredClone(
+        supabase.rows.get("facilityStatus").value
+    );
+    const result = await context.ensureActiveFacilitiesInPeriodicCycle(
+        [
+            { license: "100" },
+            { license: "GOV-0090" }
+        ],
+        { addedAt: "2026-09-06T08:00:00.000Z" }
+    );
+    const savedSettings = supabase.rows.get("appSettings").value;
+    const savedCycle = context.getActivePeriodicVisitCycle(savedSettings);
+
+    assert.deepEqual(
+        Array.from(savedCycle.facilityLicenses),
+        ["100", "GOV-0090"]
+    );
+    assert.deepEqual(Array.from(result.addedLicenses), ["GOV-0090"]);
+    assert.deepEqual(
+        JSON.parse(JSON.stringify(savedCycle.facilityAdditions)),
+        [{
+            facilityLicense: "GOV-0090",
+            addedAt: "2026-09-06T08:00:00.000Z",
+            addedBy: "admin",
+            reason: "facility_activated_during_cycle"
+        }]
+    );
+    assert.deepEqual(
+        JSON.parse(JSON.stringify(
+            context.getPeriodicAssignmentEligibility(
+                { license: "GOV-0090" },
+                { today: "2026-09-06" }
+            )
+        )),
+        {
+            eligible: true,
+            reason: "available_by_admin",
+            daysUntilDue: 0,
+            dueDate: "2026-09-06"
+        }
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityAssignments").value,
+        assignmentsBefore
+    );
+    assert.deepEqual(
+        supabase.rows.get("facilityStatus").value,
+        statusesBefore
+    );
+
+    const writesBeforeRetry = supabase.writeCount("appSettings");
+    const retry = await context.ensureActiveFacilitiesInPeriodicCycle([
+        { license: "100" },
+        { license: "GOV-0090" }
+    ]);
+
+    assert.deepEqual(Array.from(retry.addedLicenses), []);
+    assert.equal(supabase.writeCount("appSettings"), writesBeforeRetry);
+
+});
+
+
+test("facility loading and saving both reconcile the active cycle", () => {
+
+    assert.match(
+        appScript,
+        /await ensureActiveFacilitiesInPeriodicCycle\([\s\S]*?getMergedFacilities\(\)\.filter\(isFacilityActive\)/
+    );
+    assert.match(
+        appScript,
+        /addFacilitiesToActivePeriodicCycleSettings\([\s\S]*?currentAppSettings,[\s\S]*?\[originalLicense\]/
     );
 
 });

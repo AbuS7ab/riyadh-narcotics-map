@@ -116,7 +116,7 @@ function loadFacilities() {
 
     fetch("data/facilities.json")
         .then(response => response.json())
-        .then(facilities => {
+        .then(async facilities => {
 
             baseFacilities = facilities.map(facility => ({
                 ...facility,
@@ -125,7 +125,44 @@ function loadFacilities() {
             customFacilities = loadCustomFacilities();
             facilityOverrides = loadFacilityOverrides();
 
+            let cycleSyncResult = { addedLicenses: [] };
+            let cycleSyncError = null;
+
+            try {
+
+                cycleSyncResult = await ensureActiveFacilitiesInPeriodicCycle(
+                    getMergedFacilities().filter(isFacilityActive)
+                );
+
+            } catch (error) {
+
+                cycleSyncError = error;
+                console.error(
+                    "[PeriodicCycle] failed to include active facilities",
+                    error
+                );
+
+            }
+
             syncFacilityCollections();
+
+            const periodicCycleMessage =
+                document.getElementById("periodicVisitCycleMessage");
+
+            if (periodicCycleMessage && cycleSyncResult.addedLicenses.length > 0) {
+
+                periodicCycleMessage.textContent =
+                    `تم ضم ${cycleSyncResult.addedLicenses.length} منشأة نشطة جديدة ` +
+                    `إلى الدورة ${cycleSyncResult.cycle.sequence} وإتاحتها للإسناد.`;
+                periodicCycleMessage.className = "small text-success";
+
+            } else if (periodicCycleMessage && cycleSyncError) {
+
+                periodicCycleMessage.textContent =
+                    "تعذر ضم المنشآت الجديدة للدورة الحالية. أعد تحميل الصفحة قبل الإسناد.";
+                periodicCycleMessage.className = "small text-danger";
+
+            }
 
             initializeSearch();
 
@@ -685,6 +722,26 @@ async function saveCustomFacilityFromForm() {
             previousValue: facilityAssignments,
             nextValue: nextFacilityAssignments
         });
+
+    }
+
+    if (data.activityStatus !== "cancelled") {
+
+        const currentAppSettings = loadAppSettings();
+        const nextAppSettings = addFacilitiesToActivePeriodicCycleSettings(
+            currentAppSettings,
+            [originalLicense]
+        );
+
+        if (nextAppSettings !== currentAppSettings) {
+
+            changes.push({
+                key: "appSettings",
+                previousValue: currentAppSettings,
+                nextValue: nextAppSettings
+            });
+
+        }
 
     }
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.14.16] - 2026-09-06
+
+- Added active facilities created or reactivated during a periodic cycle to
+  that same cycle so they become eligible for assignment immediately.
+- Reconciled facilities already added after the cycle began, including
+  `GOV-0090`, the next time an Admin loads the platform.
+- Recorded each mid-cycle facility addition in cycle metadata without changing
+  existing visits, assignments, or historical cycles.
+
 ## [v0.14.15] - 2026-09-05
 
 - Replaced the assignment district select with a searchable district picker.

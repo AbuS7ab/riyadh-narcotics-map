@@ -1207,6 +1207,150 @@ function createPeriodicVisitCycleId(sequence) {
 }
 
 
+function addFacilitiesToActivePeriodicCycleSettings(
+    settings,
+    facilities,
+    options = {}
+) {
+
+    const activeCycle = getActivePeriodicVisitCycle(settings);
+
+    if (!activeCycle) return settings;
+
+    const currentLicenses = Array.isArray(activeCycle.facilityLicenses)
+        ? activeCycle.facilityLicenses.map(String)
+        : [];
+    const currentLicenseSet = new Set(currentLicenses);
+    const facilityLicenses = [...new Set(
+        (Array.isArray(facilities) ? facilities : [])
+            .map(facility => String(
+                facility && typeof facility === "object"
+                    ? facility.license || ""
+                    : facility || ""
+            ))
+            .filter(Boolean)
+    )];
+    const addedLicenses = facilityLicenses.filter(license => {
+
+        return !currentLicenseSet.has(license);
+
+    });
+
+    if (addedLicenses.length === 0) return settings;
+
+    const addedAt = options.addedAt || new Date().toISOString();
+    const addedBy = String(
+        options.addedBy || (currentUser && currentUser.username) || ""
+    );
+    const existingAdditions = Array.isArray(activeCycle.facilityAdditions)
+        ? activeCycle.facilityAdditions
+        : [];
+    const additionLicenseSet = new Set(existingAdditions.map(addition => {
+
+        return String(addition && addition.facilityLicense || "");
+
+    }));
+    const facilityAdditions = [
+        ...existingAdditions,
+        ...addedLicenses
+            .filter(license => !additionLicenseSet.has(license))
+            .map(license => ({
+                facilityLicense: license,
+                addedAt,
+                addedBy,
+                reason: "facility_activated_during_cycle"
+            }))
+    ];
+    const plan = getPeriodicVisitPlan(settings);
+    const storedPlan = settings && settings.periodicVisitPlan || {};
+    const cycles = plan.cycles.map(cycle => {
+
+        if (cycle.id !== activeCycle.id) return cycle;
+
+        return {
+            ...cycle,
+            facilityLicenses: [...currentLicenses, ...addedLicenses],
+            facilityAdditions
+        };
+
+    });
+
+    return {
+        ...settings,
+        periodicVisitPlan: {
+            ...storedPlan,
+            currentCycleId: plan.currentCycleId,
+            cycles
+        }
+    };
+
+}
+
+
+async function ensureActiveFacilitiesInPeriodicCycle(facilities, options = {}) {
+
+    if (!isAdminUser()) {
+
+        return {
+            cycle: getActivePeriodicVisitCycle(),
+            addedLicenses: []
+        };
+
+    }
+
+    const activeFacilities = (Array.isArray(facilities) ? facilities : [])
+        .filter(isFacilityEligibleForAssignment);
+    const currentSettings = loadAppSettings();
+    const previewSettings = addFacilitiesToActivePeriodicCycleSettings(
+        currentSettings,
+        activeFacilities,
+        options
+    );
+
+    if (previewSettings === currentSettings) {
+
+        return {
+            cycle: getActivePeriodicVisitCycle(currentSettings),
+            addedLicenses: []
+        };
+
+    }
+
+    const addedAt = options.addedAt || new Date().toISOString();
+    let addedLicenses = [];
+    const savedSettings = await mutateCloudObject("appSettings", settings => {
+
+        const previousCycle = getActivePeriodicVisitCycle(settings);
+        const previousLicenses = new Set(
+            previousCycle && Array.isArray(previousCycle.facilityLicenses)
+                ? previousCycle.facilityLicenses.map(String)
+                : []
+        );
+        const nextSettings = addFacilitiesToActivePeriodicCycleSettings(
+            settings,
+            activeFacilities,
+            { ...options, addedAt }
+        );
+        const nextCycle = getActivePeriodicVisitCycle(nextSettings);
+
+        addedLicenses = nextCycle && Array.isArray(nextCycle.facilityLicenses)
+            ? nextCycle.facilityLicenses
+                .map(String)
+                .filter(license => !previousLicenses.has(license))
+            : [];
+
+        return nextSettings;
+
+    });
+
+    return {
+        cycle: getActivePeriodicVisitCycle(savedSettings),
+        addedLicenses
+    };
+
+}
+
+
 async function startPeriodicVisitCycle(
     facilities,
     minimumIntervalDays = defaultPeriodicVisitIntervalDays,
