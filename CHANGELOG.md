@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.14.17] - 2026-10-04
+
+- Added Admin bulk correction of selected violating visits with a shared reason and date.
+- Limited the picker to current dashboard filters and cycle, with search and visible-result selection.
+- Preserved individual action history; reported partial failures and retained failed selections for retry.
+- Rechecked the fresh durable ledger to avoid duplicate concurrent bulk corrections.
+
 ## [v0.14.16] - 2026-09-06
 
 - Added active facilities created or reactivated during a periodic cycle to

@@ -548,6 +548,11 @@ async function addViolationAction(facilityLicense, visitId, input) {
                 normalizedVisitId
             );
 
+            // Recheck the fresh ledger so concurrent bulk requests cannot duplicate a correction.
+            if (input.skipIfCorrected && record.actions.some(existing =>
+                existing.type === "corrected" && String(existing.id) !== String(action.id)
+            )) return nextLedger;
+
             if (!record.actions.some(existing => {
 
                 return String(existing.id) === String(action.id);
@@ -566,6 +571,9 @@ async function addViolationAction(facilityLicense, visitId, input) {
     );
 
     mergeViolationActionLedgerIntoFacilityStatus();
+    if (input.skipIfCorrected && !normalizeViolationActionLedgerRecord(
+        violationActionLedger[ledgerKey], normalizedFacilityLicense, normalizedVisitId
+    ).actions.some(existing => String(existing.id) === String(action.id))) return null;
 
     try {
 
@@ -839,6 +847,8 @@ async function saveViolationActionFromDialog(event) {
 
 function initializeViolationActionControls() {
 
+    initializeBulkCorrectionControls();
+
     const dialog = document.getElementById("violationActionDialog");
     const form = document.getElementById("violationActionForm");
     const type = document.getElementById("violationActionType");
@@ -878,4 +888,149 @@ function initializeViolationActionControls() {
 
     });
 
+}
+
+let bulkCorrectionRows = [];
+let bulkCorrectionSelected = new Set();
+let bulkCorrectionBusy = false;
+
+function getBulkCorrectionCandidates(facilities, filters = {}, scope = null) {
+    return getViolationRecords(facilities, filters.visitDateFrom || "", filters.visitDateTo || "",
+        visit => (!scope || dashboardVisitMatchesCycleScope(visit, scope)) &&
+            violationVisitMatchesActionFilter(visit, filters.violationAction || "all")
+    ).filter(({ visit }) => getViolationActionState(visit) !== "corrected");
+}
+
+async function addBulkViolationCorrections(targets, input) {
+    if (!isAdminUser()) throw new Error("Admin authorization is required.");
+    if (!String(input.notes || "").trim()) throw new Error("Correction reason is required.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.effectiveDate || "")) ||
+        isFutureVisitDate(input.effectiveDate)) throw new RangeError("Invalid or future dates are not allowed.");
+    const result = { saved: [], skipped: [], failed: [] };
+    const seen = new Set();
+    for (const target of targets) {
+        const key = getViolationActionLedgerKey(target.facilityLicense, target.visitId);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        try {
+            const status = getFacilityStatus(String(target.facilityLicense));
+            const visit = (status && status.visits || []).find(row => String(row.id) === String(target.visitId));
+            if (!visit || !visitIndicatesViolation(visit)) throw new Error("Missing violating visit.");
+            if (getViolationActionState(visit) === "corrected") {
+                result.skipped.push(target);
+                continue;
+            }
+            const action = await addViolationAction(target.facilityLicense, target.visitId, {
+                type: "corrected", effectiveDate: input.effectiveDate, notes: input.notes,
+                skipIfCorrected: true
+            });
+            (action ? result.saved : result.skipped).push(target);
+        } catch (error) {
+            result.failed.push(target);
+        }
+    }
+    return result;
+}
+
+function renderBulkCorrectionRows() {
+    const query = document.getElementById("bulkCorrectionSearch").value.trim();
+    const normalize = value => typeof normalizeDistrictFilterValue === "function"
+        ? normalizeDistrictFilterValue(value) : String(value || "").toLowerCase();
+    const rows = bulkCorrectionRows.filter(row => normalize(row.search).includes(normalize(query)));
+    document.getElementById("bulkCorrectionList").innerHTML = rows.map(row => `
+        <label class="d-block border-bottom p-2">
+            <input type="checkbox" data-bulk-correction-index="${row.index}"
+                ${bulkCorrectionSelected.has(row.index) ? "checked" : ""}>
+            ${escapeHtml(row.name)} — ${escapeHtml(row.facilityLicense)}
+            <small class="d-block">${escapeHtml(row.district)} | زيارة ${escapeHtml(row.date)} | ${escapeHtml(row.state)}</small>
+            <small class="d-block">${escapeHtml(row.details)}</small>
+        </label>`).join("") || "لا توجد مخالفات مطابقة غير متلافاة.";
+    document.getElementById("bulkCorrectionCount").textContent =
+        `الزيارات المحددة: ${bulkCorrectionSelected.size} — النتائج الظاهرة: ${rows.length}`;
+}
+
+function openBulkCorrectionDialog() {
+    if (!isAdminUser() || bulkCorrectionBusy) return;
+    const facilities = typeof filteredFacilities !== "undefined" ? filteredFacilities : allFacilities;
+    const filters = typeof activeFilters !== "undefined" ? activeFilters : {};
+    const scope = typeof getSelectedDashboardCycleScope === "function" ? getSelectedDashboardCycleScope() : null;
+    bulkCorrectionRows = getBulkCorrectionCandidates(facilities, filters, scope).map((record, index) => {
+        const facility = facilities.find(row => String(row.license) === String(record.facilityLicense)) || {};
+        const name = String(facility.name || record.facilityLicense);
+        const district = String(facility.district || "");
+        return {
+            index, facilityLicense: record.facilityLicense, visitId: record.visit.id,
+            name, district, search: `${name} ${record.facilityLicense} ${district}`,
+            date: String(record.visit.date || record.visit.visitDate || "").slice(0, 10),
+            state: getViolationActionStateDisplay(record.visit).label,
+            details: String(record.visit.violationDetails || record.visit.notes || "")
+        };
+    });
+    bulkCorrectionSelected.clear();
+    document.getElementById("bulkCorrectionForm").reset();
+    const date = document.getElementById("bulkCorrectionDate");
+    date.value = date.max = getCurrentLocalDateValue();
+    document.getElementById("bulkCorrectionMessage").textContent = "";
+    renderBulkCorrectionRows();
+    document.getElementById("bulkCorrectionDialog").showModal();
+}
+
+function initializeBulkCorrectionControls() {
+    const dialog = document.getElementById("bulkCorrectionDialog");
+    if (!dialog || dialog.dataset.initialized) return;
+    dialog.dataset.initialized = "true";
+    document.getElementById("openBulkCorrection").addEventListener("click", openBulkCorrectionDialog);
+    document.getElementById("closeBulkCorrection").addEventListener("click", () => {
+        if (!bulkCorrectionBusy) dialog.close();
+    });
+    dialog.addEventListener("cancel", event => { if (bulkCorrectionBusy) event.preventDefault(); });
+    document.getElementById("bulkCorrectionSearch").addEventListener("input", renderBulkCorrectionRows);
+    document.getElementById("bulkCorrectionList").addEventListener("change", event => {
+        const index = Number(event.target.dataset.bulkCorrectionIndex);
+        if (!Number.isInteger(index) || bulkCorrectionBusy) return;
+        if (event.target.checked) bulkCorrectionSelected.add(index);
+        else bulkCorrectionSelected.delete(index);
+        renderBulkCorrectionRows();
+    });
+    document.getElementById("selectBulkCorrectionVisible").addEventListener("click", () => {
+        dialog.querySelectorAll("[data-bulk-correction-index]").forEach(box => {
+            bulkCorrectionSelected.add(Number(box.dataset.bulkCorrectionIndex));
+        });
+        renderBulkCorrectionRows();
+    });
+    document.getElementById("clearBulkCorrectionSelection").addEventListener("click", () => {
+        bulkCorrectionSelected.clear(); renderBulkCorrectionRows();
+    });
+    document.getElementById("bulkCorrectionForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        if (!isAdminUser() || bulkCorrectionBusy) return;
+        const message = document.getElementById("bulkCorrectionMessage");
+        const targets = bulkCorrectionRows.filter(row => bulkCorrectionSelected.has(row.index));
+        if (!targets.length) { message.textContent = "حدد زيارة مخالفة واحدة على الأقل."; return; }
+        const input = {
+            notes: document.getElementById("bulkCorrectionReason").value.trim(),
+            effectiveDate: document.getElementById("bulkCorrectionDate").value
+        };
+        if (!input.notes) { message.textContent = "سبب التلافي إلزامي."; return; }
+        bulkCorrectionBusy = true;
+        const controls = [...dialog.querySelectorAll("input, textarea, button")];
+        controls.forEach(control => { control.disabled = true; });
+        message.textContent = `جاري حفظ التلافي لـ ${targets.length} زيارة...`;
+        try {
+            const result = await addBulkViolationCorrections(targets, input);
+            for (const target of [...result.saved, ...result.skipped]) bulkCorrectionSelected.delete(target.index);
+            const done = new Set([...result.saved, ...result.skipped].map(row => row.index));
+            bulkCorrectionRows = bulkCorrectionRows.filter(row => !done.has(row.index));
+            renderBulkCorrectionRows();
+            message.textContent = `تم حفظ ${result.saved.length} زيارة، ومتلافاة مسبقًا ${result.skipped.length}، وتعذر حفظ ${result.failed.length}.` +
+                (result.failed.length ? " بقيت الزيارات المتعذرة محددة لإعادة المحاولة." : "");
+            if (typeof updateDashboard === "function") updateDashboard(allFacilities);
+            if (typeof applyFilters === "function") applyFilters();
+        } catch (error) {
+            message.textContent = "تعذر الحفظ. تحقق من تاريخ التلافي والاتصال ثم أعد المحاولة.";
+        } finally {
+            bulkCorrectionBusy = false;
+            controls.forEach(control => { control.disabled = false; });
+        }
+    });
 }

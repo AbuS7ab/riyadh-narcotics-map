@@ -236,6 +236,7 @@
                     <small>من إجمالي المخالفات</small>
                 </div>
                 <div class="violation-report-export">
+                    <button id="openBulkCorrection" type="button" class="btn btn-success admin-only">تلافي جماعي للمخالفات</button>
                     <button id="exportViolationReport"
                             type="button"
                             class="btn btn-outline-success">
@@ -1033,6 +1034,28 @@
     </div>
 
 </div>
+
+<dialog id="bulkCorrectionDialog" class="violation-action-dialog" aria-labelledby="bulkCorrectionTitle">
+    <form id="bulkCorrectionForm">
+        <div class="violation-action-dialog-header">
+            <h5 id="bulkCorrectionTitle">تلافي جماعي للمخالفات</h5>
+            <button id="closeBulkCorrection" type="button" class="btn btn-light">إغلاق</button>
+        </div>
+        <p>تعرض القائمة المخالفات غير المتلافاة ضمن فلاتر الشاشة الحالية. كل سطر زيارة مخالفة مستقلة؛ حدد الزيارات التي ينطبق عليها نفس الإجراء.</p>
+        <label for="bulkCorrectionSearch">بحث باسم المنشأة أو الترخيص أو الحي</label>
+        <input id="bulkCorrectionSearch" class="form-control" type="search">
+        <button id="selectBulkCorrectionVisible" class="btn btn-outline-success my-2" type="button">تحديد النتائج الظاهرة</button>
+        <button id="clearBulkCorrectionSelection" class="btn btn-light my-2" type="button">إلغاء التحديد</button>
+        <div id="bulkCorrectionList" style="max-height:280px;overflow:auto"></div>
+        <p id="bulkCorrectionCount" role="status"></p>
+        <label for="bulkCorrectionDate">تاريخ التلافي</label>
+        <input id="bulkCorrectionDate" type="date" class="form-control" required>
+        <label for="bulkCorrectionReason">سبب التلافي والإجراء المتخذ لجميع الزيارات المحددة</label>
+        <textarea id="bulkCorrectionReason" class="form-control" rows="3" required></textarea>
+        <p id="bulkCorrectionMessage" role="status" aria-live="polite"></p>
+        <button id="saveBulkCorrection" type="submit" class="btn btn-success">حفظ التلافي للمحدد</button>
+    </form>
+</dialog>
 
 <dialog id="violationActionDialog"
         class="violation-action-dialog"

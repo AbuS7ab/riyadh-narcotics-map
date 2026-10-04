@@ -2397,3 +2397,18 @@ body.role-committee .main-grid {
         flex-direction: column;
     }
 }
+
+#bulkCorrectionDialog {
+    width: min(94vw, 720px);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+#bulkCorrectionDialog label[for] {
+    display: block;
+    margin: 12px 0 6px;
+}
+
+#bulkCorrectionList {
+    overflow-wrap: anywhere;
+}
